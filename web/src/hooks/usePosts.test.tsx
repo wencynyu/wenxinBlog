@@ -25,12 +25,6 @@ const makePost = (overrides: Partial<Post> = {}): Post => ({
   ...overrides,
 });
 
-const makeWrapper =
-  (qc: QueryClient) =>
-  ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
-
 describe('useToggleLike', () => {
   it('rolls back the optimistic update when the request fails', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -38,7 +32,11 @@ describe('useToggleLike', () => {
 
     vi.mocked(postsApi.likePost).mockRejectedValue(new Error('boom'));
 
-    const { result } = renderHook(() => useToggleLike(), { wrapper: makeWrapper(qc) });
+    function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    }
+
+    const { result } = renderHook(() => useToggleLike(), { wrapper: Wrapper });
 
     await act(async () => {
       await expect(result.current.mutateAsync({ id: '1', isLiked: false })).rejects.toThrow('boom');
