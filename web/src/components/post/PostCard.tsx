@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { IconLikeHeart, IconStar, IconStarStroked, IconComment } from '@douyinfe/semi-icons';
-import { Avatar, Tag, Toast } from '@douyinfe/semi-ui';
+import { Avatar, Toast } from '@douyinfe/semi-ui';
 import { useAuthStore } from '@/store/authStore';
 import { useToggleLike, useToggleFavorite } from '@/hooks/usePosts';
 import type { Post } from '@/types/post';
@@ -88,13 +88,16 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
           )}
 
-          {/* 标签 */}
+          {/* 标签 —— 自定义等宽 chip，与设计语言统一 */}
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {post.tags.slice(0, 3).map((tag) => (
-                <Tag key={tag} size="small" color="violet">
+                <span
+                  key={tag}
+                  className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono bg-primary-50 text-primary-700"
+                >
                   {tag}
-                </Tag>
+                </span>
               ))}
             </div>
           )}

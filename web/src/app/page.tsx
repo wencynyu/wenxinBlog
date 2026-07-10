@@ -124,6 +124,7 @@ export default function HomePage() {
       </section>
 
       {/* Post list */}
+      <p className="eyebrow mb-4">{'// latest posts'}</p>
       {loadError && allPosts.length === 0 ? (
         <EmptyState title="暂时无法加载内容" description="后端服务暂不可用，请稍后再试" />
       ) : (

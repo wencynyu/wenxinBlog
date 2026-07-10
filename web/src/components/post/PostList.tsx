@@ -16,7 +16,7 @@ interface PostListProps {
 
 function PostCardSkeleton() {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-5">
+    <div className="bg-surface rounded-xl shadow-card p-5">
       <div className="flex items-center mb-3">
         <Skeleton.Avatar size="small" />
         <div className="ml-2 flex-1">
@@ -51,7 +51,7 @@ export default function PostList({
         onLoadMore?.();
       }
     },
-    [hasMore, isLoading, isFetching, onLoadMore]
+    [hasMore, isLoading, isFetching, onLoadMore],
   );
 
   useEffect(() => {
@@ -87,18 +87,15 @@ export default function PostList({
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <Empty
-          title="加载失败"
-          description={error.message || '请稍后重试'}
-        />
+      <div className="bg-surface rounded-xl shadow-card p-8 text-center">
+        <Empty title="加载失败" description={error.message || '请稍后重试'} />
       </div>
     );
   }
 
   if (!posts || posts.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+      <div className="bg-surface rounded-xl shadow-card p-8 text-center">
         <Empty title="暂无博文" description="还没有发布任何博文" />
       </div>
     );
