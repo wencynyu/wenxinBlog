@@ -32,32 +32,32 @@ WenxinBlog 是一个现代化的博文平台，支持图文视频内容，采用
 
 ### 1.2 技术选型概览
 
-| 层次 | 技术选择 | 说明 |
-|------|----------|------|
-| 前端 | Next.js 14 + Semi-Design | 飞书 Universe Design 风格，SSR 优化 SEO |
-| iOS | React Native + Expo | 基于 Web 组件跨平台复用 |
-| 后端 | Java 25 + Spring Boot 4 | 响应式栈 (WebFlux + R2DBC) |
-| 认证服务 | Go + Fiber | 高性能认证服务 |
-| 推荐服务 | Python + FastAPI | AI/向量推理场景 |
-| 数据库 | PostgreSQL 15 | 主数据库 |
-| 缓存 | Redis 7 | 会话、缓存、限流 |
-| 搜索 | OpenSearch | 全文检索 |
-| 向量库 | **Milvus** | 向量存储和相似度搜索 |
-| 任务队列 | **RabbitMQ** | 异步任务、延迟任务 |
-| 事件流 | **Kafka** | 事件流、数据管道 |
-| 对象存储 | Alibaba Cloud OSS | 图片视频存储 |
-| 云平台 | Alibaba Cloud | 阿里云部署 (AWS 备选) |
-| 权限架构 | **RBAC** | 基于角色的访问控制 |
-| IaC | Terraform | 基础设施即代码 |
+| 层次     | 技术选择                 | 说明                                                                         |
+| -------- | ------------------------ | ---------------------------------------------------------------------------- |
+| 前端     | Next.js 14 + Semi-Design | 飞书 Universe Design 风格，SSR 优化 SEO                                      |
+| iOS      | React Native + Expo      | 基于 Web 组件跨平台复用                                                      |
+| 后端     | Java 25 + Spring Boot 4  | 响应式栈 (WebFlux + R2DBC)                                                   |
+| 认证服务 | Go + Fiber               | 高性能认证服务                                                               |
+| 推荐服务 | Java 25 + Spring Boot 4  | 个性化/向量推荐（当前为占位实现，见 docs/backend/recommendation-service.md） |
+| 数据库   | PostgreSQL 15            | 主数据库                                                                     |
+| 缓存     | Redis 7                  | 会话、缓存、限流                                                             |
+| 搜索     | OpenSearch               | 全文检索                                                                     |
+| 向量库   | **Milvus**               | 向量存储和相似度搜索                                                         |
+| 任务队列 | **RabbitMQ**             | 异步任务、延迟任务                                                           |
+| 事件流   | **Kafka**                | 事件流、数据管道                                                             |
+| 对象存储 | Alibaba Cloud OSS        | 图片视频存储                                                                 |
+| 云平台   | Alibaba Cloud            | 阿里云部署 (AWS 备选)                                                        |
+| 权限架构 | **RBAC**                 | 基于角色的访问控制                                                           |
+| IaC      | Terraform                | 基础设施即代码                                                               |
 
 ### 1.3 平台优先级
 
-| 平台 | 优先级 | 说明 |
-|------|--------|------|
-| Web | P0 | 核心平台，SSR SEO 优化 |
-| iOS | P0 | 核心移动平台 |
-| Android | P1 | 后续迭代 |
-| visionOS | P2 | 未来探索 |
+| 平台     | 优先级 | 说明                   |
+| -------- | ------ | ---------------------- |
+| Web      | P0     | 核心平台，SSR SEO 优化 |
+| iOS      | P0     | 核心移动平台           |
+| Android  | P1     | 后续迭代               |
+| visionOS | P2     | 未来探索               |
 
 ---
 
@@ -130,20 +130,20 @@ WenxinBlog 是一个现代化的博文平台，支持图文视频内容，采用
 
 ### 2.2 微服务划分
 
-| 服务名称 | 端口 | 语言 | 数据库 | 职责 |
-|----------|------|------|--------|------|
-| auth-service | 8081 | Go + Fiber | auth_db | 用户认证、授权、OAuth、SSO、2FA、推送令牌 |
-| user-service | 8082 | Go + Fiber | user_db | 用户资料、设置、关注、RBAC 权限管理 |
-| blog-service | 8080 | Java + Spring Boot 4 | blog_db | 博文管理、评论、搜索、实时更新 |
-| recommendation-service | 8083 | Python + FastAPI | Milvus | 内容推荐、趋势检测、向量检索 |
-| analytics-service | 8084 | Python + FastAPI | ClickHouse | 数据分析、用户行为追踪 |
+| 服务名称               | 端口 | 语言                 | 数据库        | 职责                                               |
+| ---------------------- | ---- | -------------------- | ------------- | -------------------------------------------------- |
+| auth-service           | 8081 | Go + Fiber           | auth_db       | 用户认证、授权、OAuth、SSO、2FA、推送令牌          |
+| user-service           | 8082 | Go + Fiber           | user_db       | 用户资料、设置、关注、RBAC 权限管理                |
+| blog-service           | 8080 | Java + Spring Boot 4 | blog_db       | 博文管理、评论、搜索、实时更新                     |
+| recommendation-service | 8006 | Java + Spring Boot 4 | Milvus (占位) | 内容推荐、趋势检测、向量检索（向量检索为占位实现） |
+| analytics-service      | 8084 | Python + FastAPI     | ClickHouse    | 数据分析、用户行为追踪                             |
 
 ### 2.3 消息队列职责划分
 
-| 消息中间件 | 用途 | 特点 |
-|-----------|------|------|
+| 消息中间件   | 用途                                       | 特点                       |
+| ------------ | ------------------------------------------ | -------------------------- |
 | **RabbitMQ** | 异步任务队列、可靠投递、延迟任务、推送通知 | 低延迟、确认机制、死信队列 |
-| **Kafka** | 事件流处理、数据管道、日志收集 | 高吞吐、持久化、多消费者 |
+| **Kafka**    | 事件流处理、数据管道、日志收集             | 高吞吐、持久化、多消费者   |
 
 ---
 
@@ -159,50 +159,50 @@ WenxinBlog 是一个现代化的博文平台，支持图文视频内容，采用
 
 ### 3.2 角色定义
 
-| 角色代码 | 角色名称 | 级别 | 继承关系 | 描述 |
-|----------|----------|------|----------|------|
-| `guest` | 访客 | 0 | - | 未登录用户，只读公开内容 |
-| `user` | 普通用户 | 1 | guest | 已注册用户，可创建内容 |
-| `author` | 作者 | 2 | user | 可发布内容，有编辑权限 |
-| `moderator` | 版主/审核员 | 3 | author | 可审核内容，管理评论 |
-| `admin` | 管理员 | 4 | moderator | 全部权限，系统管理 |
+| 角色代码    | 角色名称    | 级别 | 继承关系  | 描述                     |
+| ----------- | ----------- | ---- | --------- | ------------------------ |
+| `guest`     | 访客        | 0    | -         | 未登录用户，只读公开内容 |
+| `user`      | 普通用户    | 1    | guest     | 已注册用户，可创建内容   |
+| `author`    | 作者        | 2    | user      | 可发布内容，有编辑权限   |
+| `moderator` | 版主/审核员 | 3    | author    | 可审核内容，管理评论     |
+| `admin`     | 管理员      | 4    | moderator | 全部权限，系统管理       |
 
 ### 3.3 权限定义
 
-| 权限代码 | 资源 | 操作 | 范围 | 描述 |
-|----------|------|------|------|------|
-| `post:create` | post | create | - | 创建博文 |
-| `post:update:own` | post | update | own | 更新自己的博文 |
-| `post:update:any` | post | update | any | 更新任意博文 |
-| `post:delete:own` | post | delete | own | 删除自己的博文 |
-| `post:delete:any` | post | delete | any | 删除任意博文 |
-| `post:publish` | post | publish | - | 发布博文 |
-| `post:feature` | post | feature | - | 设为精华 |
-| `comment:create` | comment | create | - | 发表评论 |
-| `comment:update:own` | comment | update | own | 更新自己的评论 |
-| `comment:delete:own` | comment | delete | own | 删除自己的评论 |
-| `comment:moderate` | comment | moderate | - | 审核评论 |
-| `user:update:own` | user | update | own | 更新自己的资料 |
-| `user:update:any` | user | update | any | 更新任意用户资料 |
-| `user:ban` | user | ban | - | 封禁用户 |
-| `user:assign_role` | user | assign_role | - | 分配角色 |
-| `category:manage` | category | manage | - | 管理分类 |
+| 权限代码             | 资源     | 操作        | 范围 | 描述             |
+| -------------------- | -------- | ----------- | ---- | ---------------- |
+| `post:create`        | post     | create      | -    | 创建博文         |
+| `post:update:own`    | post     | update      | own  | 更新自己的博文   |
+| `post:update:any`    | post     | update      | any  | 更新任意博文     |
+| `post:delete:own`    | post     | delete      | own  | 删除自己的博文   |
+| `post:delete:any`    | post     | delete      | any  | 删除任意博文     |
+| `post:publish`       | post     | publish     | -    | 发布博文         |
+| `post:feature`       | post     | feature     | -    | 设为精华         |
+| `comment:create`     | comment  | create      | -    | 发表评论         |
+| `comment:update:own` | comment  | update      | own  | 更新自己的评论   |
+| `comment:delete:own` | comment  | delete      | own  | 删除自己的评论   |
+| `comment:moderate`   | comment  | moderate    | -    | 审核评论         |
+| `user:update:own`    | user     | update      | own  | 更新自己的资料   |
+| `user:update:any`    | user     | update      | any  | 更新任意用户资料 |
+| `user:ban`           | user     | ban         | -    | 封禁用户         |
+| `user:assign_role`   | user     | assign_role | -    | 分配角色         |
+| `category:manage`    | category | manage      | -    | 管理分类         |
 
 ### 3.4 角色-权限矩阵
 
-| 权限 | guest | user | author | moderator | admin |
-|------|-------|------|--------|-----------|-------|
-| post:read | ✓ | ✓ | ✓ | ✓ | ✓ |
-| post:create | - | ✓ | ✓ | ✓ | ✓ |
-| post:publish | - | - | ✓ | ✓ | ✓ |
-| post:update:own | - | ✓ | ✓ | ✓ | ✓ |
-| post:update:any | - | - | - | ✓ | ✓ |
-| post:delete:own | - | ✓ | ✓ | ✓ | ✓ |
-| post:delete:any | - | - | - | ✓ | ✓ |
-| post:feature | - | - | - | ✓ | ✓ |
-| comment:moderate | - | - | - | ✓ | ✓ |
-| user:ban | - | - | - | - | ✓ |
-| user:assign_role | - | - | - | - | ✓ |
+| 权限             | guest | user | author | moderator | admin |
+| ---------------- | ----- | ---- | ------ | --------- | ----- |
+| post:read        | ✓     | ✓    | ✓      | ✓         | ✓     |
+| post:create      | -     | ✓    | ✓      | ✓         | ✓     |
+| post:publish     | -     | -    | ✓      | ✓         | ✓     |
+| post:update:own  | -     | ✓    | ✓      | ✓         | ✓     |
+| post:update:any  | -     | -    | -      | ✓         | ✓     |
+| post:delete:own  | -     | ✓    | ✓      | ✓         | ✓     |
+| post:delete:any  | -     | -    | -      | ✓         | ✓     |
+| post:feature     | -     | -    | -      | ✓         | ✓     |
+| comment:moderate | -     | -    | -      | ✓         | ✓     |
+| user:ban         | -     | -    | -      | -         | ✓     |
+| user:assign_role | -     | -    | -      | -         | ✓     |
 
 ---
 
@@ -1002,31 +1002,31 @@ post:{post_id}:viewed:{user_id} -> String
   },
   "mappings": {
     "properties": {
-      "id": {"type": "keyword"},
+      "id": { "type": "keyword" },
       "title": {
         "type": "text",
         "analyzer": "ik_max_word",
         "fields": {
-          "keyword": {"type": "keyword"},
-          "suggest": {"type": "completion"}
+          "keyword": { "type": "keyword" },
+          "suggest": { "type": "completion" }
         }
       },
-      "content": {"type": "text", "analyzer": "ik_max_word"},
-      "excerpt": {"type": "text"},
-      "author_id": {"type": "keyword"},
+      "content": { "type": "text", "analyzer": "ik_max_word" },
+      "excerpt": { "type": "text" },
+      "author_id": { "type": "keyword" },
       "author_username": {
         "type": "text",
-        "fields": {"keyword": {"type": "keyword"}}
+        "fields": { "keyword": { "type": "keyword" } }
       },
-      "tags": {"type": "keyword"},
-      "categories": {"type": "keyword"},
-      "status": {"type": "keyword"},
-      "visibility": {"type": "keyword"},
-      "created_at": {"type": "date"},
-      "published_at": {"type": "date"},
-      "view_count": {"type": "integer"},
-      "like_count": {"type": "integer"},
-      "comment_count": {"type": "integer"}
+      "tags": { "type": "keyword" },
+      "categories": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "visibility": { "type": "keyword" },
+      "created_at": { "type": "date" },
+      "published_at": { "type": "date" },
+      "view_count": { "type": "integer" },
+      "like_count": { "type": "integer" },
+      "comment_count": { "type": "integer" }
     }
   }
 }
@@ -1068,21 +1068,21 @@ collection.create_index("vector", index_params)
 
 ### 7.1 RabbitMQ 队列
 
-| 队列名 | 类型 | 用途 | 消费者 |
-|--------|------|------|--------|
-| `email.notifications` | Direct | 邮件发送 | Email Service |
-| `push.notifications` | Direct | 推送通知准备 | Push Service |
-| `content.moderation` | Direct | 内容审核 | Moderation Service |
-| `post.scheduled` | Delayed | 定时发布博文 | Blog Service |
+| 队列名                | 类型    | 用途         | 消费者             |
+| --------------------- | ------- | ------------ | ------------------ |
+| `email.notifications` | Direct  | 邮件发送     | Email Service      |
+| `push.notifications`  | Direct  | 推送通知准备 | Push Service       |
+| `content.moderation`  | Direct  | 内容审核     | Moderation Service |
+| `post.scheduled`      | Delayed | 定时发布博文 | Blog Service       |
 
 ### 7.2 Kafka Topics
 
-| Topic | 分区数 | 用途 | 消费者 |
-|-------|--------|------|--------|
-| `user-behavior-events` | 10 | 用户行为事件 | Analytics, Recommendation |
-| `post-created-events` | 3 | 博文创建事件 | Recommendation, Search |
-| `post-published-events` | 3 | 博文发布事件 | Notification, Analytics |
-| `comment-created-events` | 3 | 评论创建事件 | Notification, Moderation |
+| Topic                    | 分区数 | 用途         | 消费者                    |
+| ------------------------ | ------ | ------------ | ------------------------- |
+| `user-behavior-events`   | 10     | 用户行为事件 | Analytics, Recommendation |
+| `post-created-events`    | 3      | 博文创建事件 | Recommendation, Search    |
+| `post-published-events`  | 3      | 博文发布事件 | Notification, Analytics   |
+| `comment-created-events` | 3      | 评论创建事件 | Notification, Moderation  |
 
 ---
 
@@ -1101,35 +1101,35 @@ collection.create_index("vector", index_params)
 
 #### 认证 API
 
-| 端点 | 方法 | 描述 | 权限 |
-|------|------|------|------|
-| `/auth/register` | POST | 用户注册 | 公开 |
-| `/auth/login` | POST | 用户登录 | 公开 |
+| 端点                     | 方法 | 描述       | 权限 |
+| ------------------------ | ---- | ---------- | ---- |
+| `/auth/register`         | POST | 用户注册   | 公开 |
+| `/auth/login`            | POST | 用户登录   | 公开 |
 | `/auth/oauth/{provider}` | POST | OAuth 登录 | 公开 |
-| `/auth/refresh` | POST | 刷新令牌 | 公开 |
-| `/auth/logout` | POST | 登出 | user |
+| `/auth/refresh`          | POST | 刷新令牌   | 公开 |
+| `/auth/logout`           | POST | 登出       | user |
 
 #### 博文 API
 
-| 端点 | 方法 | 描述 | 权限 |
-|------|------|------|------|
-| `/posts` | GET | 获取博文列表 | guest |
-| `/posts` | POST | 创建博文 | user |
-| `/posts/{id}` | GET | 获取博文详情 | guest |
-| `/posts/{id}` | PUT | 更新博文 | post:update:own |
-| `/posts/{id}` | DELETE | 删除博文 | post:delete:own |
-| `/posts/{id}/publish` | POST | 发布博文 | author |
-| `/posts/search` | GET | 搜索博文 | guest |
-| `/posts/recommended` | GET | 获取推荐 | user |
+| 端点                  | 方法   | 描述         | 权限            |
+| --------------------- | ------ | ------------ | --------------- |
+| `/posts`              | GET    | 获取博文列表 | guest           |
+| `/posts`              | POST   | 创建博文     | user            |
+| `/posts/{id}`         | GET    | 获取博文详情 | guest           |
+| `/posts/{id}`         | PUT    | 更新博文     | post:update:own |
+| `/posts/{id}`         | DELETE | 删除博文     | post:delete:own |
+| `/posts/{id}/publish` | POST   | 发布博文     | author          |
+| `/posts/search`       | GET    | 搜索博文     | guest           |
+| `/posts/recommended`  | GET    | 获取推荐     | user            |
 
 #### 用户 API
 
-| 端点 | 方法 | 描述 | 权限 |
-|------|------|------|------|
-| `/users/{id}` | GET | 获取用户资料 | guest |
-| `/users/{id}` | PUT | 更新用户资料 | user:update:own |
-| `/users/{id}/follow` | POST | 关注用户 | user |
-| `/users/{id}/followers` | GET | 获取粉丝列表 | guest |
+| 端点                    | 方法 | 描述         | 权限            |
+| ----------------------- | ---- | ------------ | --------------- |
+| `/users/{id}`           | GET  | 获取用户资料 | guest           |
+| `/users/{id}`           | PUT  | 更新用户资料 | user:update:own |
+| `/users/{id}/follow`    | POST | 关注用户     | user            |
+| `/users/{id}/followers` | GET  | 获取粉丝列表 | guest           |
 
 ---
 
@@ -1201,17 +1201,17 @@ packages/mobile/
 
 ### 11.1 阿里云服务映射
 
-| 功能 | 阿里云服务 | 说明 |
-|------|-----------|------|
-| 计算 | ECS / ACK | 容器部署 |
-| 数据库 | RDS PostgreSQL | 主数据库 |
-| 缓存 | Redis (云数据库) | 缓存和会话 |
-| 搜索 | OpenSearch | 全文检索 |
-| 向量库 | Milvus | 向量检索 |
-| 消息队列 | 自建 RabbitMQ + Kafka | 任务和事件 |
-| 对象存储 | OSS | 图片视频存储 |
-| 推送 | 移动推送 | iOS/Android 推送 |
-| CDN | 阿里云 CDN | 静态资源加速 |
+| 功能     | 阿里云服务            | 说明             |
+| -------- | --------------------- | ---------------- |
+| 计算     | ECS / ACK             | 容器部署         |
+| 数据库   | RDS PostgreSQL        | 主数据库         |
+| 缓存     | Redis (云数据库)      | 缓存和会话       |
+| 搜索     | OpenSearch            | 全文检索         |
+| 向量库   | Milvus                | 向量检索         |
+| 消息队列 | 自建 RabbitMQ + Kafka | 任务和事件       |
+| 对象存储 | OSS                   | 图片视频存储     |
+| 推送     | 移动推送              | iOS/Android 推送 |
+| CDN      | 阿里云 CDN            | 静态资源加速     |
 
 ### 11.2 本地开发环境
 
@@ -1224,20 +1224,20 @@ services:
       POSTGRES_DB: auth_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports: ["5432:5432"]
+    ports: ['5432:5432']
 
   redis-cache:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ['6379:6379']
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    ports: ["5672:5672", "15672:15672"]
+    ports: ['5672:5672', '15672:15672']
 
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on: [zookeeper]
-    ports: ["9092:9092"]
+    ports: ['9092:9092']
 ```
 
 ---
@@ -1275,6 +1275,6 @@ services:
 
 ---
 
-*文档版本: 1.0*
-*最后更新: 2026-03-25*
-*优先平台: Web + iOS*
+_文档版本: 1.0_
+_最后更新: 2026-03-25_
+_优先平台: Web + iOS_

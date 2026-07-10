@@ -75,6 +75,8 @@ public class RecommendationService {
     }
 
     public Mono<List<String>> getUserRecommendations(String userId, int limit) {
+        log.warn("getUserRecommendations: returning DEMO data for userId={} — "
+                + "user-to-user recommendation is a placeholder, not yet implemented", userId);
         // Mock: "Users you may know"
         return Mono.just(List.of(
                 "user-001", "user-002", "user-003"
@@ -111,6 +113,8 @@ public class RecommendationService {
     }
 
     private Mono<List<FeedRecommendation>> generateMockFeed(String userId, int size) {
+        log.warn("generateMockFeed: returning DEMO feed for userId={} — "
+                + "Milvus vector search is not integrated yet (placeholder)", userId);
         String[] titles = {"Spring Boot 4 新特性", "Java 25 虚拟线程", "微服务架构实践",
                 "Redis 高级用法", "Kafka 最佳实践"};
         String[] reasons = {"基于兴趣推荐", "热门内容", "协同过滤", "个性化推荐", "趋势内容"};
@@ -127,6 +131,8 @@ public class RecommendationService {
     }
 
     private Mono<List<FeedRecommendation>> generateMockRelated(String postId, int topK) {
+        log.warn("generateMockRelated: returning DEMO related posts for postId={} — "
+                + "Milvus vector search is not integrated yet (placeholder)", postId);
         return Mono.just(List.of(
                 new FeedRecommendation("post-rel-1", "相关文章推荐 1", "与上文相关的深度分析", "author-a", 0.85, "内容相似"),
                 new FeedRecommendation("post-rel-2", "相关文章推荐 2", "延伸阅读推荐", "author-b", 0.75, "标签匹配"),
@@ -135,6 +141,8 @@ public class RecommendationService {
     }
 
     private Mono<List<TrendingPost>> generateMockTrending(int limit) {
+        log.warn("generateMockTrending: returning DEMO trending posts — "
+                + "trending pipeline is a placeholder until real signals are wired in");
         String[] titles = {"2024技术趋势", "Go vs Rust对比", "云原生架构",
                 "AI应用开发", "低代码平台评测", "分布式系统设计"};
         List<TrendingPost> items = new java.util.ArrayList<>();
