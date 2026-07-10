@@ -10,11 +10,12 @@ export function usePosts(params?: PostQueryParams) {
   });
 }
 
-export function usePost(id: string) {
+export function usePost(id: string, initialData?: Post) {
   return useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.getPost(id),
     enabled: !!id,
+    initialData,
   });
 }
 
