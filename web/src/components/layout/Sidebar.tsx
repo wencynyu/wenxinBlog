@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { IconStarStroked, IconClock, IconLikeHeart } from '@douyinfe/semi-icons';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getTrendingTags } from '@/lib/api/search';
 import { getTrendingPosts } from '@/lib/api/recommend';
 
@@ -28,11 +28,15 @@ const MOCK_TRENDING = [
 ];
 
 export default function Sidebar() {
-  const { data: trendingTags } = useQuery('sidebar-trending-tags', () => getTrendingTags(10), {
+  const { data: trendingTags } = useQuery({
+    queryKey: ['sidebar-trending-tags'],
+    queryFn: () => getTrendingTags(10),
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: trendingPosts } = useQuery('sidebar-trending-posts', () => getTrendingPosts(5), {
+  const { data: trendingPosts } = useQuery({
+    queryKey: ['sidebar-trending-posts'],
+    queryFn: () => getTrendingPosts(5),
     staleTime: 10 * 60 * 1000,
   });
 

@@ -69,7 +69,7 @@ export default function NewPostPage() {
             <Button
               theme="borderless"
               onClick={() => handleSubmit('draft')}
-              loading={createMutation.isLoading}
+              loading={createMutation.isPending}
             >
               保存草稿
             </Button>
@@ -77,7 +77,7 @@ export default function NewPostPage() {
               theme="solid"
               type="primary"
               onClick={() => handleSubmit('published')}
-              loading={createMutation.isLoading}
+              loading={createMutation.isPending}
             >
               发布
             </Button>

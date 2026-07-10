@@ -59,7 +59,7 @@ export default function LoginPage() {
           htmlType="submit"
           block
           size="large"
-          loading={loginMutation.isLoading}
+          loading={loginMutation.isPending}
           style={{ marginTop: 24 }}
         >
           登录

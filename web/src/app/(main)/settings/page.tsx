@@ -80,12 +80,21 @@ export default function SettingsPage() {
   return (
     <MainLayout showSidebar={false}>
       <div className="max-w-2xl mx-auto">
-        <Title heading={2} className="mb-6">个人设置</Title>
+        <Title heading={2} className="mb-6">
+          个人设置
+        </Title>
 
         {/* 个人信息 */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 dark:bg-gray-800 dark:border-gray-700">
-          <Title heading={4} className="mb-4">个人资料</Title>
-          <Form onSubmit={handleSaveProfile} getFormApi={(api: any) => { formRef.current = api; }}>
+          <Title heading={4} className="mb-4">
+            个人资料
+          </Title>
+          <Form
+            onSubmit={handleSaveProfile}
+            getFormApi={(api: any) => {
+              formRef.current = api;
+            }}
+          >
             <Form.Input
               field="displayName"
               label="昵称"
@@ -99,25 +108,13 @@ export default function SettingsPage() {
               maxLength={200}
               showClear
             />
-            <Form.Input
-              field="avatar"
-              label="头像链接"
-              placeholder="输入头像图片URL"
-            />
-            <Form.Input
-              field="location"
-              label="所在地"
-              placeholder="例如：北京"
-            />
-            <Form.Input
-              field="website"
-              label="个人网站"
-              placeholder="https://example.com"
-            />
+            <Form.Input field="avatar" label="头像链接" placeholder="输入头像图片URL" />
+            <Form.Input field="location" label="所在地" placeholder="例如：北京" />
+            <Form.Input field="website" label="个人网站" placeholder="https://example.com" />
             <Button
               theme="solid"
               htmlType="submit"
-              loading={updateProfile.isLoading}
+              loading={updateProfile.isPending}
               style={{ marginTop: 16 }}
             >
               保存资料
@@ -127,10 +124,10 @@ export default function SettingsPage() {
 
         {/* 兴趣标签 */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 dark:bg-gray-800 dark:border-gray-700">
-          <Title heading={4} className="mb-4">兴趣标签</Title>
-          <p className="text-gray-500 text-sm mb-4">
-            选择你感兴趣的标签，获得更精准的推荐
-          </p>
+          <Title heading={4} className="mb-4">
+            兴趣标签
+          </Title>
+          <p className="text-gray-500 text-sm mb-4">选择你感兴趣的标签，获得更精准的推荐</p>
           {interestsLoading ? (
             <Skeleton.Paragraph style={{ width: '100%' }} />
           ) : (
@@ -142,11 +139,7 @@ export default function SettingsPage() {
                 max={10}
                 style={{ width: '100%' }}
               />
-              <Button
-                theme="solid"
-                onClick={handleSaveInterests}
-                style={{ marginTop: 16 }}
-              >
+              <Button theme="solid" onClick={handleSaveInterests} style={{ marginTop: 16 }}>
                 保存标签
               </Button>
             </>

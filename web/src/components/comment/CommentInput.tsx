@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Input, Button, Toast } from '@douyinfe/semi-ui';
 import { IconSend } from '@douyinfe/semi-icons';
 import { useAuthStore } from '@/store/authStore';
-import { useMutation, useQueryClient } from 'react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as commentsApi from '@/lib/api/comments';
 
 interface CommentInputProps {
@@ -16,19 +16,17 @@ export default function CommentInput({ postId }: CommentInputProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const queryClient = useQueryClient();
 
-  const mutation = useMutation(
-    (content: string) => commentsApi.createComment(postId, content),
-    {
-      onSuccess: () => {
-        setContent('');
-        queryClient.invalidateQueries(['comments', postId]);
-        Toast.success('评论成功');
-      },
-      onError: (error: any) => {
-        Toast.error(error?.message || '评论失败');
-      },
-    }
-  );
+  const mutation = useMutation({
+    mutationFn: (content: string) => commentsApi.createComment(postId, content),
+    onSuccess: () => {
+      setContent('');
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      Toast.success('评论成功');
+    },
+    onError: (error: any) => {
+      Toast.error(error?.message || '评论失败');
+    },
+  });
 
   const handleSubmit = () => {
     if (!content.trim()) return;
@@ -44,8 +42,8 @@ export default function CommentInput({ postId }: CommentInputProps) {
       <div className="bg-gray-50 rounded-lg p-4 text-center text-gray-500 text-sm">
         <a href="/login" className="text-sky-500 hover:text-sky-600">
           登录
-        </a>
-        {' '}后参与评论
+        </a>{' '}
+        后参与评论
       </div>
     );
   }
@@ -59,13 +57,13 @@ export default function CommentInput({ postId }: CommentInputProps) {
         placeholder="写下你的评论..."
         maxLength={500}
         showClear
-        disabled={mutation.isLoading}
+        disabled={mutation.isPending}
       />
       <Button
         icon={<IconSend />}
         theme="solid"
         onClick={handleSubmit}
-        loading={mutation.isLoading}
+        loading={mutation.isPending}
         disabled={!content.trim()}
       >
         发送

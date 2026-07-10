@@ -96,7 +96,7 @@ export default function RegisterPage() {
           htmlType="submit"
           block
           size="large"
-          loading={registerMutation.isLoading}
+          loading={registerMutation.isPending}
           style={{ marginTop: 24 }}
         >
           注册

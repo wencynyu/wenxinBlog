@@ -5,7 +5,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Avatar, Button, Toast, Skeleton, Empty, Popconfirm } from '@douyinfe/semi-ui';
 import { IconDelete } from '@douyinfe/semi-icons';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import * as commentsApi from '@/lib/api/comments';
 import type { Comment } from '@/lib/api/comments';
@@ -21,24 +21,22 @@ export default function CommentList({ postId }: CommentListProps) {
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
-  const { data: comments, isLoading } = useQuery(
-    ['comments', postId],
-    () => commentsApi.getComments(postId),
-    { enabled: !!postId }
-  );
+  const { data: comments, isLoading } = useQuery({
+    queryKey: ['comments', postId],
+    queryFn: () => commentsApi.getComments(postId),
+    enabled: !!postId,
+  });
 
-  const deleteMutation = useMutation(
-    (id: string) => commentsApi.deleteComment(id),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries(['comments', postId]);
-        Toast.success('评论已删除');
-      },
-      onError: () => {
-        Toast.error('删除失败');
-      },
-    }
-  );
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => commentsApi.deleteComment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      Toast.success('评论已删除');
+    },
+    onError: () => {
+      Toast.error('删除失败');
+    },
+  });
 
   if (isLoading) {
     return (
@@ -57,9 +55,7 @@ export default function CommentList({ postId }: CommentListProps) {
   }
 
   if (!comments || comments.length === 0) {
-    return (
-      <Empty title="暂无评论" description="快来发表第一条评论吧" />
-    );
+    return <Empty title="暂无评论" description="快来发表第一条评论吧" />;
   }
 
   return (

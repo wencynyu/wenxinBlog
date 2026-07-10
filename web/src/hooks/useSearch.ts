@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   searchPosts,
   searchUsersApi,
@@ -11,43 +11,51 @@ import {
 import type { PaginationParams } from '@/types/common';
 
 export function useSearchPosts(query: string, params?: PaginationParams) {
-  return useQuery(
-    ['search', 'posts', query, params],
-    () => searchPosts(query, params),
-    { enabled: !!query && query.length > 0, keepPreviousData: true }
-  );
+  return useQuery({
+    queryKey: ['search', 'posts', query, params],
+    queryFn: () => searchPosts(query, params),
+    enabled: !!query && query.length > 0,
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useSearchUsers(query: string, params?: PaginationParams) {
-  return useQuery(
-    ['search', 'users', query, params],
-    () => searchUsersApi(query, params),
-    { enabled: !!query && query.length > 0, keepPreviousData: true }
-  );
+  return useQuery({
+    queryKey: ['search', 'users', query, params],
+    queryFn: () => searchUsersApi(query, params),
+    enabled: !!query && query.length > 0,
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function useSuggestions(query: string) {
-  return useQuery(
-    ['suggest', query],
-    () => getSuggestions(query),
-    { enabled: !!query && query.length > 0 }
-  );
+  return useQuery({
+    queryKey: ['suggest', query],
+    queryFn: () => getSuggestions(query),
+    enabled: !!query && query.length > 0,
+  });
 }
 
 export function useTrendingSearches() {
-  return useQuery(['trending', 'searches'], () => getTrendingSearches(), {
+  return useQuery({
+    queryKey: ['trending', 'searches'],
+    queryFn: () => getTrendingSearches(),
     staleTime: 10 * 60 * 1000,
   });
 }
 
 export function useTrendingTags() {
-  return useQuery(['trending', 'tags'], () => getTrendingTags(), {
+  return useQuery({
+    queryKey: ['trending', 'tags'],
+    queryFn: () => getTrendingTags(),
     staleTime: 10 * 60 * 1000,
   });
 }
 
 export function useSearchHistory() {
-  return useQuery(['search', 'history'], () => getSearchHistory(), {
+  return useQuery({
+    queryKey: ['search', 'history'],
+    queryFn: () => getSearchHistory(),
     staleTime: 2 * 60 * 1000,
   });
 }
@@ -55,9 +63,10 @@ export function useSearchHistory() {
 export function useClearSearchHistory() {
   const queryClient = useQueryClient();
 
-  return useMutation(clearSearchHistory, {
+  return useMutation({
+    mutationFn: clearSearchHistory,
     onSuccess: () => {
-      queryClient.invalidateQueries(['search', 'history']);
+      queryClient.invalidateQueries({ queryKey: ['search', 'history'] });
     },
   });
 }

@@ -108,7 +108,7 @@ export default function EditPostPage() {
             <Button
               theme="borderless"
               onClick={() => handleSubmit('draft')}
-              loading={updateMutation.isLoading}
+              loading={updateMutation.isPending}
             >
               保存草稿
             </Button>
@@ -116,7 +116,7 @@ export default function EditPostPage() {
               theme="solid"
               type="primary"
               onClick={() => handleSubmit('published')}
-              loading={updateMutation.isLoading}
+              loading={updateMutation.isPending}
             >
               发布
             </Button>

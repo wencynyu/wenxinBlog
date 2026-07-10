@@ -1,6 +1,6 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from 'react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode, useState } from 'react';
 
 interface QueryProviderProps {
@@ -14,17 +14,13 @@ export default function QueryProvider({ children }: QueryProviderProps) {
         defaultOptions: {
           queries: {
             staleTime: 5 * 60 * 1000, // 5分钟
-            cacheTime: 30 * 60 * 1000, // 30分钟
+            gcTime: 30 * 60 * 1000, // 30分钟（v5: cacheTime -> gcTime）
             refetchOnWindowFocus: false,
             retry: 1,
           },
         },
-      })
+      }),
   );
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
