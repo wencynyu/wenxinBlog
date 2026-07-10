@@ -5,7 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { Input, Button, TagInput, Toast, Switch, Skeleton } from '@douyinfe/semi-ui';
 import { IconArrowLeft } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
-import MarkdownRenderer from '@/components/post/MarkdownRenderer';
+import dynamic from 'next/dynamic';
+// 预览渲染较重（marked + highlight.js），按需加载
+const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
+  ssr: false,
+});
 import { usePost, useUpdatePost } from '@/hooks/usePosts';
 import { useAuthStore } from '@/store/authStore';
 
@@ -77,7 +81,9 @@ export default function EditPostPage() {
       <MainLayout showSidebar={false}>
         <div className="max-w-3xl mx-auto text-center py-20">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">博文不存在</h2>
-          <Button theme="solid" onClick={() => router.push('/')}>返回首页</Button>
+          <Button theme="solid" onClick={() => router.push('/')}>
+            返回首页
+          </Button>
         </div>
       </MainLayout>
     );
@@ -134,11 +140,7 @@ export default function EditPostPage() {
             style={{ width: '100%' }}
           />
 
-          <Input
-            value={coverImage}
-            onChange={setCoverImage}
-            placeholder="封面图链接（可选）"
-          />
+          <Input value={coverImage} onChange={setCoverImage} placeholder="封面图链接（可选）" />
 
           {showPreview ? (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -146,7 +148,9 @@ export default function EditPostPage() {
               {tags.length > 0 && (
                 <div className="flex gap-2 mb-4">
                   {tags.map((tag) => (
-                    <span key={tag} className="text-sky-500 text-sm">#{tag}</span>
+                    <span key={tag} className="text-sky-500 text-sm">
+                      #{tag}
+                    </span>
                   ))}
                 </div>
               )}

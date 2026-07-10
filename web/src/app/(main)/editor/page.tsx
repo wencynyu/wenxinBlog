@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Input, Button, TagInput, Toast, Switch } from '@douyinfe/semi-ui';
 import { IconArrowLeft } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
-import MarkdownRenderer from '@/components/post/MarkdownRenderer';
+import dynamic from 'next/dynamic';
+// 预览渲染较重（marked + highlight.js），按需加载
+const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
+  ssr: false,
+});
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuthStore } from '@/store/authStore';
 
@@ -100,11 +104,7 @@ export default function NewPostPage() {
           />
 
           {/* 封面图（可选） */}
-          <Input
-            value={coverImage}
-            onChange={setCoverImage}
-            placeholder="封面图链接（可选）"
-          />
+          <Input value={coverImage} onChange={setCoverImage} placeholder="封面图链接（可选）" />
 
           {/* 内容区 */}
           {showPreview ? (
@@ -113,7 +113,9 @@ export default function NewPostPage() {
               {tags.length > 0 && (
                 <div className="flex gap-2 mb-4">
                   {tags.map((tag) => (
-                    <span key={tag} className="text-sky-500 text-sm">#{tag}</span>
+                    <span key={tag} className="text-sky-500 text-sm">
+                      #{tag}
+                    </span>
                   ))}
                 </div>
               )}

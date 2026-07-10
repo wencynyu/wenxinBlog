@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { IconLikeHeart, IconStar, IconStarStroked, IconComment } from '@douyinfe/semi-icons';
-import { Avatar, Tag, Button, Toast } from '@douyinfe/semi-ui';
+import { Avatar, Tag, Toast } from '@douyinfe/semi-ui';
 import { useAuthStore } from '@/store/authStore';
 import { useToggleLike, useToggleFavorite } from '@/hooks/usePosts';
 import type { Post } from '@/types/post';
@@ -43,8 +44,8 @@ export default function PostCard({ post }: PostCardProps) {
   };
 
   return (
-    <Link href={`/posts/${post.id}`}>
-      <article className="bg-white rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all overflow-hidden">
+    <Link href={`/posts/${post.id}`} className="group block">
+      <article className="bg-surface rounded-xl shadow-card hover:shadow-card-hover transition-all duration-200 overflow-hidden">
         <div className="p-5">
           {/* 作者信息 */}
           <div className="flex items-center mb-3">
@@ -55,32 +56,34 @@ export default function PostCard({ post }: PostCardProps) {
             >
               {(post.author?.displayName || post.author?.username || 'U')[0]}
             </Avatar>
-            <div className="ml-2">
-              <span className="text-sm font-medium text-gray-900">
+            <div className="ml-2 flex items-center gap-2">
+              <span className="text-sm font-medium text-ink">
                 {post.author?.displayName || post.author?.username}
               </span>
-              <span className="text-gray-400 text-xs ml-2">
+              <span className="text-ink-faint text-xs font-mono">
                 {dayjs(post.createdAt).fromNow()}
               </span>
             </div>
           </div>
 
           {/* 标题和摘要 */}
-          <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 hover:text-sky-500 transition-colors">
+          <h3 className="text-lg font-semibold text-ink mb-2 line-clamp-2 group-hover:text-primary-700 transition-colors">
             {post.title}
           </h3>
 
           {post.summary && (
-            <p className="text-gray-500 text-sm mb-3 line-clamp-2">{post.summary}</p>
+            <p className="text-ink-muted text-sm mb-3 line-clamp-2">{post.summary}</p>
           )}
 
           {/* 封面图 */}
           {post.coverImage && (
-            <div className="mb-3 rounded-lg overflow-hidden">
-              <img
+            <div className="mb-3 rounded-xl overflow-hidden relative h-48">
+              <Image
                 src={post.coverImage}
                 alt={post.title}
-                className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
+                fill
+                sizes="(max-width: 768px) 100vw, 33vw"
+                className="object-cover group-hover:scale-105 transition-transform duration-300"
               />
             </div>
           )}
@@ -89,7 +92,7 @@ export default function PostCard({ post }: PostCardProps) {
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {post.tags.slice(0, 3).map((tag) => (
-                <Tag key={tag} size="small" color="cyan">
+                <Tag key={tag} size="small" color="violet">
                   {tag}
                 </Tag>
               ))}
@@ -97,24 +100,28 @@ export default function PostCard({ post }: PostCardProps) {
           )}
 
           {/* 操作栏 */}
-          <div className="flex items-center text-gray-400 text-sm">
+          <div className="flex items-center text-ink-faint text-sm font-mono">
             <button
               onClick={handleLike}
-              className={`flex items-center mr-4 hover:text-red-500 transition-colors ${
-                post.isLiked ? 'text-red-500' : ''
-              }`}
+              className={`flex items-center mr-4 hover:text-red-500 transition-colors ${post.isLiked ? 'text-red-500' : ''}`}
             >
-              {post.isLiked ? <IconLikeHeart size="small" className="mr-1" style={{ color: '#ef4444' }} /> : <IconLikeHeart size="small" className="mr-1" />}
+              <IconLikeHeart
+                size="small"
+                className="mr-1"
+                style={{ color: post.isLiked ? '#ef4444' : undefined }}
+              />
               <span>{post.likesCount || 0}</span>
             </button>
 
             <button
               onClick={handleFavorite}
-              className={`flex items-center mr-4 hover:text-amber-500 transition-colors ${
-                post.isFavorited ? 'text-amber-500' : ''
-              }`}
+              className={`flex items-center mr-4 hover:text-accent-500 transition-colors ${post.isFavorited ? 'text-accent-500' : ''}`}
             >
-              {post.isFavorited ? <IconStar size="small" className="mr-1" style={{ color: '#f59e0b' }} /> : <IconStarStroked size="small" className="mr-1" />}
+              {post.isFavorited ? (
+                <IconStar size="small" className="mr-1" style={{ color: '#e08600' }} />
+              ) : (
+                <IconStarStroked size="small" className="mr-1" />
+              )}
               <span>收藏</span>
             </button>
 

@@ -16,8 +16,15 @@ import {
 } from '@douyinfe/semi-icons';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
-import MarkdownRenderer from '@/components/post/MarkdownRenderer';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import CommentInput from '@/components/comment/CommentInput';
+
+// 正文渲染较重（marked + highlight.js），按需加载，不进首屏共享 chunk
+const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
+  ssr: false,
+  loading: () => <p className="text-ink-muted text-sm">加载正文…</p>,
+});
 import CommentList from '@/components/comment/CommentList';
 import EmptyState from '@/components/common/EmptyState';
 import { usePost, useToggleLike, useToggleFavorite } from '@/hooks/usePosts';
@@ -162,9 +169,15 @@ export default function PostDetailPage() {
 
           {/* 封面图 */}
           {post.coverImage && (
-            <div className="mb-6 rounded-xl overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={post.coverImage} alt={post.title} className="w-full object-cover" />
+            <div className="mb-6 rounded-xl overflow-hidden relative h-[360px] bg-canvas">
+              <Image
+                src={post.coverImage}
+                alt={post.title}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="object-cover"
+              />
             </div>
           )}
 
