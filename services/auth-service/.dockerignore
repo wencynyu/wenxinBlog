@@ -1,0 +1,9 @@
+# Build artifacts & non-runtime files
+coverage.out
+*.test
+*.out
+docs/
+*.md
+.git/
+.gitignore
+Dockerfile
