@@ -1,0 +1,13 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+
+opensearch:
+  uris: http://localhost:9200
+  index:
+    blog: wenxinblog-blog-test
+    user: wenxinblog-user-test
+
+redis:
+  host: localhost
+  port: 6379

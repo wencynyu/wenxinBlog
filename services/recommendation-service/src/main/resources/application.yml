@@ -1,0 +1,30 @@
+server:
+  port: 8006
+
+spring:
+  application:
+    name: recommendation-service
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5434/blog_db
+    username: postgres
+    password: ${POSTGRES_PASSWORD:postgres}
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: recommendation-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+milvus:
+  host: localhost
+  port: 19530
+
+recommendation:
+  feed:
+    page-size: 20
+    cache-ttl-minutes: 10

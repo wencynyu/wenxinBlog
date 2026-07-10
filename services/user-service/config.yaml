@@ -1,0 +1,12 @@
+server:
+  port: "8002"
+
+database:
+  url: "postgres://postgres:postgres@localhost:5433/user_db?sslmode=disable"
+
+redis:
+  url: "redis://localhost:6379"
+  password: ""
+
+authService:
+  url: "http://localhost:8001"

@@ -1,0 +1,363 @@
+# =====================================================
+# WenxinBlog 本地开发环境
+# =====================================================
+# 包含所有开发所需的基础设施服务
+# 使用方法: docker-compose up -d
+# 停止服务: docker-compose down
+# 查看日志: docker-compose logs -f [service_name]
+# -----------------------------------------------------
+# 所有凭证通过环境变量注入（默认值仅供本地开发）。
+# 请先 `cp .env.example .env` 并按需修改，docker-compose 会自动读取。
+# =====================================================
+
+x-postgres-defaults: &postgres-defaults
+  image: postgres:15-alpine
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+  volumes:
+    - postgres-data:/var/lib/postgresql/data
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+  networks:
+    - wenxinblog
+
+x-redis-defaults: &redis-defaults
+  image: redis:7-alpine
+  command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+  volumes:
+    - redis-data:/data
+  healthcheck:
+    test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis}", "ping"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+  networks:
+    - wenxinblog
+
+services:
+  # =====================================================
+  # PostgreSQL 数据库 (3个实例)
+  # =====================================================
+
+  # 认证数据库
+  postgres-auth:
+    <<: *postgres-defaults
+    container_name: wenxinblog-postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+
+  # 用户数据库
+  postgres-user:
+    <<: *postgres-defaults
+    container_name: wenxinblog-postgres-user
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+
+  # 博文数据库
+  postgres-blog:
+    <<: *postgres-defaults
+    container_name: wenxinblog-postgres-blog
+    environment:
+      POSTGRES_DB: blog_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-blog-data:/var/lib/postgresql/data
+
+  # =====================================================
+  # Redis 缓存
+  # =====================================================
+  redis-cache:
+    <<: *redis-defaults
+    container_name: wenxinblog-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-cache-data:/data
+
+  # =====================================================
+  # OpenSearch 全文检索
+  # =====================================================
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: wenxinblog-opensearch
+    environment:
+      - cluster.name=wenxinblog
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q green"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - wenxinblog
+
+  # OpenSearch Dashboard
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: wenxinblog-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    networks:
+      - wenxinblog
+
+  # =====================================================
+  # RabbitMQ 任务队列
+  # =====================================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: wenxinblog-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - wenxinblog
+
+  # =====================================================
+  # Kafka 事件流
+  # =====================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: wenxinblog-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - wenxinblog
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: wenxinblog-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - wenxinblog
+
+  # Kafka UI (可选 - 用于管理和监控)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: wenxinblog-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks:
+      - wenxinblog
+
+  # =====================================================
+  # Milvus 向量数据库
+  # =====================================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.25
+    container_name: wenxinblog-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - wenxinblog
+
+  minio:
+    container_name: wenxinblog-minio-milvus
+    image: minio/minio:latest
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio-milvus-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - wenxinblog
+
+  milvus-standalone:
+    container_name: wenxinblog-milvus
+    image: milvusdb/milvus:v2.6.13
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MQ_TYPE: woodpecker
+    volumes:
+      - milvus-data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
+    networks:
+      - wenxinblog
+
+  # =====================================================
+  # MinIO 对象存储 (模拟 OSS)
+  # =====================================================
+  minio-oss:
+    image: minio/minio:latest
+    container_name: wenxinblog-minio-oss
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    volumes:
+      - minio-oss-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - wenxinblog
+
+# =====================================================
+# 网络配置
+# =====================================================
+networks:
+  wenxinblog:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =====================================================
+# 数据卷配置
+# =====================================================
+volumes:
+  # PostgreSQL data
+  postgres-auth-data:
+    name: wenxinblog-postgres-auth-data
+  postgres-user-data:
+    name: wenxinblog-postgres-user-data
+  postgres-blog-data:
+    name: wenxinblog-postgres-blog-data
+  postgres-data:
+    name: wenxinblog-postgres-data
+
+  # Redis data
+  redis-cache-data:
+    name: wenxinblog-redis-data
+
+  # OpenSearch data
+  opensearch-data:
+    name: wenxinblog-opensearch-data
+
+  # RabbitMQ data
+  rabbitmq-data:
+    name: wenxinblog-rabbitmq-data
+
+  # Kafka & Zookeeper data
+  zookeeper-data:
+    name: wenxinblog-zookeeper-data
+  kafka-data:
+    name: wenxinblog-kafka-data
+
+  # Milvus data
+  etcd-data:
+    name: wenxinblog-etcd-data
+  minio-milvus-data:
+    name: wenxinblog-minio-milvus-data
+  milvus-data:
+    name: wenxinblog-milvus-data
+
+  # MinIO OSS data
+  minio-oss-data:
+    name: wenxinblog-minio-oss-data

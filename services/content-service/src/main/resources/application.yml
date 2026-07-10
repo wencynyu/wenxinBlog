@@ -1,0 +1,27 @@
+server:
+  port: 8004
+
+spring:
+  application:
+    name: content-service
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5434/blog_db
+    username: postgres
+    password: ${POSTGRES_PASSWORD:postgres}
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+# MinIO配置
+minio:
+  endpoint: http://localhost:9000
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: wenxinblog-content
+
+# 文件上传限制
+file:
+  upload:
+    max-size: 50MB

@@ -1,0 +1,14 @@
+server:
+  port: 8003
+
+spring:
+  application:
+    name: blog-service
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5434/blog_db
+    username: postgres
+    password: ${POSTGRES_PASSWORD:postgres}
+  data:
+    redis:
+      host: localhost
+      port: 6379

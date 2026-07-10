@@ -1,0 +1,32 @@
+server:
+  port: 8005
+
+spring:
+  application:
+    name: search-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: search-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+opensearch:
+  uris: http://localhost:9200
+  username:
+  password:
+  index:
+    blog: wenxinblog-blog
+    user: wenxinblog-user
+
+search:
+  max-results: 20
+  default-page-size: 10
+  highlight:
+    pre-tags: ["<em>"]
+    post-tags: ["</em>"]

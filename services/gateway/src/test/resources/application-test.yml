@@ -1,0 +1,15 @@
+spring:
+  profiles:
+    active: test
+  kafka:
+    bootstrap-servers: localhost:9092
+  redis:
+    host: localhost
+    port: 6379
+  cloud:
+    gateway:
+      routes:
+        - id: test-route
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/v1/**

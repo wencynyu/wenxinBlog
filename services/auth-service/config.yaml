@@ -1,0 +1,27 @@
+server:
+  port: "8001"
+
+database:
+  url: "postgres://postgres:postgres@localhost:5432/auth_db?sslmode=disable"
+
+redis:
+  url: "redis://localhost:6379"
+
+jwt:
+  # Required: set via JWT_SECRET env (no committed default).
+  secret: ""
+  expiry: 86400
+
+oauth:
+  google:
+    clientId: ""
+    clientSecret: ""
+    redirectUrl: "http://localhost:3000/auth/callback/google"
+  github:
+    clientId: ""
+    clientSecret: ""
+    redirectUrl: "http://localhost:3000/auth/callback/github"
+  wechat:
+    clientId: ""
+    clientSecret: ""
+    redirectUrl: ""

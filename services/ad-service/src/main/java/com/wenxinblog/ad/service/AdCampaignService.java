@@ -1,0 +1,113 @@
+package com.wenxinblog.ad.service;
+
+import com.wenxinblog.ad.dto.CampaignRequest;
+import com.wenxinblog.ad.dto.CampaignStats;
+import com.wenxinblog.ad.entity.AdCampaign;
+import com.wenxinblog.ad.repository.AdCampaignRepository;
+import com.wenxinblog.ad.repository.AdEventRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AdCampaignService {
+
+    private final AdCampaignRepository campaignRepo;
+    private final AdEventRepository eventRepo;
+
+    public Mono<AdCampaign> createCampaign(String advertiserId, CampaignRequest req) {
+        AdCampaign campaign = AdCampaign.builder()
+                .advertiserId(advertiserId)
+                .name(req.name())
+                .description(req.description())
+                .budget(req.budget())
+                .dailyBudget(req.dailyBudget())
+                .bidStrategy(req.bidStrategy() != null ? req.bidStrategy() : "CPM")
+                .bidAmount(req.bidAmount())
+                .targeting(req.targeting() != null ? req.targeting() : "{}")
+                .status("DRAFT")
+                .startDate(req.startDate())
+                .endDate(req.endDate())
+                .spent(BigDecimal.ZERO)
+                .dailySpent(BigDecimal.ZERO)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        return campaignRepo.save(campaign);
+    }
+
+    public Mono<AdCampaign> updateCampaign(Long id, CampaignRequest req) {
+        return campaignRepo.findById(id)
+                .flatMap(campaign -> {
+                    if (req.name() != null) campaign.setName(req.name());
+                    if (req.description() != null) campaign.setDescription(req.description());
+                    if (req.budget() != null) campaign.setBudget(req.budget());
+                    if (req.dailyBudget() != null) campaign.setDailyBudget(req.dailyBudget());
+                    if (req.bidStrategy() != null) campaign.setBidStrategy(req.bidStrategy());
+                    if (req.bidAmount() != null) campaign.setBidAmount(req.bidAmount());
+                    if (req.targeting() != null) campaign.setTargeting(req.targeting());
+                    if (req.startDate() != null) campaign.setStartDate(req.startDate());
+                    if (req.endDate() != null) campaign.setEndDate(req.endDate());
+                    campaign.setUpdatedAt(LocalDateTime.now());
+                    return campaignRepo.save(campaign);
+                });
+    }
+
+    public Mono<AdCampaign> getCampaign(Long id) {
+        return campaignRepo.findById(id);
+    }
+
+    public Flux<AdCampaign> listCampaigns(String advertiserId, String status) {
+        if (advertiserId != null && status != null) {
+            return campaignRepo.findByAdvertiserIdAndStatus(advertiserId, status);
+        } else if (status != null) {
+            return campaignRepo.findByStatus(status);
+        }
+        return campaignRepo.findAll();
+    }
+
+    public Mono<AdCampaign> pauseCampaign(Long id) {
+        return campaignRepo.findById(id)
+                .flatMap(campaign -> {
+                    campaign.setStatus("PAUSED");
+                    campaign.setUpdatedAt(LocalDateTime.now());
+                    return campaignRepo.save(campaign);
+                });
+    }
+
+    public Mono<AdCampaign> activateCampaign(Long id) {
+        return campaignRepo.findById(id)
+                .flatMap(campaign -> {
+                    if (campaign.getBudget().compareTo(BigDecimal.ZERO) <= 0) {
+                        return Mono.error(new IllegalArgumentException("Insufficient budget"));
+                    }
+                    campaign.setStatus("ACTIVE");
+                    campaign.setDailySpent(BigDecimal.ZERO);
+                    campaign.setUpdatedAt(LocalDateTime.now());
+                    return campaignRepo.save(campaign);
+                });
+    }
+
+    public Mono<CampaignStats> getCampaignStats(Long id) {
+        return campaignRepo.findById(id)
+                .flatMap(campaign -> eventRepo.getMetrics(id)
+                        .map(metrics -> new CampaignStats(
+                                metrics.getImpressions(),
+                                metrics.getClicks(),
+                                metrics.getConversions(),
+                                metrics.getImpressions() > 0
+                                        ? (double) metrics.getClicks() / metrics.getImpressions() * 100
+                                        : 0.0,
+                                campaign.getSpent(),
+                                campaign.getBudget().subtract(campaign.getSpent())
+                        )));
+    }
+}
