@@ -6,32 +6,38 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@douyinfe/semi-icons": "^2.65.0",
+    "@douyinfe/semi-ui": "^2.65.0",
+    "axios": "^1.7.0",
+    "dayjs": "^1.11.10",
+    "dompurify": "^3.1.0",
+    "highlight.js": "^11.9.0",
+    "marked": "^12.0.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "@douyinfe/semi-ui": "^2.65.0",
-    "@douyinfe/semi-icons": "^2.65.0",
-    "zustand": "^5.0.0",
     "react-query": "^3.39.3",
-    "axios": "^1.7.0",
-    "dayjs": "^1.11.10",
-    "marked": "^12.0.0",
-    "dompurify": "^3.1.0",
-    "highlight.js": "^11.9.0"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/dompurify": "^3.0.5",
-    "typescript": "^5.5.0",
+    "autoprefixer": "^10.4.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "postcss": "^8.4.0",
+    "prettier": "^3.9.5",
     "tailwindcss": "^3.4.0",
-    "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0"
+    "typescript": "^5.5.0"
   }
 }
