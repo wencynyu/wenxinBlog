@@ -90,7 +90,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Database.URL = "postgres://postgres:postgres@localhost:5433/user_db?sslmode=disable"
 	}
 	if cfg.Redis.URL == "" {
-		cfg.Redis.URL = "redis://localhost:6379"
+		cfg.Redis.URL = "localhost:6379"
 	}
 	if cfg.AuthService.URL == "" {
 		cfg.AuthService.URL = "http://localhost:8001"

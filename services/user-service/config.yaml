@@ -5,8 +5,9 @@ database:
   url: "postgres://postgres:postgres@localhost:5433/user_db?sslmode=disable"
 
 redis:
-  url: "redis://localhost:6379"
-  password: ""
+  # go-redis Addr 需要 host:port（非 redis:// URL）
+  url: "localhost:6379"
+  password: "redis"
 
 authService:
   url: "http://localhost:8001"

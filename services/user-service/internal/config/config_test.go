@@ -21,7 +21,7 @@ func TestUserConfig_Load_Defaults(t *testing.T) {
 
 	assert.Equal(t, "8002", cfg.Server.Port)
 	assert.Contains(t, cfg.Database.URL, "postgres")
-	assert.Contains(t, cfg.Redis.URL, "redis")
+	assert.Equal(t, "localhost:6379", cfg.Redis.URL)
 	assert.NotEmpty(t, cfg.AuthService.URL)
 }
 
@@ -146,7 +146,7 @@ func TestUserConfig_ApplyDefaults(t *testing.T) {
 
 	assert.Equal(t, "8002", cfg.Server.Port)
 	assert.Contains(t, cfg.Database.URL, "5433") // user-service uses 5433
-	assert.Contains(t, cfg.Redis.URL, "redis")
+	assert.Equal(t, "localhost:6379", cfg.Redis.URL)
 	assert.Equal(t, "http://localhost:8001", cfg.AuthService.URL)
 }
 

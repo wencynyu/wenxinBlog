@@ -7,124 +7,102 @@ spring:
 
   cloud:
     gateway:
-      # 路由配置
-      routes:
-        # 认证服务 (公开)
-        - id: auth-service
-          uri: http://localhost:8001
-          predicates:
-            - Path=/api/v1/auth/**
-          filters:
-            - StripPrefix=0
+      # Spring Cloud 2025: server-webflux 变体的路由前缀为 server.webflux.routes
+      server:
+        webflux:
+          # 路由配置（MVP 本地联调：直连各服务，不走注册中心）
+          routes:
+            # 认证服务 (公开)
+            - id: auth-service
+              uri: http://localhost:8001
+              predicates:
+                - Path=/api/v1/auth/**
+              filters:
+                - StripPrefix=0
 
-        # 用户服务 (需认证)
-        - id: user-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/v1/users/**
-          filters:
-            - StripPrefix=0
-            - name: AuthenticationFilter
+            # 用户服务 (需认证)
+            - id: user-service
+              uri: http://localhost:8002
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - StripPrefix=0
+                  # - name: AuthenticationFilter   # MVP: 暂时关闭鉴权过滤，便于联调
 
-        # 博文服务 (需认证 + 限流)
-        - id: blog-service
-          uri: lb://blog-service
-          predicates:
-            - Path=/api/v1/posts/**,/api/v1/comments/**,/api/v1/tags/**
-          filters:
-            - StripPrefix=0
-            - name: AuthenticationFilter
-            - name: RateLimitFilter
-              args:
-                limit: 20
-                window: 60
+            # 博文服务 (MVP: 暂关闭鉴权/限流过滤，便于无 token 联调)
+            - id: blog-service
+              uri: http://localhost:8003
+              predicates:
+                - Path=/api/v1/posts/**,/api/v1/comments/**,/api/v1/tags/**
+              filters:
+                - StripPrefix=0
 
-        # 内容服务 (需认证 + 限流)
-        - id: content-service
-          uri: lb://content-service
-          predicates:
-            - Path=/api/v1/content/**
-          filters:
-            - StripPrefix=0
-            - name: AuthenticationFilter
-            - name: RateLimitFilter
-              args:
-                limit: 10
-                window: 60
+            # 内容服务
+            - id: content-service
+              uri: http://localhost:8004
+              predicates:
+                - Path=/api/v1/content/**
+              filters:
+                - StripPrefix=0
 
-        # 搜索服务 (限流)
-        - id: search-service
-          uri: lb://search-service
-          predicates:
-            - Path=/api/v1/search/**
-          filters:
-            - StripPrefix=0
-            - name: RateLimitFilter
-              args:
-                limit: 60
-                window: 60
+            # 搜索服务
+            - id: search-service
+              uri: http://localhost:8005
+              predicates:
+                - Path=/api/v1/search/**
+              filters:
+                - StripPrefix=0
 
-        # 推荐服务
-        - id: recommendation-service
-          uri: lb://recommendation-service
-          predicates:
-            - Path=/api/v1/recommend/**
-          filters:
-            - StripPrefix=0
+            # 推荐服务
+            - id: recommendation-service
+              uri: http://localhost:8006
+              predicates:
+                - Path=/api/v1/recommend/**
+              filters:
+                - StripPrefix=0
 
-        # 广告服务 (内部)
-        - id: ad-service-internal
-          uri: lb://ad-service
-          predicates:
-            - Path=/internal/ads/**
-            - name: InternalOnly
-          filters:
-            - StripPrefix=0
+            # 广告追踪 (公开)
+            - id: ad-tracking
+              uri: http://localhost:8007
+              predicates:
+                - Path=/api/v1/ads/t/**
+              filters:
+                - StripPrefix=0
 
-        # 广告追踪 (公开)
-        - id: ad-tracking
-          uri: lb://ad-service
-          predicates:
-            - Path=/api/v1/ads/t/**
-          filters:
-            - StripPrefix=0
+            # 健康检查 (公开)
+            - id: health
+              uri: http://localhost:8001
+              predicates:
+                - Path=/health/**
+              filters:
+                - StripPrefix=0
 
-        # 健康检查 (公开)
-        - id: health
-          uri: http://localhost:8001
-          predicates:
-            - Path=/health/**
-          filters:
-            - StripPrefix=0
+          discovery:
+            locator:
+              enabled: false
 
-      # 服务发现配置
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
+          # 全局过滤器
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 
-      # 全局过滤器
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+          # CORS 全局配置
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins:
+                  - http://localhost:3000
+                  - https://wenxinblog.com
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowed-headers: "*"
+                allow-credentials: true
+                max-age: 3600
 
-      # CORS 全局配置
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowed-origins:
-              - http://localhost:3000
-              - https://wenxinblog.com
-            allowed-methods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - OPTIONS
-            allowed-headers: "*"
-            allow-credentials: true
-            max-age: 3600
-
-  # Redis 配置
+  # Redis 配置（默认密码 redis，对齐 docker-compose 的 redis-cache）
   redis:
     host: localhost
     port: 6379
@@ -135,7 +113,7 @@ spring:
         max-idle: 8
         min-idle: 0
 
-  # Kafka 配置
+  # Kafka 配置（gateway 仅声明，Kafka 未启动时不影响路由）
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -179,7 +157,7 @@ resilience4j:
 # 日志配置
 logging:
   level:
-    com.wenxinblog: DEBUG
+    com.wenxinblog: INFO
     org.springframework.cloud.gateway: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
