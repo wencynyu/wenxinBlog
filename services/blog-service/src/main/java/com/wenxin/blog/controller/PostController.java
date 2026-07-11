@@ -1,5 +1,6 @@
 package com.wenxin.blog.controller;
 
+import com.wenxin.blog.dto.PaginatedResponse;
 import com.wenxin.blog.dto.PostRequest;
 import com.wenxin.blog.dto.Result;
 import com.wenxin.blog.entity.Post;
@@ -41,14 +42,18 @@ public class PostController {
     }
 
     @GetMapping
-    public Flux<Post> listPosts(@RequestParam(defaultValue = "0") int page,
-                                @RequestParam(defaultValue = "20") int size,
-                                @RequestParam(required = false) String authorId,
-                                @RequestParam(defaultValue = "PUBLISHED") String status) {
-        if (authorId != null) {
-            return postService.listPostsByAuthor(UUID.fromString(authorId), page, size);
-        }
-        return postService.listPublishedPosts(page, size);
+    public Mono<Result<PaginatedResponse<Post>>> listPosts(
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int size,
+        @RequestParam(required = false) String authorId,
+        @RequestParam(defaultValue = "published") String status) {
+        // 前端发 1-based page，Spring Data PageRequest 是 0-based
+        int zeroPage = Math.max(0, page - 1);
+        Flux<Post> posts = (authorId != null)
+            ? postService.listPostsByAuthor(UUID.fromString(authorId), zeroPage, size)
+            : postService.listPublishedPosts(zeroPage, size);
+        return posts.collectList()
+            .map(list -> Result.success(PaginatedResponse.of(list, page, size, list.size())));
     }
 
     @PostMapping("/{id}/publish")
