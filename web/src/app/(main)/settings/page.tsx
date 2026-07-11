@@ -71,7 +71,9 @@ export default function SettingsPage() {
     return (
       <MainLayout>
         <div className="max-w-2xl mx-auto text-center py-20">
-          <Title heading={3}>请先登录</Title>
+          <Title heading={3} className="text-ink">
+            请先登录
+          </Title>
         </div>
       </MainLayout>
     );
@@ -80,13 +82,14 @@ export default function SettingsPage() {
   return (
     <MainLayout showSidebar={false}>
       <div className="max-w-2xl mx-auto">
-        <Title heading={2} className="mb-6">
+        <p className="eyebrow mb-2">{'// settings'}</p>
+        <Title heading={2} className="font-serif text-ink mb-6">
           个人设置
         </Title>
 
         {/* 个人信息 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6 dark:bg-gray-800 dark:border-gray-700">
-          <Title heading={4} className="mb-4">
+        <div className="bg-surface rounded-xl shadow-card p-6 mb-6">
+          <Title heading={4} className="font-serif text-ink mb-4">
             个人资料
           </Title>
           <Form
@@ -123,11 +126,11 @@ export default function SettingsPage() {
         </div>
 
         {/* 兴趣标签 */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 dark:bg-gray-800 dark:border-gray-700">
-          <Title heading={4} className="mb-4">
+        <div className="bg-surface rounded-xl shadow-card p-6">
+          <Title heading={4} className="font-serif text-ink mb-4">
             兴趣标签
           </Title>
-          <p className="text-gray-500 text-sm mb-4">选择你感兴趣的标签，获得更精准的推荐</p>
+          <p className="text-ink-muted text-sm mb-4">选择你感兴趣的标签，获得更精准的推荐</p>
           {interestsLoading ? (
             <Skeleton.Paragraph style={{ width: '100%' }} />
           ) : (

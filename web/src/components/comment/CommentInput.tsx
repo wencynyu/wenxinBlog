@@ -39,8 +39,8 @@ export default function CommentInput({ postId }: CommentInputProps) {
 
   if (!isAuthenticated) {
     return (
-      <div className="bg-gray-50 rounded-lg p-4 text-center text-gray-500 text-sm">
-        <a href="/login" className="text-sky-500 hover:text-sky-600">
+      <div className="bg-canvas rounded-xl p-4 text-center text-ink-muted text-sm">
+        <a href="/login" className="text-primary-700 font-medium">
           登录
         </a>{' '}
         后参与评论

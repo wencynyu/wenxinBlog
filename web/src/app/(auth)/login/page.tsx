@@ -20,16 +20,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+    <div className="bg-surface rounded-2xl shadow-card p-8">
       {/* Logo */}
       <div className="text-center mb-8">
         <Link href="/" className="inline-flex items-center space-x-2">
-          <div className="h-10 w-10 rounded-lg bg-sky-500 flex items-center justify-center">
-            <span className="text-white font-bold text-xl">W</span>
+          <div className="h-10 w-10 rounded-xl bg-primary-600 flex items-center justify-center">
+            <span className="text-white font-bold text-xl font-mono">W</span>
           </div>
-          <span className="font-bold text-2xl text-gray-900">WenxinBlog</span>
+          <span className="font-serif font-bold text-2xl text-ink">WenxinBlog</span>
         </Link>
-        <p className="text-gray-500 mt-2">登录您的账号</p>
+        <p className="eyebrow mt-3">{'// sign in'}</p>
       </div>
 
       <Form onSubmit={handleSubmit}>
@@ -66,9 +66,9 @@ export default function LoginPage() {
         </Button>
       </Form>
 
-      <div className="text-center mt-6 text-sm text-gray-500">
+      <div className="text-center mt-6 text-sm text-ink-muted">
         还没有账号？
-        <Link href="/register" className="text-sky-500 hover:text-sky-600 ml-1">
+        <Link href="/register" className="text-primary-700 hover:text-primary-700 ml-1 font-medium">
           立即注册
         </Link>
       </div>

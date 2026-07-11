@@ -71,10 +71,10 @@ export default function CommentList({ postId }: CommentListProps) {
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center mb-1">
-              <span className="text-sm font-medium text-gray-900">
+              <span className="text-sm font-medium text-ink">
                 {comment.author?.displayName || comment.author?.username}
               </span>
-              <span className="text-gray-400 text-xs ml-2">
+              <span className="text-ink-faint text-xs ml-2 font-mono">
                 {dayjs(comment.createdAt).fromNow()}
               </span>
               {currentUser && currentUser.id === comment.authorId && (
@@ -93,7 +93,7 @@ export default function CommentList({ postId }: CommentListProps) {
                 </Popconfirm>
               )}
             </div>
-            <p className="text-gray-700 text-sm">{comment.content}</p>
+            <p className="text-ink-muted text-sm">{comment.content}</p>
           </div>
         </div>
       ))}
