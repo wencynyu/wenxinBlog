@@ -8,11 +8,6 @@ spring:
     url: r2dbc:postgresql://localhost:5434/blog_db
     username: postgres
     password: ${POSTGRES_PASSWORD:postgres}
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
 
 # MinIO配置
 minio:

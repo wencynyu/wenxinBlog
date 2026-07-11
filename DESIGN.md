@@ -1068,6 +1068,8 @@ collection.create_index("vector", index_params)
 
 ### 7.1 RabbitMQ 队列
 
+> ⚠️ **未实现 / 已移除**：当前代码无任何 RabbitMQ 依赖与生产/消费逻辑，已从 `docker-compose.yml` 移除该容器。下表为设计规划，待实现异步任务（邮件/推送/审核/定时发布）时再引入。
+
 | 队列名                | 类型    | 用途         | 消费者             |
 | --------------------- | ------- | ------------ | ------------------ |
 | `email.notifications` | Direct  | 邮件发送     | Email Service      |

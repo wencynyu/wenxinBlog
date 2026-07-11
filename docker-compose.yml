@@ -134,29 +134,6 @@ services:
       - wenxinblog
 
   # =====================================================
-  # RabbitMQ 任务队列
-  # =====================================================
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: wenxinblog-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
-      RABBITMQ_DEFAULT_VHOST: /
-    ports:
-      - "5672:5672"   # AMQP protocol
-      - "15672:15672" # Management UI
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - wenxinblog
-
-  # =====================================================
   # Kafka 事件流
   # =====================================================
   zookeeper:
@@ -339,10 +316,6 @@ volumes:
   # OpenSearch data
   opensearch-data:
     name: wenxinblog-opensearch-data
-
-  # RabbitMQ data
-  rabbitmq-data:
-    name: wenxinblog-rabbitmq-data
 
   # Kafka & Zookeeper data
   zookeeper-data:
