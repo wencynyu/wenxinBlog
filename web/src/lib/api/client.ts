@@ -27,23 +27,29 @@ const client = axios.create({
 
 // Token存储key
 const TOKEN_KEY = 'auth_token';
+// 同时写入 cookie，供 Server Component / generateMetadata 读取（server.ts 读 cookie）。
+// 非 httpOnly：与 localStorage 同等 XSS 暴露面；httpOnly 升级需要服务端 set-cookie，见 TODO。
+const COOKIE_KEY = 'auth_token';
+const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7天
 
-// 获取token
+// 获取token（客户端从 localStorage 读，保持同步快速）
 const getToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
 };
 
-// 设置token
+// 设置token：同时写 localStorage（客户端用）与 cookie（服务端用）
 export const setToken = (token: string): void => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, token);
+  document.cookie = `${COOKIE_KEY}=${encodeURIComponent(token)}; path=/; SameSite=Lax; max-age=${COOKIE_MAX_AGE}`;
 };
 
-// 清除token
+// 清除token：同时清 localStorage 与 cookie
 export const clearToken = (): void => {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(TOKEN_KEY);
+  document.cookie = `${COOKIE_KEY}=; path=/; SameSite=Lax; max-age=0`;
 };
 
 // 请求拦截器
@@ -57,7 +63,7 @@ client.interceptors.request.use(
   },
   (error: AxiosError) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // 响应拦截器
@@ -97,7 +103,7 @@ client.interceptors.response.use(
       code: 500,
       message: '网络错误',
     });
-  }
+  },
 );
 
 export default client;
