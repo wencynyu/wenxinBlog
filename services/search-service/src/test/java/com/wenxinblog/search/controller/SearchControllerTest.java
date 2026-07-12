@@ -50,7 +50,7 @@ class SearchControllerTest {
                         "1", "Test Blog", "Content", "Summary",
                         "author1", "Author", List.of("tag1"), "tech",
                         100, 10, LocalDateTime.now(), 1.0, List.of(), List.of())),
-                1L, 0, 10
+                1L, 0, 10, 1
         );
 
         when(searchService.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(result));
@@ -68,7 +68,7 @@ class SearchControllerTest {
 
     @Test
     void searchBlogs_WithSortByParameter_ShouldIncludeSort() {
-        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10);
+        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10, 0);
 
         when(searchService.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(result));
 
@@ -82,7 +82,7 @@ class SearchControllerTest {
 
     @Test
     void searchBlogs_WithTagsAndCategory_ShouldIncludeFilters() {
-        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10);
+        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10, 0);
 
         when(searchService.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(result));
 
@@ -99,7 +99,7 @@ class SearchControllerTest {
         PageResult<UserSearchResponse> result = new PageResult<>(
                 List.of(new UserSearchResponse(
                         "1", "Test User", "testuser", "Bio", "avatar.jpg", 100, 50, 1.0)),
-                1L, 0, 10
+                1L, 0, 10, 1
         );
 
         when(searchService.searchUsers(eq("test"), eq(0), eq(10))).thenReturn(Mono.just(result));
@@ -218,7 +218,7 @@ class SearchControllerTest {
 
     @Test
     void searchBlogs_WithInvalidSizeParameter_ShouldUseDefaultSize() {
-        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10);
+        PageResult<BlogSearchResponse> result = new PageResult<>(List.of(), 0L, 0, 10, 0);
 
         when(searchService.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(result));
 

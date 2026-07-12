@@ -8,6 +8,11 @@ spring:
     url: r2dbc:postgresql://localhost:5434/blog_db
     username: postgres
     password: ${POSTGRES_PASSWORD:postgres}
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:redis}
 
 # MinIO配置
 minio:

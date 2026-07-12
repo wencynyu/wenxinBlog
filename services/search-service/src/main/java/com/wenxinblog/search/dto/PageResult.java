@@ -6,5 +6,6 @@ public record PageResult<T>(
         List<T> items,
         long total,
         int page,
-        int size
+        int pageSize,
+        int totalPages
 ) {}

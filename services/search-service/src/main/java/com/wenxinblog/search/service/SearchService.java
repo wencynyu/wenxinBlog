@@ -49,7 +49,8 @@ public class SearchService {
                         hlTitle, hlContent
                 ));
             }
-            return new PageResult<>(items, total, request.page(), request.size());
+            int totalPages = request.size() > 0 ? (int) Math.ceil((double) total / request.size()) : 0;
+            return new PageResult<>(items, total, request.page(), request.size(), totalPages);
         });
     }
 
@@ -68,7 +69,8 @@ public class SearchService {
                         doc.getPostCount(), hit.score() != null ? hit.score() : 0.0
                 ));
             }
-            return new PageResult<>(items, total, page, size);
+            int totalPages2 = size > 0 ? (int) Math.ceil((double) total / size) : 0;
+            return new PageResult<>(items, total, page, size, totalPages2);
         });
     }
 
