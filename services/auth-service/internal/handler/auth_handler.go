@@ -45,7 +45,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: "internal error"})
 	}
 	return c.JSON(dto.APIResponse{Code: 200, Message: "login success", Data: dto.AuthResponse{
-		User: &dto.UserResponse{ID: user.ID, Username: user.Username, Email: user.Email, Status: user.Status},
+		User:   &dto.UserResponse{ID: user.ID, Username: user.Username, Email: user.Email, Status: user.Status},
 		Tokens: &dto.TokenResponse{AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken, ExpiresIn: tokens.ExpiresIn},
 	}})
 }
@@ -80,6 +80,25 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	return c.JSON(dto.APIResponse{Code: 200, Message: "logged out"})
 }
 
+// ValidateToken 验证 Bearer token，返回 userId + roles。
+// 供网关 AuthenticationFilter 调用（GET /api/v1/auth/validate）。
+func (h *AuthHandler) ValidateToken(c *fiber.Ctx) error {
+	authHeader := c.Get("Authorization")
+	if len(authHeader) <= 7 || authHeader[:7] != "Bearer " {
+		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "missing bearer token"})
+	}
+	token := authHeader[7:]
+	claims, err := h.authService.ValidateToken(token)
+	if err != nil || claims == nil {
+		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "invalid token"})
+	}
+	return c.JSON(fiber.Map{
+		"userId": claims.UserID,
+		"email":  "",
+		"roles":  claims.Roles,
+	})
+}
+
 func RegisterRoutes(api fiber.Router, authService service.AuthServicer) {
 	h := NewAuthHandler(authService)
 	auth := api.Group("/auth")
@@ -87,4 +106,5 @@ func RegisterRoutes(api fiber.Router, authService service.AuthServicer) {
 	auth.Post("/login", h.Login)
 	auth.Post("/refresh", h.RefreshToken)
 	auth.Post("/logout", h.Logout)
+	auth.Get("/validate", h.ValidateToken)
 }

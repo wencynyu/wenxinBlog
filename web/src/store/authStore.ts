@@ -34,13 +34,14 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           const response = await api.login(credentials);
+          const accessToken = response.tokens.accessToken;
           set({
             user: response.user,
-            token: response.token,
+            token: accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
-          setToken(response.token);
+          setToken(accessToken);
         } catch (error: any) {
           set({ isLoading: false });
           throw error;
@@ -51,13 +52,14 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           const response = await api.register(data);
+          const accessToken = response.tokens.accessToken;
           set({
             user: response.user,
-            token: response.token,
+            token: accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
-          setToken(response.token);
+          setToken(accessToken);
         } catch (error: any) {
           set({ isLoading: false });
           throw error;
@@ -88,24 +90,9 @@ export const useAuthStore = create<AuthStore>()(
           set({ isAuthenticated: false, user: null });
           return;
         }
-
-        set({ isLoading: true });
-        try {
-          const user = await api.getCurrentUser();
-          set({
-            user,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-          clearToken();
-        }
+        // MVP: token 存在即视为已认证（login 时已验证凭证）。
+        // 后续可加 GET /api/v1/auth/me 做服务端 token 验证。
+        set({ isAuthenticated: true });
       },
     }),
     {
@@ -116,6 +103,6 @@ export const useAuthStore = create<AuthStore>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
+    },
+  ),
 );

@@ -7,8 +7,9 @@ import com.wenxinblog.content.service.ContentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -20,12 +21,8 @@ public class ContentController {
 
     @PostMapping("/upload")
     public Mono<Result<UploadResponse>> upload(@RequestHeader("X-User-Id") UUID userId,
-                                                  @RequestPart("file") FilePart file) {
-        String objectKey = "uploads/" + userId + "/" + UUID.randomUUID() + "/" + file.filename();
-        String cdnUrl = "http://localhost:9000/wenxinblog-content/" + objectKey;
-        String mimeType = file.headers().getContentType() != null
-                ? file.headers().getContentType().toString() : "application/octet-stream";
-        return contentService.upload(userId, file.filename(), mimeType, file.headers().getContentLength(), objectKey, cdnUrl)
+                                               @RequestPart("file") FilePart file) {
+        return contentService.upload(userId, file)
             .map(asset -> Result.success(UploadResponse.builder()
                 .id(asset.getId()).objectKey(asset.getObjectKey())
                 .cdnUrl(asset.getCdnUrl()).status(asset.getStatus())
@@ -45,7 +42,8 @@ public class ContentController {
     }
 
     @GetMapping("/post/{postId}")
-    public Flux<MediaAsset> getFilesByPost(@PathVariable UUID postId) {
-        return contentService.getFilesByPost(postId);
+    public Mono<Result<List<MediaAsset>>> getFilesByPost(@PathVariable UUID postId) {
+        return contentService.getFilesByPost(postId).collectList()
+            .map(Result::success);
     }
 }

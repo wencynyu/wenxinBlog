@@ -27,15 +27,16 @@ spring:
                 - Path=/api/v1/users/**
               filters:
                 - StripPrefix=0
-                  # - name: AuthenticationFilter   # MVP: 暂时关闭鉴权过滤，便于联调
+                - name: AuthenticationFilter
 
-            # 博文服务 (MVP: 暂关闭鉴权/限流过滤，便于无 token 联调)
+            # 博文服务
             - id: blog-service
               uri: http://localhost:8003
               predicates:
                 - Path=/api/v1/posts/**,/api/v1/comments/**,/api/v1/tags/**
               filters:
                 - StripPrefix=0
+                - name: AuthenticationFilter
 
             # 内容服务
             - id: content-service
@@ -44,6 +45,7 @@ spring:
                 - Path=/api/v1/content/**
               filters:
                 - StripPrefix=0
+                - name: AuthenticationFilter
 
             # 搜索服务
             - id: search-service

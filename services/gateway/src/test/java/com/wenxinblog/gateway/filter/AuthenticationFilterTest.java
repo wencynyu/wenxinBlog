@@ -45,7 +45,7 @@ class AuthenticationFilterTest {
     @Mock
     private WebClient.ResponseSpec responseSpec;
 
-    private AuthenticationFilter filter;
+    private AuthenticationFilterGatewayFilterFactory filter;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -66,7 +66,7 @@ class AuthenticationFilterTest {
 
         when(chain.filter(exchange)).thenReturn(Mono.empty());
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         // Whitelisted paths should pass through to chain
         verify(chain).filter(exchange);
@@ -79,7 +79,7 @@ class AuthenticationFilterTest {
 
         when(chain.filter(exchange)).thenReturn(Mono.empty());
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         verify(chain).filter(exchange);
     }
@@ -99,7 +99,7 @@ class AuthenticationFilterTest {
 
             when(chain.filter(exchange)).thenReturn(Mono.empty());
 
-            filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+            filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
             verify(chain, atLeastOnce()).filter(exchange);
             // Reset for next iteration
@@ -112,7 +112,7 @@ class AuthenticationFilterTest {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/posts").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
         verify(chain, never()).filter(exchange);
@@ -125,7 +125,7 @@ class AuthenticationFilterTest {
             .build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
     }
@@ -137,7 +137,7 @@ class AuthenticationFilterTest {
             .build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
     }
@@ -152,13 +152,13 @@ class AuthenticationFilterTest {
         when(chain.filter(exchange)).thenReturn(Mono.empty());
 
         // Mock auth-service returning a valid user
-        AuthenticationFilter.ValidationResponse response = new AuthenticationFilter.ValidationResponse();
+        AuthenticationFilterGatewayFilterFactory.ValidationResponse response = new AuthenticationFilterGatewayFilterFactory.ValidationResponse();
         response.setUserId("user123");
         response.setEmail("test@example.com");
         response.setRoles(List.of("USER"));
-        doReturn(Mono.just(response)).when(responseSpec).bodyToMono(AuthenticationFilter.ValidationResponse.class);
+        doReturn(Mono.just(response)).when(responseSpec).bodyToMono(AuthenticationFilterGatewayFilterFactory.ValidationResponse.class);
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         // Valid token should pass through to chain, response status set by downstream
         verify(chain).filter(exchange);
@@ -172,10 +172,10 @@ class AuthenticationFilterTest {
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
         // Mock auth-service returning error
-        when(responseSpec.bodyToMono(AuthenticationFilter.ValidationResponse.class))
+        when(responseSpec.bodyToMono(AuthenticationFilterGatewayFilterFactory.ValidationResponse.class))
             .thenReturn(Mono.error(new RuntimeException("Connection refused")));
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
     }
@@ -188,12 +188,12 @@ class AuthenticationFilterTest {
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
         // Mock auth-service returning invalid user (null userId)
-        AuthenticationFilter.ValidationResponse response = new AuthenticationFilter.ValidationResponse();
+        AuthenticationFilterGatewayFilterFactory.ValidationResponse response = new AuthenticationFilterGatewayFilterFactory.ValidationResponse();
         response.setUserId(null);
-        when(responseSpec.bodyToMono(AuthenticationFilter.ValidationResponse.class))
+        when(responseSpec.bodyToMono(AuthenticationFilterGatewayFilterFactory.ValidationResponse.class))
             .thenReturn(Mono.just(response));
 
-        filter.apply(new AuthenticationFilter.Config()).filter(exchange, chain).block();
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
 
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
     }
