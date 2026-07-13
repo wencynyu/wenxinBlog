@@ -22,10 +22,8 @@ import CommentList from '@/components/comment/CommentList';
 import EmptyState from '@/components/common/EmptyState';
 import { usePost, useToggleLike, useToggleFavorite } from '@/hooks/usePosts';
 import { useAuthStore } from '@/store/authStore';
-import type { Post } from '@/types/post';
-import type { FeedRecommendation } from '@/lib/api/recommend';
 
-// 正文渲染较重（marked + highlight.js），按需加载，不进首屏共享 chunk
+// 正文渲染较重（marked + highlight.js），按需加载
 const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
   ssr: false,
   loading: () => <p className="text-ink-muted text-sm">加载正文…</p>,
@@ -38,28 +36,16 @@ const { Title, Text } = Typography;
 
 interface PostDetailViewProps {
   postId: string;
-  initialPost: Post;
-  initialRelated: FeedRecommendation[];
 }
 
-/**
- * 客户端 island：博文由 Server Component 预取并以 initialPost 注入，
- * 同时通过 usePost(id, initialPost) 写入 React Query 缓存，
- * 使点赞/收藏的乐观更新继续作用于同一 ['post', id] 缓存项。
- */
-export default function PostDetailView({
-  postId,
-  initialPost,
-  initialRelated,
-}: PostDetailViewProps) {
+export default function PostDetailView({ postId }: PostDetailViewProps) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const toggleLike = useToggleLike();
   const toggleFavorite = useToggleFavorite();
 
-  const { data: post } = usePost(postId, initialPost);
-  const relatedPosts = initialRelated;
+  const { data: post, isLoading } = usePost(postId);
 
   const handleShare = async () => {
     try {
@@ -71,6 +57,28 @@ export default function PostDetailView({
       }
     } catch {}
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout showSidebar={false}>
+        <div className="max-w-3xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-16 mb-6" />
+            <div className="h-8 bg-gray-200 rounded w-4/5 mb-4" />
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-gray-200 rounded-full" />
+              <div className="h-4 bg-gray-200 rounded w-24" />
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 bg-gray-100 rounded w-full" />
+              <div className="h-4 bg-gray-100 rounded w-full" />
+              <div className="h-4 bg-gray-100 rounded w-3/4" />
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   if (!post) {
     return (
@@ -107,21 +115,18 @@ export default function PostDetailView({
           {/* 作者信息 */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
-              <Link href={`/user/${post.authorId}`}>
-                <Avatar
-                  size="default"
-                  src={post.author?.avatar}
-                  alt={post.author?.displayName || post.author?.username}
-                >
-                  {(post.author?.displayName || post.author?.username || 'U')[0]}
-                </Avatar>
-              </Link>
+              <Avatar size="default" src={post.author?.avatar}>
+                {
+                  (post.author?.displayName ||
+                    post.author?.username ||
+                    post.authorId.slice(0, 1) ||
+                    'U')[0]
+                }
+              </Avatar>
               <div className="ml-3">
-                <Link href={`/user/${post.authorId}`}>
-                  <Text strong className="text-ink dark:text-gray-100">
-                    {post.author?.displayName || post.author?.username}
-                  </Text>
-                </Link>
+                <Text strong className="text-ink dark:text-gray-100">
+                  {post.author?.displayName || post.author?.username || post.authorId.slice(0, 8)}
+                </Text>
                 <br />
                 <Text type="tertiary" size="small">
                   {dayjs(post.createdAt).format('YYYY-MM-DD HH:mm')}
@@ -218,39 +223,6 @@ export default function PostDetailView({
           </div>
           <CommentList postId={postId} />
         </article>
-
-        {/* 相关推荐 */}
-        {relatedPosts && relatedPosts.length > 0 && (
-          <>
-            <Divider />
-            <div>
-              <Title heading={4} className="mb-4">
-                相关推荐
-              </Title>
-              <div className="space-y-3">
-                {relatedPosts.map((rp) => (
-                  <Link
-                    key={rp.id}
-                    href={`/posts/${rp.id}`}
-                    className="block p-3 rounded-lg hover:bg-canvas transition-colors"
-                  >
-                    <Text strong className="line-clamp-1">
-                      {rp.title}
-                    </Text>
-                    <div className="flex items-center gap-3 mt-1">
-                      <Text type="tertiary" size="small">
-                        {rp.author?.displayName || rp.author?.username}
-                      </Text>
-                      <Text type="tertiary" size="small">
-                        {rp.likeCount} 赞
-                      </Text>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </MainLayout>
   );
