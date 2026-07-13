@@ -1,74 +1,60 @@
 'use client';
 
 import Link from 'next/link';
-import { IconStarStroked, IconClock } from '@douyinfe/semi-icons';
+import { IconStarStroked } from '@douyinfe/semi-icons';
 import { useQuery } from '@tanstack/react-query';
-import { getTrendingTags } from '@/lib/api/search';
-import { getTrendingPosts } from '@/lib/api/recommend';
+import { getPosts } from '@/lib/api/posts';
 
 export default function Sidebar() {
-  const { data: trendingTags } = useQuery({
-    queryKey: ['sidebar-trending-tags'],
-    queryFn: () => getTrendingTags(10),
+  // 从 blog-service 取真实帖子（按点赞排序），不从 recommendation-service 取假数据
+  const { data } = useQuery({
+    queryKey: ['sidebar-popular-posts'],
+    queryFn: () =>
+      getPosts({
+        page: 1,
+        pageSize: 5,
+        status: 'published',
+        sortBy: 'likeCount',
+        sortOrder: 'desc',
+      }),
     staleTime: 10 * 60 * 1000,
     retry: false,
   });
 
-  const { data: trendingPosts } = useQuery({
-    queryKey: ['sidebar-trending-posts'],
-    queryFn: () => getTrendingPosts(5),
-    staleTime: 10 * 60 * 1000,
-    retry: false,
-  });
-
-  const tags = trendingTags && trendingTags.length > 0 ? trendingTags : [];
-  const posts = trendingPosts && trendingPosts.length > 0 ? trendingPosts : [];
-
-  if (tags.length === 0 && posts.length === 0) return null;
+  const posts = data?.items || [];
+  if (posts.length === 0) return null;
 
   return (
     <aside className="w-full space-y-6">
-      {tags.length > 0 && (
-        <div className="bg-surface rounded-xl shadow-card p-5">
-          <h5 className="eyebrow mb-4 flex items-center gap-2">
-            <IconStarStroked className="text-accent-500" />
-            {'// trending tags'}
-          </h5>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag: string) => (
-              <Link key={tag} href={`/posts?tag=${encodeURIComponent(tag)}`}>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors cursor-pointer">
-                  #{tag}
+      <div className="bg-surface rounded-xl shadow-card p-5">
+        <h5 className="eyebrow mb-4 flex items-center gap-2">
+          <IconStarStroked className="text-accent-500" />
+          {'// popular posts'}
+        </h5>
+        <div className="space-y-3">
+          {posts.map((post, index) => (
+            <Link
+              key={post.id}
+              href={`/posts/${post.id}`}
+              className="block w-full px-2 -mx-2 py-1 rounded-md hover:bg-canvas transition-colors"
+            >
+              <div className="flex items-start gap-2">
+                <span
+                  className={`text-sm font-mono font-bold flex-shrink-0 ${index < 3 ? 'text-accent-500' : 'text-ink-faint'}`}
+                >
+                  {index + 1}
                 </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {posts.length > 0 && (
-        <div className="bg-surface rounded-xl shadow-card p-5">
-          <h5 className="eyebrow mb-4 flex items-center gap-2">
-            <IconStarStroked className="text-accent-500" />
-            {'// trending posts'}
-          </h5>
-          <div className="space-y-3">
-            {posts.map((item: any) => (
-              <Link
-                key={item.id}
-                href={`/posts/${item.id}`}
-                className="block w-full px-2 -mx-2 py-1 rounded-md hover:bg-canvas transition-colors"
-              >
-                <div className="text-ink text-sm mb-1 line-clamp-2">{item.title}</div>
-                <div className="flex items-center text-ink-faint text-xs font-mono">
-                  <IconClock size="small" />
-                  <span className="ml-1">{item.viewsCount?.toLocaleString() || 0} 阅读</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-ink text-sm line-clamp-2">{post.title}</div>
+                  <div className="text-ink-faint text-xs font-mono mt-0.5">
+                    {post.likeCount || 0} 赞 · {post.commentCount || 0} 评论
+                  </div>
                 </div>
-              </Link>
-            ))}
-          </div>
+              </div>
+            </Link>
+          ))}
         </div>
-      )}
+      </div>
     </aside>
   );
 }
