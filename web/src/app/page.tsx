@@ -8,7 +8,6 @@ import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
 import { useAuthStore } from '@/store/authStore';
-import { getFeed } from '@/lib/api/recommend';
 import { getPosts } from '@/lib/api/posts';
 
 export default function HomePage() {
@@ -21,66 +20,32 @@ export default function HomePage() {
   const dataLoadedRef = useRef(false);
 
   // Load from API. On failure the UI shows an EmptyState instead of mock data.
-  const fetchPosts = useCallback(
-    async (p: number) => {
-      if (isAuthenticated && user?.id) {
-        try {
-          const feedData = await getFeed(user.id, { page: p, size: 10 });
-          if (feedData && feedData.length > 0) {
-            const posts = feedData.map((fp: any) => ({
-              id: fp.id,
-              title: fp.title,
-              content: '',
-              summary: fp.summary || '',
-              coverImage: fp.coverImage,
-              authorId: fp.authorId,
-              author: fp.author,
-              tags: fp.tags || [],
-              status: 'published',
-              likeCount: fp.likeCount,
-              commentCount: fp.commentCount,
-              isLiked: false,
-              isFavorited: false,
-              createdAt: fp.createdAt,
-              updatedAt: fp.createdAt,
-            }));
-            setAllPosts((prev) => (p === 1 ? posts : [...prev, ...posts]));
-            setHasMore(feedData.length >= 10);
-            setLoadError(false);
-            dataLoadedRef.current = true;
-            setIsLoading(false);
-            return;
-          }
-        } catch {}
+  const fetchPosts = useCallback(async (p: number) => {
+    try {
+      const data = await getPosts({
+        page: p,
+        pageSize: 10,
+        status: 'published',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      if (data && data.items && data.items.length > 0) {
+        setAllPosts((prev) => (p === 1 ? data.items : [...prev, ...data.items]));
+        setHasMore(p < (data.totalPages || 1));
+        setLoadError(false);
+      } else {
+        if (p === 1) setAllPosts([]);
+        setHasMore(false);
       }
-      try {
-        const data = await getPosts({
-          page: p,
-          pageSize: 10,
-          status: 'published',
-          sortBy: 'createdAt',
-          sortOrder: 'desc',
-        });
-        if (data && data.items && data.items.length > 0) {
-          setAllPosts((prev) => (p === 1 ? data.items : [...prev, ...data.items]));
-          setHasMore(p < (data.totalPages || 1));
-          setLoadError(false);
-          dataLoadedRef.current = true;
-          setIsLoading(false);
-          return;
-        }
-      } catch {}
-      // Backend unavailable — surface an error state instead of mock data.
+    } catch {
       if (p === 1) {
         setAllPosts([]);
         setLoadError(true);
       }
       setHasMore(false);
-      setIsLoading(false);
-      dataLoadedRef.current = true;
-    },
-    [isAuthenticated, user?.id],
-  );
+    }
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
     fetchPosts(page);
