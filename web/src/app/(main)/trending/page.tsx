@@ -68,7 +68,7 @@ export default async function TrendingPage() {
                 <h3 className="font-semibold text-ink line-clamp-1">{post.title}</h3>
                 <div className="flex items-center gap-3 mt-1 text-ink-faint text-sm font-mono">
                   <span>{post.author?.displayName || post.author?.username}</span>
-                  <span>{post.likesCount} 赞</span>
+                  <span>{post.likeCount} 赞</span>
                   <span>{post.viewsCount} 阅读</span>
                 </div>
               </div>

@@ -16,8 +16,8 @@ const makePost = (overrides: Partial<Post> = {}): Post => ({
   author: { id: 'a1', username: 'u' },
   tags: [],
   status: 'published',
-  likesCount: 5,
-  commentsCount: 0,
+  likeCount: 5,
+  commentCount: 0,
   isLiked: false,
   isFavorited: false,
   createdAt: '2020-01-01',
@@ -28,7 +28,7 @@ const makePost = (overrides: Partial<Post> = {}): Post => ({
 describe('useToggleLike', () => {
   it('rolls back the optimistic update when the request fails', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.setQueryData(['post', '1'], makePost({ id: '1', likesCount: 5, isLiked: false }));
+    qc.setQueryData(['post', '1'], makePost({ id: '1', likeCount: 5, isLiked: false }));
 
     vi.mocked(postsApi.likePost).mockRejectedValue(new Error('boom'));
 
@@ -43,7 +43,7 @@ describe('useToggleLike', () => {
     });
 
     const cached = qc.getQueryData<Post>(['post', '1']);
-    expect(cached?.likesCount).toBe(5);
+    expect(cached?.likeCount).toBe(5);
     expect(cached?.isLiked).toBe(false);
   });
 });

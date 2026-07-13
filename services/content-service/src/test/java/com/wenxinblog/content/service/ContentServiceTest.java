@@ -2,11 +2,17 @@ package com.wenxinblog.content.service;
 
 import com.wenxinblog.content.entity.MediaAsset;
 import com.wenxinblog.content.repository.MediaAssetRepository;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.multipart.FilePart;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -15,7 +21,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ContentServiceTest {
@@ -23,82 +29,89 @@ class ContentServiceTest {
     @Mock
     private MediaAssetRepository mediaRepo;
 
+    @Mock
+    private MinioClient minioClient;
+
+    @Mock
+    private FilePart filePart;
+
     private ContentService contentService;
 
     @BeforeEach
     void setUp() {
-        contentService = new ContentService(mediaRepo);
+        contentService = new ContentService(mediaRepo, minioClient);
+        org.springframework.test.util.ReflectionTestUtils.setField(contentService, "bucket", "wenxinblog-content");
+        org.springframework.test.util.ReflectionTestUtils.setField(contentService, "endpoint", "http://localhost:9000");
+    }
+
+    private void stubFilePart(String filename, MediaType contentType) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(contentType);
+        headers.setContentLength(4L);
+        when(filePart.filename()).thenReturn(filename);
+        when(filePart.headers()).thenReturn(headers);
+        when(filePart.content()).thenReturn(
+            Flux.just(DefaultDataBufferFactory.sharedInstance.wrap("test".getBytes())));
     }
 
     @Test
-    void testUpload_ImageType() {
+    void testUpload_ImageType() throws Exception {
         UUID userId = UUID.randomUUID();
-        MediaAsset savedAsset = createMockAsset(userId, "IMAGE");
+        stubFilePart("test.png", MediaType.IMAGE_PNG);
 
-        when(mediaRepo.save(any(MediaAsset.class))).thenReturn(Mono.just(savedAsset));
-
-        StepVerifier.create(contentService.upload(
-            userId,
-            "test.png",
-            "image/png",
-            1024L,
-            "uploads/test.png",
-            "http://cdn.example.com/test.png"
-        ))
-        .expectNextMatches(asset ->
-            "IMAGE".equals(asset.getType()) &&
-            userId.equals(asset.getUserId()) &&
-            "test.png".equals(asset.getOriginalFilename())
-        )
-        .verifyComplete();
-    }
-
-    @Test
-    void testUpload_VideoType() {
-        UUID userId = UUID.randomUUID();
-
-        when(mediaRepo.save(any(MediaAsset.class))).thenAnswer(invocation -> {
-            MediaAsset asset = invocation.getArgument(0);
-            asset.setId(UUID.randomUUID());
-            asset.setStatus("READY");
-            return Mono.just(asset);
+        when(mediaRepo.save(any(MediaAsset.class))).thenAnswer(inv -> {
+            MediaAsset a = inv.getArgument(0);
+            a.setId(UUID.randomUUID());
+            return Mono.just(a);
         });
 
-        StepVerifier.create(contentService.upload(
-            userId,
-            "test.mp4",
-            "video/mp4",
-            1024000L,
-            "uploads/test.mp4",
-            "http://cdn.example.com/test.mp4"
-        ))
-        .expectNextMatches(asset ->
-            "VIDEO".equals(asset.getType()) &&
-            userId.equals(asset.getUserId()) &&
-            "test.mp4".equals(asset.getOriginalFilename())
-        )
-        .verifyComplete();
+        StepVerifier.create(contentService.upload(userId, filePart))
+            .expectNextMatches(asset ->
+                "IMAGE".equals(asset.getType()) &&
+                userId.equals(asset.getUserId()) &&
+                "test.png".equals(asset.getOriginalFilename()) &&
+                "MINIO".equals(asset.getStorageProvider())
+            )
+            .verifyComplete();
+
+        verify(minioClient).putObject(any(PutObjectArgs.class));
+    }
+
+    @Test
+    void testUpload_VideoType() throws Exception {
+        UUID userId = UUID.randomUUID();
+        stubFilePart("test.mp4", MediaType.valueOf("video/mp4"));
+
+        when(mediaRepo.save(any(MediaAsset.class))).thenAnswer(inv -> {
+            MediaAsset a = inv.getArgument(0);
+            a.setId(UUID.randomUUID());
+            a.setStatus("READY");
+            return Mono.just(a);
+        });
+
+        StepVerifier.create(contentService.upload(userId, filePart))
+            .expectNextMatches(asset ->
+                "VIDEO".equals(asset.getType()) &&
+                userId.equals(asset.getUserId()) &&
+                "test.mp4".equals(asset.getOriginalFilename())
+            )
+            .verifyComplete();
     }
 
     @Test
     void testUpload_DefaultType_WhenMimeTypeUnknown() {
         UUID userId = UUID.randomUUID();
-        MediaAsset savedAsset = createMockAsset(userId, "IMAGE");
+        stubFilePart("test.unknown", MediaType.APPLICATION_OCTET_STREAM);
 
-        when(mediaRepo.save(any(MediaAsset.class))).thenReturn(Mono.just(savedAsset));
+        when(mediaRepo.save(any(MediaAsset.class))).thenAnswer(inv -> {
+            MediaAsset a = inv.getArgument(0);
+            a.setId(UUID.randomUUID());
+            return Mono.just(a);
+        });
 
-        StepVerifier.create(contentService.upload(
-            userId,
-            "test.unknown",
-            "application/octet-stream",
-            512L,
-            "uploads/test.unknown",
-            "http://cdn.example.com/test.unknown"
-        ))
-        .expectNextMatches(asset ->
-            "IMAGE".equals(asset.getType())
-        )
-        .verifyComplete();
+        StepVerifier.create(contentService.upload(userId, filePart))
+            .expectNextMatches(asset -> "IMAGE".equals(asset.getType()))
+            .verifyComplete();
     }
 
     @Test
@@ -117,7 +130,6 @@ class ContentServiceTest {
     @Test
     void testGetFile_NotFound() {
         UUID assetId = UUID.randomUUID();
-
         when(mediaRepo.findById(assetId)).thenReturn(Mono.empty());
 
         StepVerifier.create(contentService.getFile(assetId))
@@ -127,7 +139,6 @@ class ContentServiceTest {
     @Test
     void testDeleteFile() {
         UUID assetId = UUID.randomUUID();
-
         when(mediaRepo.deleteById(assetId)).thenReturn(Mono.empty());
 
         StepVerifier.create(contentService.deleteFile(assetId))
@@ -151,7 +162,6 @@ class ContentServiceTest {
     @Test
     void testGetFilesByPost_Empty() {
         UUID postId = UUID.randomUUID();
-
         when(mediaRepo.findByPostId(postId)).thenReturn(Flux.empty());
 
         StepVerifier.create(contentService.getFilesByPost(postId))
@@ -169,7 +179,7 @@ class ContentServiceTest {
         asset.setObjectKey("uploads/test.png");
         asset.setCdnUrl("http://cdn.example.com/test.png");
         asset.setStatus("READY");
-        asset.setStorageProvider("LOCAL");
+        asset.setStorageProvider("MINIO");
         asset.setCreatedAt(LocalDateTime.now());
         asset.setUpdatedAt(LocalDateTime.now());
         return asset;

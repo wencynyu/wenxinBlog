@@ -182,10 +182,10 @@ export default function PostDetailView({
                   Toast.warning('请先登录');
                   return;
                 }
-                toggleLike.mutate({ id: post.id, isLiked: post.isLiked });
+                toggleLike.mutate({ id: post.id, isLiked: post.isLiked || false });
               }}
             >
-              {post.likesCount || 0}
+              {post.likeCount || 0}
             </Button>
 
             <Button
@@ -197,7 +197,7 @@ export default function PostDetailView({
                   Toast.warning('请先登录');
                   return;
                 }
-                toggleFavorite.mutate({ id: post.id, isFavorited: post.isFavorited });
+                toggleFavorite.mutate({ id: post.id, isFavorited: post.isFavorited || false });
               }}
             >
               收藏
@@ -212,7 +212,7 @@ export default function PostDetailView({
           <Divider />
           <div className="mb-8">
             <Title heading={4} className="mb-4">
-              评论 ({post.commentsCount || 0})
+              评论 ({post.commentCount || 0})
             </Title>
             <CommentInput postId={postId} />
           </div>
@@ -242,7 +242,7 @@ export default function PostDetailView({
                         {rp.author?.displayName || rp.author?.username}
                       </Text>
                       <Text type="tertiary" size="small">
-                        {rp.likesCount} 赞
+                        {rp.likeCount} 赞
                       </Text>
                     </div>
                   </Link>

@@ -15,8 +15,8 @@ export interface FeedRecommendation {
     avatar?: string;
   };
   tags: string[];
-  likesCount: number;
-  commentsCount: number;
+  likeCount: number;
+  commentCount: number;
   score?: number;
   createdAt: string;
 }
@@ -25,7 +25,7 @@ export interface TrendingPost {
   id: string;
   title: string;
   viewsCount: number;
-  likesCount: number;
+  likeCount: number;
   author: {
     id: string;
     username: string;
@@ -42,7 +42,7 @@ export interface UserInterestTag {
 
 export async function getFeed(
   userId: string,
-  params?: { page?: number; size?: number }
+  params?: { page?: number; size?: number },
 ): Promise<FeedRecommendation[]> {
   const response: ApiResponse<FeedRecommendation[]> = await client.get('/api/v1/recommend/feed', {
     params: { userId, ...params },
@@ -51,9 +51,12 @@ export async function getFeed(
 }
 
 export async function getRelatedPosts(postId: string, topK = 10): Promise<FeedRecommendation[]> {
-  const response: ApiResponse<FeedRecommendation[]> = await client.get(`/api/v1/recommend/related/${postId}`, {
-    params: { topK },
-  });
+  const response: ApiResponse<FeedRecommendation[]> = await client.get(
+    `/api/v1/recommend/related/${postId}`,
+    {
+      params: { topK },
+    },
+  );
   return response.data;
 }
 
@@ -71,10 +74,17 @@ export async function getUserInterests(userId: string): Promise<UserInterestTag[
   return response.data;
 }
 
-export async function updateUserInterests(userId: string, tags: string[]): Promise<UserInterestTag[]> {
-  const response: ApiResponse<UserInterestTag[]> = await client.put('/api/v1/recommend/interests', tags, {
-    params: { userId },
-  });
+export async function updateUserInterests(
+  userId: string,
+  tags: string[],
+): Promise<UserInterestTag[]> {
+  const response: ApiResponse<UserInterestTag[]> = await client.put(
+    '/api/v1/recommend/interests',
+    tags,
+    {
+      params: { userId },
+    },
+  );
   return response.data;
 }
 

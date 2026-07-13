@@ -1,7 +1,6 @@
 package com.wenxinblog.content.controller;
 
 import com.wenxinblog.content.dto.Result;
-import com.wenxinblog.content.dto.UploadResponse;
 import com.wenxinblog.content.entity.MediaAsset;
 import com.wenxinblog.content.service.ContentService;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +45,7 @@ class ContentControllerTest {
         UUID userId = UUID.randomUUID();
         MediaAsset asset = createMockAsset(userId);
 
-        when(contentService.upload(eq(userId), any(), any(), any(), any(), any()))
+        when(contentService.upload(eq(userId), any()))
             .thenReturn(Mono.just(asset));
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
@@ -73,7 +72,7 @@ class ContentControllerTest {
         asset.setType("VIDEO");
         asset.setMimeType("video/mp4");
 
-        when(contentService.upload(eq(userId), any(), any(), any(), any(), any()))
+        when(contentService.upload(eq(userId), any()))
             .thenReturn(Mono.just(asset));
 
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
@@ -151,8 +150,10 @@ class ContentControllerTest {
         client.get().uri("/api/v1/content/post/" + postId)
             .exchange()
             .expectStatus().isOk()
-            .expectBodyList(MediaAsset.class)
-            .hasSize(2);
+            .expectBody()
+            .jsonPath("$.code").isEqualTo(200)
+            .jsonPath("$.data").isArray()
+            .jsonPath("$.data.length()").isEqualTo(2);
     }
 
     private MediaAsset createMockAsset(UUID userId) {

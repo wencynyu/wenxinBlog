@@ -6,8 +6,8 @@ import com.wenxin.blog.entity.Comment;
 import com.wenxin.blog.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -25,8 +25,8 @@ public class CommentController {
     }
 
     @GetMapping("/posts/{postId}/comments")
-    public Flux<Comment> listComments(@PathVariable UUID postId) {
-        return commentService.listComments(postId);
+    public Mono<Result<List<Comment>>> listComments(@PathVariable UUID postId) {
+        return commentService.listComments(postId).collectList().map(Result::success);
     }
 
     @DeleteMapping("/comments/{id}")

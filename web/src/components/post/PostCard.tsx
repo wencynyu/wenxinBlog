@@ -30,7 +30,7 @@ export default function PostCard({ post }: PostCardProps) {
       Toast.warning('请先登录');
       return;
     }
-    toggleLike.mutate({ id: post.id, isLiked: post.isLiked });
+    toggleLike.mutate({ id: post.id, isLiked: post.isLiked || false });
   };
 
   const handleFavorite = (e: React.MouseEvent) => {
@@ -40,7 +40,7 @@ export default function PostCard({ post }: PostCardProps) {
       Toast.warning('请先登录');
       return;
     }
-    toggleFavorite.mutate({ id: post.id, isFavorited: post.isFavorited });
+    toggleFavorite.mutate({ id: post.id, isFavorited: post.isFavorited || false });
   };
 
   return (
@@ -113,7 +113,7 @@ export default function PostCard({ post }: PostCardProps) {
                 className="mr-1"
                 style={{ color: post.isLiked ? '#ef4444' : undefined }}
               />
-              <span>{post.likesCount || 0}</span>
+              <span>{post.likeCount || 0}</span>
             </button>
 
             <button
@@ -130,7 +130,7 @@ export default function PostCard({ post }: PostCardProps) {
 
             <div className="flex items-center mr-4">
               <IconComment size="small" className="mr-1" />
-              <span>{post.commentsCount || 0}</span>
+              <span>{post.commentCount || 0}</span>
             </div>
           </div>
         </div>

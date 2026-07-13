@@ -6,18 +6,19 @@ export interface Post {
   summary?: string;
   coverImage?: string;
   authorId: string;
-  author: {
+  author?: {
     id: string;
     username: string;
     displayName?: string;
     avatar?: string;
   };
-  tags: string[];
+  tags?: string[];
   status: 'draft' | 'published';
-  likesCount: number;
-  commentsCount: number;
-  isLiked: boolean;
-  isFavorited: boolean;
+  likeCount: number;
+  commentCount: number;
+  viewCount?: number;
+  isLiked?: boolean;
+  isFavorited?: boolean;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
@@ -47,6 +48,6 @@ export interface PostQueryParams {
   tag?: string;
   authorId?: string;
   status?: 'draft' | 'published';
-  sortBy?: 'createdAt' | 'updatedAt' | 'likesCount' | 'commentsCount';
+  sortBy?: 'createdAt' | 'updatedAt' | 'likeCount' | 'commentCount';
   sortOrder?: 'asc' | 'desc';
 }

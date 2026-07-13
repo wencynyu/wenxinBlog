@@ -48,7 +48,6 @@ class AuthenticationFilterTest {
     private AuthenticationFilterGatewayFilterFactory filter;
 
     @BeforeEach
-    @SuppressWarnings("unchecked")
     void setUp() {
         doReturn(webClientBuilder).when(webClientBuilder).baseUrl(anyString());
         doReturn(webClient).when(webClientBuilder).build();
@@ -56,7 +55,7 @@ class AuthenticationFilterTest {
         doReturn(requestHeadersSpec).when((WebClient.RequestHeadersUriSpec) requestHeadersUriSpec).uri(anyString());
         doReturn(requestHeadersSpec).when((WebClient.RequestHeadersSpec) requestHeadersSpec).header(anyString(), any());
         doReturn(responseSpec).when(requestHeadersSpec).retrieve();
-        filter = new AuthenticationFilter(webClientBuilder);
+        filter = new AuthenticationFilterGatewayFilterFactory(webClientBuilder);
     }
 
     @Test

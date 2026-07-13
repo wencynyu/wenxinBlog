@@ -14,8 +14,8 @@ export interface SearchPostResult {
     avatar?: string;
   };
   tags: string[];
-  likesCount: number;
-  commentsCount: number;
+  likeCount: number;
+  commentCount: number;
   createdAt: string;
 }
 
@@ -36,21 +36,27 @@ export interface SuggestResponse {
 
 export async function searchPosts(
   query: string,
-  params?: PaginationParams & { tags?: string[]; authorId?: string }
+  params?: PaginationParams & { tags?: string[]; authorId?: string },
 ): Promise<PaginatedResponse<SearchPostResult>> {
-  const response: ApiResponse<PaginatedResponse<SearchPostResult>> = await client.get('/api/v1/search/blog', {
-    params: { q: query, ...params },
-  });
+  const response: ApiResponse<PaginatedResponse<SearchPostResult>> = await client.get(
+    '/api/v1/search/blog',
+    {
+      params: { q: query, ...params },
+    },
+  );
   return response.data;
 }
 
 export async function searchUsersApi(
   query: string,
-  params?: PaginationParams
+  params?: PaginationParams,
 ): Promise<PaginatedResponse<SearchUserResult>> {
-  const response: ApiResponse<PaginatedResponse<SearchUserResult>> = await client.get('/api/v1/search/users', {
-    params: { q: query, ...params },
-  });
+  const response: ApiResponse<PaginatedResponse<SearchUserResult>> = await client.get(
+    '/api/v1/search/users',
+    {
+      params: { q: query, ...params },
+    },
+  );
   return response.data;
 }
 
