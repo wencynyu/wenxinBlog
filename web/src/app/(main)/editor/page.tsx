@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input, Button, TagInput, Toast, Switch } from '@douyinfe/semi-ui';
-import { IconArrowLeft } from '@douyinfe/semi-icons';
+import { IconArrowLeft, IconImage } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
 import dynamic from 'next/dynamic';
 import { useCreatePost } from '@/hooks/usePosts';
+import { uploadFile } from '@/lib/api/content';
 
 // 预览渲染较重（marked + highlight.js），按需加载
 const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
@@ -22,6 +23,24 @@ export default function NewPostPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await uploadFile(file, 'current');
+      setCoverImage(result.cdnUrl);
+      Toast.success('图片上传成功');
+    } catch (error: any) {
+      Toast.error(error?.message || '上传失败');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (publishStatus: 'draft' | 'published') => {
     if (!title.trim()) {
@@ -101,8 +120,30 @@ export default function NewPostPage() {
             style={{ width: '100%' }}
           />
 
-          {/* 封面图（可选） */}
-          <Input value={coverImage} onChange={setCoverImage} placeholder="封面图链接（可选）" />
+          {/* 封面图（可选）— URL 输入 + 文件上传 */}
+          <div className="flex gap-2">
+            <Input
+              value={coverImage}
+              onChange={setCoverImage}
+              placeholder="封面图链接（可选）"
+              className="flex-1"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <Button
+              icon={<IconImage />}
+              theme="borderless"
+              loading={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              上传图片
+            </Button>
+          </div>
 
           {/* 内容区 */}
           {showPreview ? (
