@@ -10,10 +10,10 @@ import java.util.UUID;
 
 public interface PostRepository extends ReactiveCrudRepository<Post, UUID> {
 
-    @Query("SELECT * FROM posts WHERE author_id = :authorId ORDER BY created_at DESC")
+    @Query("SELECT p.* FROM posts p WHERE p.author_id = :authorId ORDER BY p.created_at DESC")
     Flux<Post> findByAuthorId(UUID authorId, Pageable pageable);
 
-    @Query("SELECT * FROM posts WHERE status = 'published' ORDER BY published_at DESC, created_at DESC")
+    @Query("SELECT p.* FROM posts p WHERE p.status = 'published' ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC")
     Flux<Post> findPublished(Pageable pageable);
 
     @Query("UPDATE posts SET view_count = view_count + 1 WHERE id = :id")
@@ -21,6 +21,23 @@ public interface PostRepository extends ReactiveCrudRepository<Post, UUID> {
 
     Flux<Post> findByStatus(String status, Pageable pageable);
 
-    @Query("SELECT * FROM posts WHERE status = 'published' AND title ILIKE '%' || :keyword || '%' ORDER BY published_at DESC, created_at DESC")
+    @Query("SELECT p.* FROM posts p WHERE p.status = 'published' AND p.title ILIKE '%' || :keyword || '%' ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC")
     Flux<Post> searchByKeyword(String keyword, Pageable pageable);
+
+    // --- 带 author 信息的查询（join authors 缓存表）---
+
+    @Query("SELECT p.*, a.username AS author_username, a.display_name AS author_display_name, a.avatar_url AS author_avatar_url " +
+           "FROM posts p LEFT JOIN authors a ON p.author_id = a.id " +
+           "WHERE p.status = 'published' ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC")
+    Flux<Post> findPublishedWithAuthor(Pageable pageable);
+
+    @Query("SELECT p.*, a.username AS author_username, a.display_name AS author_display_name, a.avatar_url AS author_avatar_url " +
+           "FROM posts p LEFT JOIN authors a ON p.author_id = a.id " +
+           "WHERE p.id = :id")
+    Mono<Post> findByIdWithAuthor(UUID id);
+
+    @Query("SELECT p.*, a.username AS author_username, a.display_name AS author_display_name, a.avatar_url AS author_avatar_url " +
+           "FROM posts p LEFT JOIN authors a ON p.author_id = a.id " +
+           "WHERE p.author_id = :authorId ORDER BY p.created_at DESC")
+    Flux<Post> findByAuthorIdWithAuthor(UUID authorId, Pageable pageable);
 }
