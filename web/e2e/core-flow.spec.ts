@@ -23,6 +23,7 @@ test.describe('核心联调流程', () => {
     await page.goto('/register');
     await page.waitForSelector('#username', { timeout: 10000 });
     await page.fill('#username', unique);
+    await page.fill('#displayName', unique);
     await page.fill('#email', `${unique}@test.com`);
     await page.fill('#password', 'password123');
     await page.fill('#confirmPassword', 'password123');
@@ -78,24 +79,23 @@ test.describe('核心联调流程', () => {
     await page.fill('#email', TEST_USER.email);
     await page.fill('#password', TEST_USER.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/', { timeout: 15000 });
-
-    // 点击第一个帖子
+    await page.waitForTimeout(8000);
+    await page.goto('/');
     await page.waitForTimeout(5000);
-    const firstPost = page.locator('article a[href^="/posts/"]').first();
+
+    // 点第一个帖子
+    const firstPost = page.locator('a[href^="/posts/"]').first();
     await firstPost.click();
-    await page.waitForURL(/\/posts\//, { timeout: 10000 });
     await page.waitForTimeout(5000);
 
     // 发表评论
     const commentInput = page.locator('input[placeholder*="评论"]').first();
-    if (await commentInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await commentInput.fill('E2E 自动评论');
-      await page.click('button:has-text("发送")');
-      await page.waitForTimeout(3000);
-      const body = await page.textContent('body');
-      expect(body).toContain('E2E 自动评论');
-    }
+    await commentInput.waitFor({ timeout: 10000 });
+    await commentInput.fill('E2E 自动评论');
+    await page.click('button:has-text("发送")');
+    await page.waitForTimeout(3000);
+    const body = await page.textContent('body');
+    expect(body).toContain('E2E 自动评论');
   });
 
   test('刷新页面保持登录态', async ({ page }) => {

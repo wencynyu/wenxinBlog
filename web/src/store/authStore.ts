@@ -51,10 +51,13 @@ export const useAuthStore = create<AuthStore>()(
       register: async (data: RegisterRequest) => {
         set({ isLoading: true });
         try {
-          const response = await api.register(data);
-          const accessToken = response.tokens.accessToken;
+          // 注册（auth-service 不返回 token，需自动登录）
+          await api.register(data);
+          // 自动登录拿 token
+          const loginResp = await api.login({ email: data.email, password: data.password });
+          const accessToken = loginResp.tokens.accessToken;
           set({
-            user: response.user,
+            user: loginResp.user,
             token: accessToken,
             isAuthenticated: true,
             isLoading: false,
