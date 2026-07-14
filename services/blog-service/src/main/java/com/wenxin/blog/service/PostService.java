@@ -23,6 +23,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final TagRepository tagRepository;
     private final R2dbcEntityTemplate r2dbc;
+    private final SearchIndexService searchIndexService;
 
     public Mono<Post> createPost(UUID authorId, PostRequest req) {
         Post post = new Post();
@@ -37,7 +38,12 @@ public class PostService {
         }
         post.setCreatedAt(LocalDateTime.now());
         post.setUpdatedAt(LocalDateTime.now());
-        return postRepository.save(post);
+        return postRepository.save(post)
+                .doOnNext(saved -> {
+                    if ("published".equalsIgnoreCase(saved.getStatus())) {
+                        searchIndexService.indexPost(saved);
+                    }
+                });
     }
 
     public Mono<Post> updatePost(UUID id, PostRequest req) {
@@ -53,7 +59,12 @@ public class PostService {
                 }
             }
             post.setUpdatedAt(LocalDateTime.now());
-            return postRepository.save(post);
+            return postRepository.save(post)
+                    .doOnNext(saved -> {
+                        if ("published".equalsIgnoreCase(saved.getStatus())) {
+                            searchIndexService.indexPost(saved);
+                        }
+                    });
         });
     }
 
@@ -67,7 +78,8 @@ public class PostService {
     }
 
     public Mono<Void> deletePost(UUID id) {
-        return postRepository.deleteById(id);
+        return postRepository.deleteById(id)
+                .doOnSuccess(v -> searchIndexService.deletePost(id));
     }
 
     public Flux<Post> listPublishedPosts(int page, int size) {

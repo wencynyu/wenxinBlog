@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -32,7 +31,7 @@ public class BlogDocument {
     @JsonProperty("comment_count")
     private int commentCount;
     @JsonProperty("published_at")
-    private LocalDateTime publishedAt;
+    private String publishedAt;
     @JsonProperty("created_at")
-    private LocalDateTime createdAt;
+    private String createdAt;
 }

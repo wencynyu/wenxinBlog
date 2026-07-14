@@ -10,7 +10,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,9 +64,7 @@ public class BlogEventConsumer {
         }
 
         if (data.has("publishedAt") && !data.get("publishedAt").isNull()) {
-            try {
-                doc.setPublishedAt(LocalDateTime.parse(data.get("publishedAt").asText()));
-            } catch (Exception ignored) {}
+            doc.setPublishedAt(data.get("publishedAt").asText());
         }
 
         if ("CREATE".equals(getText(data, "_eventType"))) {
