@@ -54,7 +54,7 @@ public class BlogSearchRepository {
             // Build query using typed API
             MultiMatchQuery multiMatch = MultiMatchQuery.of(m -> m
                     .query(request.query())
-                    .fields("title^3", "content^2", "summary^2")
+                    .fields("title^3", "content^2", "summary^2", "tags^2", "author_name^1")
                     .type(TextQueryType.BestFields));
 
             List<Query> mustQueries = List.of(Query.of(q -> q.multiMatch(multiMatch)));
