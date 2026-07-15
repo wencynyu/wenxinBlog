@@ -11,6 +11,7 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +40,13 @@ public class PostService {
         post.setCreatedAt(LocalDateTime.now());
         post.setUpdatedAt(LocalDateTime.now());
         return postRepository.save(post)
+                .flatMap(saved -> {
+                    // 保存标签到 post_tags 表
+                    Mono<Void> saveTags = (req.getTags() != null && !req.getTags().isEmpty())
+                            ? saveTagsForPost(saved.getId(), req.getTags())
+                            : Mono.empty();
+                    return saveTags.thenReturn(saved);
+                })
                 .doOnNext(saved -> {
                     if ("published".equalsIgnoreCase(saved.getStatus())) {
                         searchIndexService.indexPost(saved);
@@ -60,6 +68,12 @@ public class PostService {
             }
             post.setUpdatedAt(LocalDateTime.now());
             return postRepository.save(post)
+                    .flatMap(saved -> {
+                        Mono<Void> updateTags = (req.getTags() != null)
+                                ? replaceTagsForPost(saved.getId(), req.getTags())
+                                : Mono.empty();
+                        return updateTags.thenReturn(saved);
+                    })
                     .doOnNext(saved -> {
                         if ("published".equalsIgnoreCase(saved.getStatus())) {
                             searchIndexService.indexPost(saved);
@@ -149,5 +163,59 @@ public class PostService {
                     post.setTags(tuple.getT2());
                 })
                 .thenReturn(post);
+    }
+
+    /**
+     * 为帖子保存标签（createPost 时调用）。
+     * 查找或创建 tag → 关联 post_tags → 更新 tag.post_count
+     */
+    private Mono<Void> saveTagsForPost(UUID postId, List<String> tagNames) {
+        return r2dbc.getDatabaseClient()
+                .sql("DELETE FROM post_tags WHERE post_id = :postId")
+                .bind("postId", postId)
+                .fetch().rowsUpdated()
+                .then(flattenTagInserts(postId, tagNames));
+    }
+
+    /**
+     * 替换帖子的标签（updatePost 时调用）。
+     */
+    private Mono<Void> replaceTagsForPost(UUID postId, List<String> tagNames) {
+        if (tagNames == null || tagNames.isEmpty()) {
+            return r2dbc.getDatabaseClient()
+                    .sql("DELETE FROM post_tags WHERE post_id = :postId")
+                    .bind("postId", postId)
+                    .fetch().rowsUpdated().then();
+        }
+        return saveTagsForPost(postId, tagNames);
+    }
+
+    private Mono<Void> flattenTagInserts(UUID postId, List<String> tagNames) {
+        return Flux.fromIterable(tagNames)
+                .flatMap(tagName -> insertSingleTag(postId, tagName.trim()))
+                .then();
+    }
+
+    private Mono<Void> insertSingleTag(UUID postId, String tagName) {
+        if (tagName.isEmpty()) return Mono.empty();
+        return r2dbc.getDatabaseClient()
+                .sql("INSERT INTO tags (name, slug, description, post_count) " +
+                     "VALUES (:name, :slug, '', 0) ON CONFLICT (name) DO NOTHING")
+                .bind("name", tagName)
+                .bind("slug", tagName.toLowerCase().replaceAll("[^a-z0-9\\u4e00-\\u9fff]+", "-"))
+                .fetch().rowsUpdated()
+                .then(
+                    r2dbc.getDatabaseClient()
+                        .sql("INSERT INTO post_tags (post_id, tag_id) " +
+                             "SELECT :postId, id FROM tags WHERE name = :tagName " +
+                             "ON CONFLICT (post_id, tag_id) DO NOTHING")
+                        .bind("postId", postId)
+                        .bind("tagName", tagName)
+                        .fetch().rowsUpdated().then()
+                )
+                .onErrorResume(e -> {
+                    log.warn("Failed to save tag '{}' for post {}: {}", tagName, postId, e.getMessage());
+                    return Mono.empty();
+                });
     }
 }
