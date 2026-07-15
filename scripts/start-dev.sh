@@ -111,10 +111,17 @@ case "${1:-start}" in
     echo ""
     echo "=== All services ==="
     ./scripts/start-dev.sh status
+
+    # 4. 启动 watchdog（网关 OOM 自动重启）
+    echo "[4/4] Starting watchdog..."
+    ./scripts/start-dev.sh watchdog
     ;;
 
   stop)
     echo "=== Stopping all services ==="
+    # Stop watchdog
+    pkill -f "start-dev.sh watchdog" 2>/dev/null && echo "  watchdog stopped"
+
     # Stop web
     lsof -ti:3000 2>/dev/null | xargs kill -9 2>/dev/null && echo "  web(3000) stopped"
 
@@ -152,8 +159,36 @@ case "${1:-start}" in
     echo "Java processes: $(ps aux | grep -c '[j]ava')"
     ;;
 
+  watchdog)
+    echo "=== Watchdog: monitoring gateway:8080 (restart on crash) ==="
+    # 后台循环：每 30s 检查网关，挂了就自动重启
+    (
+      while true; do
+        sleep 30
+        if ! curl -sf --max-time 5 http://localhost:8080/health >/dev/null 2>&1; then
+          echo "[$(date '+%H:%M:%S')] gateway DOWN — restarting..."
+          # 杀残留进程
+          pkill -9 -f "spring-boot:run.*gateway" 2>/dev/null || true
+          sleep 2
+          # 重启
+          cd "$ROOT_DIR/services/gateway"
+          JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true \
+            -Dspring-boot.run.jvmArguments="-Xmx256m" spring-boot:run > /tmp/svc-gateway.log 2>&1 &
+          cd "$ROOT_DIR"
+          # 等待恢复
+          if wait_for_port 8080 30 2>/dev/null; then
+            echo "[$(date '+%H:%M:%S')] gateway recovered ✅"
+          else
+            echo "[$(date '+%H:%M:%S')] gateway still DOWN after restart ⚠️"
+          fi
+        fi
+      done
+    ) &
+    echo "  Watchdog started (PID $!) — checks every 30s"
+    ;;
+
   *)
-    echo "Usage: $0 [start|stop|restart|status]"
+    echo "Usage: $0 [start|stop|restart|status|watchdog]"
     exit 1
     ;;
 esac
