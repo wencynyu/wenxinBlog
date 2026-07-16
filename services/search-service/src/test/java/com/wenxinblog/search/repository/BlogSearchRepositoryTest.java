@@ -63,8 +63,8 @@ class BlogSearchRepositoryTest {
                 .viewCount(150)
                 .likeCount(25)
                 .commentCount(5)
-                .publishedAt(LocalDateTime.now())
-                .createdAt(LocalDateTime.now())
+                .publishedAt("2024-01-01T12:00:00")
+                .createdAt("2024-01-01T12:00:00")
                 .build();
     }
 

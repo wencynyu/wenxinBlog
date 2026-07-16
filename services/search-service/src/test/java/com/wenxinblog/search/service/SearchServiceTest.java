@@ -65,7 +65,7 @@ class SearchServiceTest {
                 .category("tech")
                 .viewCount(100)
                 .likeCount(10)
-                .publishedAt(LocalDateTime.now())
+                .publishedAt("2024-01-01T12:00:00")
                 .build();
 
         Hit<BlogDocument> hit = createMockHit(doc, 2.5, Map.of(
