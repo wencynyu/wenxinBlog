@@ -3,7 +3,6 @@ package com.wenxin.blog.service;
 import com.wenxin.blog.dto.PostRequest;
 import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.repository.PostRepository;
-import com.wenxin.blog.repository.TagRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -11,7 +10,6 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +20,6 @@ import java.util.UUID;
 public class PostService {
 
     private final PostRepository postRepository;
-    private final TagRepository tagRepository;
     private final R2dbcEntityTemplate r2dbc;
     private final SearchIndexService searchIndexService;
 

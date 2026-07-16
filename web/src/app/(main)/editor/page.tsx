@@ -31,7 +31,7 @@ export default function NewPostPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const result = await uploadFile(file, 'current');
+      const result = await uploadFile(file);
       setCoverImage(result.cdnUrl);
       Toast.success('图片上传成功');
     } catch (error: any) {

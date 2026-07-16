@@ -21,16 +21,20 @@ export interface MediaAsset {
   createdAt: string;
 }
 
-export async function uploadFile(file: File, userId: string): Promise<UploadResponse> {
+export async function uploadFile(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response: ApiResponse<UploadResponse> = await client.post('/api/v1/content/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-      'X-User-Id': userId,
+  const response: ApiResponse<UploadResponse> = await client.post(
+    '/api/v1/content/upload',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-User-Id': userId,
+      },
     },
-  });
+  );
   return response.data;
 }
 

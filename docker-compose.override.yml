@@ -151,7 +151,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       SPRING_DATA_REDIS_HOST: redis-cache
       # 服务在容器网络中用服务名通信（不用 localhost）
-      JAVA_OPTS: "-Xmx256m"
+      JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
       auth-service:
         condition: service_started
