@@ -15,10 +15,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -134,15 +136,32 @@ class PostControllerTest {
 
     @Test
     void testListPosts_WithPagination() {
-        when(postService.listPublishedPosts(0, 20))
-                .thenReturn(Flux.just(post));
+        when(postService.listPublishedPosts(eq(0), eq(20), any(), any(), any()))
+                .thenReturn(Mono.just(new PostService.PostListResult(List.of(post), 1L)));
 
         client.get()
-                .uri("/api/v1/posts?page=0&size=20")
+                .uri("/api/v1/posts?page=1&pageSize=20")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.[0].id").exists();
+                .jsonPath("$.data.items[0].id").exists()
+                .jsonPath("$.data.total").isEqualTo(1)
+                .jsonPath("$.data.pageSize").isEqualTo(20);
+    }
+
+    @Test
+    void testListPosts_PassesSortByAndTag() {
+        when(postService.listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go")))
+                .thenReturn(Mono.just(new PostService.PostListResult(List.of(post), 1L)));
+
+        client.get()
+                .uri("/api/v1/posts?page=1&pageSize=5&sortBy=likeCount&sortOrder=desc&tag=Go")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.items[0].id").exists();
+
+        verify(postService).listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go"));
     }
 
     @Test
@@ -155,7 +174,7 @@ class PostControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.[0].authorId").isEqualTo(userId.toString());
+                .jsonPath("$.data.items[0].authorId").isEqualTo(userId.toString());
     }
 
     @Test

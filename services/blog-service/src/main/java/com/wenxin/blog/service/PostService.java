@@ -3,10 +3,12 @@ package com.wenxin.blog.service;
 import com.wenxin.blog.dto.PostRequest;
 import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.repository.PostRepository;
+import io.r2dbc.spi.Row;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -93,14 +95,86 @@ public class PostService {
                 .doOnSuccess(v -> searchIndexService.deletePost(id));
     }
 
-    public Flux<Post> listPublishedPosts(int page, int size) {
-        return postRepository.findPublished(PageRequest.of(page, size))
-                .flatMap(this::fillAuthorAndTags);
+    /**
+     * 列出已发布帖子：支持排序（sortBy）、标签过滤（tag）、真实分页总数（total）。
+     * 排序列由 {@link #sortColumnOf(String)} 白名单映射，方向只接受 ASC/DESC，杜绝 SQL 注入。
+     * pageSize/page 由 controller 传入（前端契约），此处只做防御性规整。
+     */
+    public Mono<PostListResult> listPublishedPosts(int page, int size, String sortBy, String sortOrder, String tag) {
+        String sortColumn = sortColumnOf(sortBy);
+        String direction = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
+        int safeSize = size <= 0 ? 20 : size;
+        int safePage = Math.max(0, page);
+        int offset = safePage * safeSize;
+        String tagFilter = (tag != null && !tag.isBlank()) ? tag.trim() : null;
+        boolean byTag = tagFilter != null;
+
+        // 标签存在性子查询（参数化 :tag，非拼接）
+        String tagExists = " AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON pt.tag_id = t.id "
+                + "WHERE pt.post_id = p.id AND t.name = :tag)";
+        String listSql = "SELECT p.* FROM posts p WHERE p.status = 'published'"
+                + (byTag ? tagExists : "")
+                + " ORDER BY p." + sortColumn + " " + direction + " NULLS LAST, p.created_at DESC"
+                + " LIMIT :limit OFFSET :offset";
+        String countSql = "SELECT COUNT(*) AS c FROM posts p WHERE p.status = 'published'"
+                + (byTag ? tagExists : "");
+
+        DatabaseClient db = r2dbc.getDatabaseClient();
+        DatabaseClient.GenericExecuteSpec listSpec =
+                db.sql(listSql).bind("limit", safeSize).bind("offset", offset);
+        DatabaseClient.GenericExecuteSpec countSpec = db.sql(countSql);
+        if (byTag) {
+            listSpec = listSpec.bind("tag", tagFilter);
+            countSpec = countSpec.bind("tag", tagFilter);
+        }
+
+        Mono<Long> total = countSpec.map(row -> row.get("c", Long.class)).one().defaultIfEmpty(0L);
+        // flatMapSequential：并发跑 fillAuthorAndTags 但按 DB 返回顺序回放，保住 ORDER BY 结果
+        Flux<Post> posts =
+                listSpec.map((row, meta) -> mapPost(row)).all().flatMapSequential(this::fillAuthorAndTags);
+
+        return Mono.zip(posts.collectList(), total)
+                .map(t -> new PostListResult(t.getT1(), t.getT2()));
     }
+
+    /** 前端 sortBy → 安全 SQL 列名白名单；未知值回落到 published_at，绝不直接拼接用户输入。 */
+    public static String sortColumnOf(String sortBy) {
+        if (sortBy == null) return "published_at";
+        switch (sortBy.toLowerCase()) {
+            case "likecount": case "like_count": return "like_count";
+            case "commentcount": case "comment_count": return "comment_count";
+            case "createdat": case "created_at": return "created_at";
+            case "updatedat": case "updated_at": return "updated_at";
+            case "viewcount": case "view_count": return "view_count";
+            default: return "published_at";
+        }
+    }
+
+    /** DatabaseClient 原生 SQL 不走实体自动映射，手动把 Row → Post。 */
+    private Post mapPost(Row row) {
+        Post p = new Post();
+        p.setId(row.get("id", UUID.class));
+        p.setAuthorId(row.get("author_id", UUID.class));
+        p.setTitle(row.get("title", String.class));
+        p.setContent(row.get("content", String.class));
+        p.setSummary(row.get("summary", String.class));
+        p.setCoverImage(row.get("cover_image", String.class));
+        p.setStatus(row.get("status", String.class));
+        p.setViewCount(row.get("view_count", Integer.class));
+        p.setLikeCount(row.get("like_count", Integer.class));
+        p.setCommentCount(row.get("comment_count", Integer.class));
+        p.setPublishedAt(row.get("published_at", LocalDateTime.class));
+        p.setCreatedAt(row.get("created_at", LocalDateTime.class));
+        p.setUpdatedAt(row.get("updated_at", LocalDateTime.class));
+        return p;
+    }
+
+    /** listPublishedPosts 结果：帖子列表 + 真实总数（供 PaginatedResponse.totalPages 计算）。 */
+    public record PostListResult(List<Post> items, long total) {}
 
     public Flux<Post> listPostsByAuthor(UUID authorId, int page, int size) {
         return postRepository.findByAuthorId(authorId, PageRequest.of(page, size))
-                .flatMap(this::fillAuthorAndTags);
+                .flatMapSequential(this::fillAuthorAndTags);
     }
 
     public Mono<Void> publishPost(UUID id) {

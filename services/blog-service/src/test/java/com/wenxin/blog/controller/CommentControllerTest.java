@@ -115,8 +115,8 @@ class CommentControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.[0].id").exists()
-                .jsonPath("$.[1].id").exists();
+                .jsonPath("$.data[0].id").exists()
+                .jsonPath("$.data[1].id").exists();
     }
 
     @Test

@@ -7,7 +7,6 @@ import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.service.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import java.util.UUID;
 
@@ -44,16 +43,22 @@ public class PostController {
     @GetMapping
     public Mono<Result<PaginatedResponse<Post>>> listPosts(
         @RequestParam(defaultValue = "1") int page,
-        @RequestParam(defaultValue = "20") int size,
+        @RequestParam(defaultValue = "20") int pageSize,
         @RequestParam(required = false) String authorId,
-        @RequestParam(defaultValue = "published") String status) {
+        @RequestParam(required = false) String sortBy,
+        @RequestParam(defaultValue = "desc") String sortOrder,
+        @RequestParam(required = false) String tag) {
         // 前端发 1-based page，Spring Data PageRequest 是 0-based
         int zeroPage = Math.max(0, page - 1);
-        Flux<Post> posts = (authorId != null)
-            ? postService.listPostsByAuthor(UUID.fromString(authorId), zeroPage, size)
-            : postService.listPublishedPosts(zeroPage, size);
-        return posts.collectList()
-            .map(list -> Result.success(PaginatedResponse.of(list, page, size, list.size())));
+        if (authorId != null) {
+            // 作者主页列表：保持 created_at 倒序（前端恒请求 createdAt），单页展示无需精确 total
+            return postService.listPostsByAuthor(UUID.fromString(authorId), zeroPage, pageSize)
+                .collectList()
+                .map(list -> Result.success(PaginatedResponse.of(list, page, pageSize, list.size())));
+        }
+        // 公开列表：支持 sortBy(likeCount/commentCount/createdAt...) / sortOrder / tag，返回真实 total
+        return postService.listPublishedPosts(zeroPage, pageSize, sortBy, sortOrder, tag)
+            .map(r -> Result.success(PaginatedResponse.of(r.items(), page, pageSize, r.total())));
     }
 
     @PostMapping("/{id}/publish")

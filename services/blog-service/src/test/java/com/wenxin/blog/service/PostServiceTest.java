@@ -10,14 +10,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.r2dbc.core.RowsFetchSpec;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.function.Function;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -29,6 +35,12 @@ class PostServiceTest {
 
     @Mock
     private TagRepository tagRepository;
+
+    @Mock
+    private R2dbcEntityTemplate r2dbc;
+
+    @Mock
+    private SearchIndexService searchIndexService;
 
     @InjectMocks
     private PostService postService;
@@ -45,6 +57,31 @@ class PostServiceTest {
         postRequest.setTitle("Test Title");
         postRequest.setContent("Test Content");
         postRequest.setSummary("Test Summary");
+    }
+
+    /**
+     * 桩 PostService.fillAuthorAndTags 内部的 r2dbc DatabaseClient 链（authors 查询 + tags 查询），
+     * 让依赖 DB 的 getPost / listPostsByAuthor 单测不必起真实数据库。
+     */
+    @SuppressWarnings("unchecked")
+    private void stubFillAuthorAndTags() {
+        DatabaseClient db = mock(DatabaseClient.class);
+        when(r2dbc.getDatabaseClient()).thenReturn(db);
+
+        DatabaseClient.GenericExecuteSpec authorSpec = mock(DatabaseClient.GenericExecuteSpec.class);
+        DatabaseClient.GenericExecuteSpec tagsSpec = mock(DatabaseClient.GenericExecuteSpec.class);
+        RowsFetchSpec<Post.AuthorInfo> authorRows = mock(RowsFetchSpec.class);
+        RowsFetchSpec<String> tagRows = mock(RowsFetchSpec.class);
+
+        when(db.sql(contains("FROM authors"))).thenReturn(authorSpec);
+        when(authorSpec.bind(eq("authorId"), any())).thenReturn(authorSpec);
+        when(authorSpec.map(any(Function.class))).thenReturn(authorRows);
+        when(authorRows.one()).thenReturn(Mono.just(new Post.AuthorInfo("a", "user", "user", null)));
+
+        when(db.sql(contains("JOIN post_tags"))).thenReturn(tagsSpec);
+        when(tagsSpec.bind(eq("postId"), any())).thenReturn(tagsSpec);
+        when(tagsSpec.map(any(Function.class))).thenReturn(tagRows);
+        when(tagRows.all()).thenReturn(Flux.empty());
     }
 
     @Test
@@ -200,6 +237,7 @@ class PostServiceTest {
 
     @Test
     void testGetPost_IncrementsViewCount() {
+        stubFillAuthorAndTags();
         Post existingPost = new Post();
         existingPost.setId(postId);
         existingPost.setTitle("Test Title");
@@ -232,26 +270,21 @@ class PostServiceTest {
     }
 
     @Test
-    void testListPublishedPosts() {
-        Post post1 = new Post();
-        post1.setId(UUID.randomUUID());
-        post1.setStatus("PUBLISHED");
-
-        Post post2 = new Post();
-        post2.setId(UUID.randomUUID());
-        post2.setStatus("PUBLISHED");
-
-        when(postRepository.findPublished(any())).thenReturn(Flux.just(post1, post2));
-
-        StepVerifier.create(postService.listPublishedPosts(0, 20))
-                .expectNextCount(2)
-                .verifyComplete();
-
-        verify(postRepository, times(1)).findPublished(any());
+    void testSortColumnOf_whitelistAndDefault() {
+        // 已知 sortBy → 对应列名
+        assertEquals("like_count", PostService.sortColumnOf("likeCount"));
+        assertEquals("comment_count", PostService.sortColumnOf("commentCount"));
+        assertEquals("created_at", PostService.sortColumnOf("createdAt"));
+        assertEquals("updated_at", PostService.sortColumnOf("updatedAt"));
+        assertEquals("view_count", PostService.sortColumnOf("viewCount"));
+        // null / 未知值（含注入企图）→ 安全回落 published_at，绝不原样拼接
+        assertEquals("published_at", PostService.sortColumnOf(null));
+        assertEquals("published_at", PostService.sortColumnOf("like_count; DROP TABLE posts; --"));
     }
 
     @Test
     void testListPostsByAuthor() {
+        stubFillAuthorAndTags();
         Post post1 = new Post();
         post1.setId(UUID.randomUUID());
         post1.setAuthorId(authorId);
