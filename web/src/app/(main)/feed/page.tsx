@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 import Link from 'next/link';
@@ -8,30 +7,20 @@ import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
 import { useAuthStore } from '@/store/authStore';
-import { getPosts } from '@/lib/api/posts';
+import { usePosts } from '@/hooks/usePosts';
 
 export default function FeedPage() {
   const { isAuthenticated } = useAuthStore();
-  const [allPosts, setAllPosts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    getPosts({ page: 1, pageSize: 10, status: 'published', sortBy: 'createdAt', sortOrder: 'desc' })
-      .then((data) => {
-        if (data?.items?.length) {
-          setAllPosts(data.items);
-          setLoadError(false);
-        } else {
-          setAllPosts([]);
-        }
-      })
-      .catch(() => {
-        setAllPosts([]);
-        setLoadError(true);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+  // 走 react-query（usePosts）：自动去重（严格模式下不再发两次）、5 分钟缓存、错误重试。
+  const { data, isLoading, isError } = usePosts({
+    page: 1,
+    pageSize: 10,
+    status: 'published',
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const allPosts = data?.items ?? [];
+  const loadError = isError;
 
   return (
     <MainLayout>

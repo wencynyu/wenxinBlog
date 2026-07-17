@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
@@ -12,46 +12,28 @@ import { getPosts } from '@/lib/api/posts';
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuthStore();
-  const [allPosts, setAllPosts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [page, setPage] = useState(1);
-  const dataLoadedRef = useRef(false);
 
-  // Load from API. On failure the UI shows an EmptyState instead of mock data.
-  const fetchPosts = useCallback(async (p: number) => {
-    try {
-      const data = await getPosts({
-        page: p,
-        pageSize: 10,
-        status: 'published',
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-      });
-      if (data && data.items && data.items.length > 0) {
-        setAllPosts((prev) => (p === 1 ? data.items : [...prev, ...data.items]));
-        setHasMore(p < (data.totalPages || 1));
-        setLoadError(false);
-      } else {
-        if (p === 1) setAllPosts([]);
-        setHasMore(false);
-      }
-    } catch {
-      if (p === 1) {
-        setAllPosts([]);
-        setLoadError(true);
-      }
-      setHasMore(false);
-    }
-    setIsLoading(false);
-  }, []);
+  // 无限分页（loadMore）走 react-query：自动去重（严格模式下不再发两次）、缓存、错误重试。
+  const { data, isLoading, isError, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteQuery({
+      queryKey: ['posts', 'home-feed'],
+      queryFn: ({ pageParam }) =>
+        getPosts({
+          page: pageParam,
+          pageSize: 10,
+          status: 'published',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        }),
+      initialPageParam: 1,
+      getNextPageParam: (lastPage) =>
+        lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    });
 
-  useEffect(() => {
-    fetchPosts(page);
-  }, [fetchPosts, page]);
-
-  const loadMore = useCallback(() => setPage((p) => p + 1), []);
+  const allPosts = data?.pages.flatMap((p) => p.items) ?? [];
+  const hasMore = hasNextPage;
+  const loadError = isError;
+  const loadMore = () => fetchNextPage();
 
   return (
     <MainLayout>
@@ -93,7 +75,13 @@ export default function HomePage() {
       {loadError && allPosts.length === 0 ? (
         <EmptyState title="暂时无法加载内容" description="后端服务暂不可用，请稍后再试" />
       ) : (
-        <PostList posts={allPosts} isLoading={isLoading} hasMore={hasMore} onLoadMore={loadMore} />
+        <PostList
+          posts={allPosts}
+          isLoading={isLoading}
+          isFetching={isFetchingNextPage}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+        />
       )}
     </MainLayout>
   );

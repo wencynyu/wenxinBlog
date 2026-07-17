@@ -1,22 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import EmptyState from '@/components/common/EmptyState';
-import { getPosts } from '@/lib/api/posts';
-import type { Post } from '@/types/post';
+import { usePosts } from '@/hooks/usePosts';
 
 export default function TrendingPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getPosts({ page: 1, pageSize: 20, status: 'published', sortBy: 'likeCount', sortOrder: 'desc' })
-      .then((data) => setPosts(data?.items || []))
-      .catch(() => setPosts([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = usePosts({
+    page: 1,
+    pageSize: 20,
+    status: 'published',
+    sortBy: 'likeCount',
+    sortOrder: 'desc',
+  });
+  const posts = data?.items ?? [];
 
   if (loading) {
     return (

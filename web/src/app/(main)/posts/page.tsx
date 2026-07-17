@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@douyinfe/semi-ui';
 import { IconSort } from '@douyinfe/semi-icons';
@@ -10,8 +10,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
 import { useAuthStore } from '@/store/authStore';
-import { getPosts } from '@/lib/api/posts';
-import type { Post, PostQueryParams } from '@/types/post';
+import { usePosts } from '@/hooks/usePosts';
 
 type SortKey = 'createdAt' | 'likeCount' | 'commentCount';
 
@@ -19,9 +18,6 @@ function PostsContent() {
   const searchParams = useSearchParams();
   const tag = searchParams.get('tag') || undefined;
   const { isAuthenticated } = useAuthStore();
-  const [allPosts, setAllPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('createdAt');
 
   const sortOptions: { key: SortKey; label: string }[] = [
@@ -29,37 +25,17 @@ function PostsContent() {
     { key: 'likeCount', label: '最热' },
   ];
 
-  const fetchPosts = useCallback(
-    async (sort: SortKey) => {
-      setIsLoading(true);
-      try {
-        const params: PostQueryParams = {
-          page: 1,
-          pageSize: 20,
-          status: 'published',
-          tag,
-          sortBy: sort,
-          sortOrder: 'desc',
-        };
-        const data = await getPosts(params);
-        if (data?.items?.length) {
-          setAllPosts(data.items);
-          setLoadError(false);
-        } else {
-          setAllPosts([]);
-        }
-      } catch {
-        setAllPosts([]);
-        setLoadError(true);
-      }
-      setIsLoading(false);
-    },
-    [tag],
-  );
-
-  useEffect(() => {
-    fetchPosts(sortBy);
-  }, [fetchPosts, sortBy]);
+  // 走 react-query：sortBy/tag 变化时 queryKey 随之变化自动重取，严格模式下也不再双发。
+  const { data, isLoading, isError } = usePosts({
+    page: 1,
+    pageSize: 20,
+    status: 'published',
+    tag,
+    sortBy,
+    sortOrder: 'desc',
+  });
+  const allPosts = data?.items ?? [];
+  const loadError = isError;
 
   return (
     <MainLayout>
