@@ -26,6 +26,7 @@ export interface TrendingPost {
   title: string;
   viewsCount: number;
   likeCount: number;
+  commentCount: number;
   author: {
     id: string;
     username: string;

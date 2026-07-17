@@ -2,26 +2,13 @@
 
 import Link from 'next/link';
 import { IconStarStroked } from '@douyinfe/semi-icons';
-import { useQuery } from '@tanstack/react-query';
-import { getPosts } from '@/lib/api/posts';
+import { useTrendingPosts } from '@/hooks/useRecommendations';
 
 export default function Sidebar() {
-  // 从 blog-service 取真实帖子（按点赞排序），不从 recommendation-service 取假数据
-  const { data } = useQuery({
-    queryKey: ['sidebar-popular-posts'],
-    queryFn: () =>
-      getPosts({
-        page: 1,
-        pageSize: 5,
-        status: 'published',
-        sortBy: 'likeCount',
-        sortOrder: 'desc',
-      }),
-    staleTime: 10 * 60 * 1000,
-    retry: false,
-  });
+  // 走 recommendation-service 热门（blog_db 真实信号 × 时间衰减）
+  const { data } = useTrendingPosts(5);
 
-  const posts = data?.items || [];
+  const posts = data ?? [];
   if (posts.length === 0) return null;
 
   return (

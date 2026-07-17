@@ -1,10 +1,16 @@
 package com.wenxinblog.recommendation.dto;
 
+import java.time.LocalDateTime;
+
+/**
+ * 热门帖子，对齐前端 recommend.ts TrendingPost（注意 viewsCount 是复数）。
+ */
 public record TrendingPost(
-        String postId,
+        String id,
         String title,
-        long viewCount,
+        long viewsCount,
         long likeCount,
-        double score,
-        String trendDirection
+        long commentCount,
+        AuthorDto author,
+        LocalDateTime createdAt
 ) {}

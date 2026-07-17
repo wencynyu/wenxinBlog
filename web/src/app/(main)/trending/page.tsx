@@ -3,17 +3,11 @@
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import EmptyState from '@/components/common/EmptyState';
-import { usePosts } from '@/hooks/usePosts';
+import { useTrendingPosts } from '@/hooks/useRecommendations';
 
 export default function TrendingPage() {
-  const { data, isLoading: loading } = usePosts({
-    page: 1,
-    pageSize: 20,
-    status: 'published',
-    sortBy: 'likeCount',
-    sortOrder: 'desc',
-  });
-  const posts = data?.items ?? [];
+  const { data, isLoading: loading } = useTrendingPosts(20);
+  const posts = data ?? [];
 
   if (loading) {
     return (
@@ -52,6 +46,8 @@ export default function TrendingPage() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-ink line-clamp-1">{post.title}</h3>
                 <div className="flex items-center gap-3 mt-1 text-ink-faint text-sm font-mono">
+                  <span>{post.author?.displayName || post.author?.username || '匿名'}</span>
+                  <span>{post.viewsCount || 0} 浏览</span>
                   <span>{post.likeCount || 0} 赞</span>
                   <span>{post.commentCount || 0} 评论</span>
                 </div>

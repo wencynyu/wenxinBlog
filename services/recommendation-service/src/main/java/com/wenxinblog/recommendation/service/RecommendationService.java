@@ -1,9 +1,14 @@
 package com.wenxinblog.recommendation.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.wenxinblog.recommendation.dto.AuthorDto;
 import com.wenxinblog.recommendation.dto.FeedRecommendation;
 import com.wenxinblog.recommendation.dto.TrendingPost;
+import com.wenxinblog.recommendation.entity.Post;
 import com.wenxinblog.recommendation.entity.UserInterestTag;
+import com.wenxinblog.recommendation.repository.PostReadRepository;
 import com.wenxinblog.recommendation.repository.UserInterestTagRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +29,10 @@ public class RecommendationService {
     private final MilvusService milvusService;
     private final ReactiveStringRedisTemplate redisTemplate;
     private final UserInterestTagRepository interestTagRepository;
+    private final PostReadRepository postReadRepository;
+
+    // Redis 缓存 JSON 序列化用（带 JavaTime）；不注入 Spring 的 ObjectMapper，避免多 bean 冲突
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public Mono<List<FeedRecommendation>> getFeedRecommendations(String userId, int page, int size) {
         String cacheKey = String.format("recommend:feed:%s:%d", userId, page);
@@ -51,27 +60,51 @@ public class RecommendationService {
     }
 
     public Mono<List<TrendingPost>> getTrendingPosts(int limit) {
-        String cacheKey = "recommend:trending:" + limit;
-        return redisTemplate.opsForValue().get(cacheKey)
-                .flatMap(cached -> {
-                    try {
-                        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                        List<TrendingPost> items = mapper.readValue(cached,
-                                new TypeReference<List<TrendingPost>>() {});
-                        return Mono.just(items);
-                    } catch (Exception e) {
-                        return Mono.<List<TrendingPost>>empty();
-                    }
-                })
-                .switchIfEmpty(generateMockTrending(limit)
-                        .flatMap(items -> {
-                            try {
-                                var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                                String json = mapper.writeValueAsString(items);
-                                redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(30)).subscribe();
-                            } catch (Exception ignored) {}
-                            return Mono.just(items);
-                        }));
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        String cacheKey = "recommend:trending:" + safeLimit;
+        return cacheGetRaw(cacheKey)
+                .flatMap(json -> readJson(json, new TypeReference<List<TrendingPost>>() {}))
+                .switchIfEmpty(postReadRepository.findTrending(safeLimit)
+                        .map(this::toTrendingPost)
+                        .collectList()
+                        .flatMap(items -> cachePut(cacheKey, items, Duration.ofMinutes(10)).thenReturn(items)));
+    }
+
+    private TrendingPost toTrendingPost(Post p) {
+        AuthorDto author = new AuthorDto(
+                p.getAuthorId() != null ? p.getAuthorId().toString() : null,
+                p.getAuthorUsername(),
+                p.getAuthorDisplayName(),
+                p.getAuthorAvatarUrl());
+        return new TrendingPost(
+                p.getId().toString(),
+                p.getTitle(),
+                p.getViewCount(),
+                p.getLikeCount(),
+                p.getCommentCount(),
+                author,
+                p.getCreatedAt());
+    }
+
+    // ---- Redis 缓存小工具 ----
+    private Mono<String> cacheGetRaw(String key) {
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    private Mono<Void> cachePut(String key, Object value, Duration ttl) {
+        try {
+            return redisTemplate.opsForValue().set(key, MAPPER.writeValueAsString(value), ttl).then();
+        } catch (Exception e) {
+            return Mono.empty();
+        }
+    }
+
+    private <T> Mono<T> readJson(String json, TypeReference<T> type) {
+        try {
+            return Mono.just(MAPPER.readValue(json, type));
+        } catch (Exception e) {
+            return Mono.empty();
+        }
     }
 
     public Mono<List<String>> getUserRecommendations(String userId, int limit) {
@@ -138,22 +171,6 @@ public class RecommendationService {
                 new FeedRecommendation("post-rel-2", "相关文章推荐 2", "延伸阅读推荐", "author-b", 0.75, "标签匹配"),
                 new FeedRecommendation("post-rel-3", "相关文章推荐 3", "同作者其他文章", "author-c", 0.70, "同作者")
         ).stream().limit(topK).collect(Collectors.toList()));
-    }
-
-    private Mono<List<TrendingPost>> generateMockTrending(int limit) {
-        log.warn("generateMockTrending: returning DEMO trending posts — "
-                + "trending pipeline is a placeholder until real signals are wired in");
-        String[] titles = {"2024技术趋势", "Go vs Rust对比", "云原生架构",
-                "AI应用开发", "低代码平台评测", "分布式系统设计"};
-        List<TrendingPost> items = new java.util.ArrayList<>();
-        for (int i = 0; i < Math.min(limit, titles.length); i++) {
-            items.add(new TrendingPost(
-                    "trending-" + i, titles[i],
-                    10000 - i * 1500L, 500 - i * 80L,
-                    0.95 - i * 0.08, i < 3 ? "up" : "stable"
-            ));
-        }
-        return Mono.just(items);
     }
 
     private Mono<Void> cacheFeed(String key, List<FeedRecommendation> items) {
