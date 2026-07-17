@@ -15,6 +15,7 @@ type ProfileRepositoryInterface interface {
 	Create(profile *model.UserProfile) error
 	GetByUserID(userID uuid.UUID) (*model.UserProfile, error)
 	GetByID(id uuid.UUID) (*model.UserProfile, error)
+	GetUsername(userID uuid.UUID) (string, error)
 	Update(userID uuid.UUID, displayName, avatarUrl, bio, website, location, company *string, birthday *time.Time) error
 	Search(query string, limit, offset int) ([]model.UserProfile, int64, error)
 	IncrementViewCount(userID uuid.UUID) error
@@ -32,13 +33,27 @@ func NewProfileRepository(db *sql.DB) *ProfileRepository {
 }
 
 func (r *ProfileRepository) Create(profile *model.UserProfile) error {
-	query := `INSERT INTO user_profiles (user_id, display_name, avatar_url, bio, website, location, company, birthday, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
-	return r.db.QueryRow(query,
-		profile.UserID, profile.DisplayName, profile.AvatarUrl, profile.Bio,
+	// user_profiles.id 无 DB DEFAULT，在应用层生成 UUID 再插入（原实现靠 RETURNING id 取回，
+	// 但列无默认值会触发 not-null 违约）。
+	profile.ID = uuid.New()
+	query := `INSERT INTO user_profiles (id, user_id, display_name, avatar_url, bio, website, location, company, birthday, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+	_, err := r.db.Exec(query,
+		profile.ID, profile.UserID, profile.DisplayName, profile.AvatarUrl, profile.Bio,
 		profile.Website, profile.Location, profile.Company, profile.Birthday,
 		time.Now(), time.Now(),
-	).Scan(&profile.ID)
+	)
+	return err
+}
+
+// GetUsername 从同库的 users 表取 username，用于懒创建 profile 时填充 display_name 默认值。
+func (r *ProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
+	var username string
+	err := r.db.QueryRow(`SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return username, err
 }
 
 func (r *ProfileRepository) GetByUserID(userID uuid.UUID) (*model.UserProfile, error) {

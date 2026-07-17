@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"time"
 
 	"wenxinblog/user-service/internal/dto"
@@ -39,12 +40,44 @@ func (s *UserService) GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, er
 	if err != nil {
 		return nil, err
 	}
+	// 懒创建：profile 不存在时建一条默认的。否则注册流程未建 profile 的用户，
+	// 其「我的主页」会恒返回 404（user_profiles 表此前从未被写入）。
 	if profile == nil {
-		return nil, nil
+		if profile, err = s.ensureProfile(userID); err != nil {
+			return nil, err
+		}
 	}
 	resp := dto.ProfileFromModel(*profile)
 	go s.profileRepo.IncrementViewCount(userID)
 	return &resp, nil
+}
+
+// ensureProfile 为尚无 profile 的用户创建一条默认 profile（首次访问个人主页时触发）。
+// display_name 用 users 表的 username 作默认值（user-service 同库可读）。
+// 并发场景下可能已有另一请求创建成功，此时 Create 会因 user_id 唯一约束失败 → 回退再查一次。
+func (s *UserService) ensureProfile(userID uuid.UUID) (*model.UserProfile, error) {
+	username, err := s.profileRepo.GetUsername(userID)
+	if err != nil {
+		return nil, err
+	}
+	displayName := username
+	if displayName == "" {
+		displayName = "user" // users.username NOT NULL，正常非空；兜底防 display_name NOT NULL 违约
+	}
+	now := time.Now()
+	p := &model.UserProfile{
+		UserID:      userID,
+		DisplayName: sql.NullString{String: displayName, Valid: true},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.profileRepo.Create(p); err != nil {
+		if existing, getErr := s.profileRepo.GetByUserID(userID); getErr == nil && existing != nil {
+			return existing, nil
+		}
+		return nil, err
+	}
+	return p, nil
 }
 
 func (s *UserService) UpdateProfile(userID uuid.UUID, req *dto.UpdateProfileRequest) (*dto.UserProfileResponse, error) {

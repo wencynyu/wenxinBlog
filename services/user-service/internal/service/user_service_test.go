@@ -16,9 +16,10 @@ import (
 
 // MockProfileRepository
 type MockProfileRepository struct {
-	GetByUserIDFunc  func(userID uuid.UUID) (*model.UserProfile, error)
-	UpdateFunc       func(userID uuid.UUID, displayName, avatarUrl, bio, website, location, company *string, birthday *time.Time) error
-	SearchFunc       func(query string, limit, offset int) ([]model.UserProfile, int64, error)
+	GetByUserIDFunc        func(userID uuid.UUID) (*model.UserProfile, error)
+	GetUsernameFunc        func(userID uuid.UUID) (string, error)
+	UpdateFunc             func(userID uuid.UUID, displayName, avatarUrl, bio, website, location, company *string, birthday *time.Time) error
+	SearchFunc             func(query string, limit, offset int) ([]model.UserProfile, int64, error)
 	IncrementViewCountFunc func(userID uuid.UUID) error
 }
 
@@ -50,16 +51,22 @@ func (m *MockProfileRepository) IncrementViewCount(userID uuid.UUID) error {
 	return nil
 }
 
-func (m *MockProfileRepository) Create(profile *model.UserProfile) error { return nil }
+func (m *MockProfileRepository) Create(profile *model.UserProfile) error          { return nil }
 func (m *MockProfileRepository) GetByID(id uuid.UUID) (*model.UserProfile, error) { return nil, nil }
+func (m *MockProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
+	if m.GetUsernameFunc != nil {
+		return m.GetUsernameFunc(userID)
+	}
+	return "", nil
+}
 
 // MockFollowRepository
 type MockFollowRepository struct {
-	FollowFunc        func(followerID, followingID uuid.UUID) error
-	UnfollowFunc      func(followerID, followingID uuid.UUID) error
-	IsFollowingFunc   func(followerID, followingID uuid.UUID) (bool, error)
-	GetFollowersFunc  func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
-	GetFollowingFunc  func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
+	FollowFunc          func(followerID, followingID uuid.UUID) error
+	UnfollowFunc        func(followerID, followingID uuid.UUID) error
+	IsFollowingFunc     func(followerID, followingID uuid.UUID) (bool, error)
+	GetFollowersFunc    func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
+	GetFollowingFunc    func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
 	GetFollowingIDsFunc func(userID uuid.UUID) ([]uuid.UUID, error)
 }
 
@@ -156,8 +163,8 @@ func (m *MockStatsRepository) DecrementFollowingCount(userID uuid.UUID) error {
 func TestUserService_GetProfile_Success(t *testing.T) {
 	userID := uuid.New()
 	expectedProfile := &model.UserProfile{
-		ID:     uuid.New(),
-		UserID: userID,
+		ID:          uuid.New(),
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Test User", Valid: true},
 		Bio:         sql.NullString{String: "Test bio", Valid: true},
 		ViewCount:   100,
@@ -180,20 +187,23 @@ func TestUserService_GetProfile_Success(t *testing.T) {
 	assert.Equal(t, "Test bio", profile.Bio)
 }
 
-func TestUserService_GetProfile_NotFound(t *testing.T) {
+func TestUserService_GetProfile_LazyCreatesWhenMissing(t *testing.T) {
 	userID := uuid.New()
 
 	mockProfile := &MockProfileRepository{
 		GetByUserIDFunc: func(id uuid.UUID) (*model.UserProfile, error) {
-			return nil, nil
+			return nil, nil // profile 不存在
 		},
+		IncrementViewCountFunc: func(id uuid.UUID) error { return nil },
 	}
 
 	svc := NewUserService(mockProfile, nil, nil)
 	profile, err := svc.GetProfile(userID)
 
+	// 新行为：profile 缺失时懒创建一条默认的并返回，不再返回 nil/404
 	require.NoError(t, err)
-	assert.Nil(t, profile)
+	require.NotNil(t, profile)
+	assert.Equal(t, userID, profile.UserID)
 }
 
 func TestUserService_GetProfile_Error(t *testing.T) {
@@ -215,8 +225,8 @@ func TestUserService_GetProfile_Error(t *testing.T) {
 func TestUserService_UpdateProfile_Success(t *testing.T) {
 	userID := uuid.New()
 	updatedProfile := &model.UserProfile{
-		ID:     uuid.New(),
-		UserID: userID,
+		ID:          uuid.New(),
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Updated Name", Valid: true},
 	}
 
@@ -306,7 +316,7 @@ func TestUserService_FollowUser_Success(t *testing.T) {
 	}
 
 	mockStats := &MockStatsRepository{
-		IncrementFollowerCountFunc: func(id uuid.UUID) error { return nil },
+		IncrementFollowerCountFunc:  func(id uuid.UUID) error { return nil },
 		IncrementFollowingCountFunc: func(id uuid.UUID) error { return nil },
 	}
 
@@ -354,7 +364,7 @@ func TestUserService_UnfollowUser_Success(t *testing.T) {
 	}
 
 	mockStats := &MockStatsRepository{
-		DecrementFollowerCountFunc: func(id uuid.UUID) error { return nil },
+		DecrementFollowerCountFunc:  func(id uuid.UUID) error { return nil },
 		DecrementFollowingCountFunc: func(id uuid.UUID) error { return nil },
 	}
 
@@ -495,8 +505,8 @@ func TestUserService_Search_EmptyResult(t *testing.T) {
 func TestUserService_UpdateProfile_NullValues(t *testing.T) {
 	userID := uuid.New()
 	updatedProfile := &model.UserProfile{
-		ID:     uuid.New(),
-		UserID: userID,
+		ID:          uuid.New(),
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Test", Valid: true},
 	}
 

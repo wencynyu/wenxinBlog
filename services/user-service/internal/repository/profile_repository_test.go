@@ -21,12 +21,12 @@ func TestProfileRepository_Create_Success(t *testing.T) {
 	repo := NewProfileRepository(db)
 
 	userID := uuid.New()
-	mock.ExpectQuery("INSERT INTO user_profiles").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uuid.New()))
+	mock.ExpectExec("INSERT INTO user_profiles").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	profile := &model.UserProfile{
-		UserID: userID,
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Test User", Valid: true},
 	}
 
