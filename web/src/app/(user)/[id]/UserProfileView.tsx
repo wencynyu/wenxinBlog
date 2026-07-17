@@ -1,30 +1,82 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tabs, TabPane, Avatar, Button, Toast } from '@douyinfe/semi-ui';
 import { IconUserAdd, IconDelete } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
 import { useAuthStore } from '@/store/authStore';
-import { useFollowUser, useUnfollowUser } from '@/hooks/useUser';
-import type { UserProfile } from '@/types/user';
-import type { Post } from '@/types/post';
+import { useUserProfile, useFollowUser, useUnfollowUser } from '@/hooks/useUser';
+import { usePosts } from '@/hooks/usePosts';
 
 interface UserProfileViewProps {
   userId: string;
-  profile: UserProfile;
-  posts: Post[];
 }
 
-export default function UserProfileView({ userId, profile, posts }: UserProfileViewProps) {
+export default function UserProfileView({ userId }: UserProfileViewProps) {
+  const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const follow = useFollowUser();
   const unfollow = useUnfollowUser();
-  const [isFollowing, setIsFollowing] = useState(profile.isFollowing);
+
+  const { data: profile, isLoading } = useUserProfile(userId);
+  const { data: postsResp } = usePosts({
+    authorId: userId,
+    status: 'published',
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+    page: 1,
+    pageSize: 10,
+  });
+
+  const [isFollowing, setIsFollowing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts');
 
+  // profile 到达后同步一次关注状态（关注/取关后 react-query 会刷新 profile）
+  const profileFollowing = profile?.isFollowing;
+  if (profileFollowing !== undefined && profileFollowing !== isFollowing) {
+    setIsFollowing(profileFollowing);
+  }
+
+  if (isLoading) {
+    return (
+      <MainLayout showSidebar={false}>
+        <div className="max-w-3xl mx-auto">
+          <div className="animate-pulse">
+            <div className="bg-surface rounded-xl shadow-card p-8 mb-6">
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-20 bg-gray-200 rounded-full" />
+                <div className="space-y-2">
+                  <div className="h-6 bg-gray-200 rounded w-32" />
+                  <div className="h-4 bg-gray-100 rounded w-24" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <MainLayout showSidebar={false}>
+        <div className="max-w-3xl mx-auto py-20">
+          <EmptyState
+            title="用户不存在"
+            description="该用户可能不存在，或后端服务暂不可用"
+            actionText="返回首页"
+            onAction={() => router.push('/')}
+          />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const posts = postsResp?.items ?? [];
   const isSelf = currentUser?.id === userId;
   const pending = follow.isPending || unfollow.isPending;
 
