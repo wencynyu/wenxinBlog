@@ -13,7 +13,7 @@ export default function QueryProvider({ children }: QueryProviderProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 5 * 60 * 1000, // 5分钟
+            staleTime: 0, // 每次挂载都重新请求（最新）；react-query 仍会去重并发，不会带回严格模式双发
             gcTime: 30 * 60 * 1000, // 30分钟（v5: cacheTime -> gcTime）
             refetchOnWindowFocus: false,
             retry: 1,
