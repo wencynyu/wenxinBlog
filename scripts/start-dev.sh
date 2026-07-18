@@ -19,6 +19,7 @@ SERVICES=(
   "recommend:8006:services/recommendation-service:384"
   "content:8004:services/content-service:384"
   "ad:8007:services/ad-service:384"
+  "embedding:8008:services/embedding-service:-"
   "gateway:8080:services/gateway:256"
 )
 
@@ -38,6 +39,15 @@ start_service() {
     # Go service
     JWT_SECRET="$JWT_SECRET" DATABASE_URL="postgres://postgres:postgres@localhost:$(echo $name | grep -q auth && echo 5432 || echo 5433)/${name}_db?sslmode=disable" \
       nohup go run ./cmd/server > "/tmp/svc-$name.log" 2>&1 &
+  elif [ -f "requirements.txt" ] || [ -f "app/main.py" ]; then
+    # Python service（本地原生跑，MPS 加速；首次自动建 venv + 装依赖，模型首次启动时下载）
+    if [ ! -d ".venv" ]; then
+      echo "  $name: creating venv + installing deps (首次较慢)..."
+      python3 -m venv .venv
+      .venv/bin/pip install -q --upgrade pip
+      .venv/bin/pip install -q -r requirements.txt
+    fi
+    nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$port" > "/tmp/svc-$name.log" 2>&1 &
   else
     # Java service
     JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true $jvm_args spring-boot:run > "/tmp/svc-$name.log" 2>&1 &
