@@ -24,6 +24,7 @@ public class PostService {
     private final PostRepository postRepository;
     private final R2dbcEntityTemplate r2dbc;
     private final SearchIndexService searchIndexService;
+    private final BlogEventPublisher blogEventPublisher;
 
     public Mono<Post> createPost(UUID authorId, PostRequest req) {
         Post post = new Post();
@@ -49,6 +50,7 @@ public class PostService {
                 .doOnNext(saved -> {
                     if ("published".equalsIgnoreCase(saved.getStatus())) {
                         searchIndexService.indexPost(saved);
+                        blogEventPublisher.publishCreate(saved, req.getTags());
                     }
                 });
     }
@@ -76,6 +78,7 @@ public class PostService {
                     .doOnNext(saved -> {
                         if ("published".equalsIgnoreCase(saved.getStatus())) {
                             searchIndexService.indexPost(saved);
+                            blogEventPublisher.publishUpdate(saved, req.getTags());
                         }
                     });
         });
@@ -92,7 +95,10 @@ public class PostService {
 
     public Mono<Void> deletePost(UUID id) {
         return postRepository.deleteById(id)
-                .doOnSuccess(v -> searchIndexService.deletePost(id));
+                .doOnSuccess(v -> {
+                    searchIndexService.deletePost(id);
+                    blogEventPublisher.publishDelete(id.toString());
+                });
     }
 
     /**
