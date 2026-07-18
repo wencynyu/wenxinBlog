@@ -9,7 +9,11 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -67,6 +71,25 @@ public class PostReadRepository {
                 """;
         UUID[] arr = ids.toArray(new UUID[0]);
         return db.sql(sql).bind("ids", arr).map((row, meta) -> mapPostWithAuthor(row)).all();
+    }
+
+    /** 批量取多个 post 的标签，供推荐结果丰富用。 */
+    public Mono<Map<UUID, List<String>>> findTagsForPosts(Collection<UUID> postIds) {
+        if (postIds.isEmpty()) {
+            return Mono.just(Map.of());
+        }
+        UUID[] arr = postIds.toArray(new UUID[0]);
+        return db.sql("SELECT pt.post_id AS post_id, t.name AS name FROM post_tags pt "
+                + "JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id = ANY(:ids)")
+                .bind("ids", arr)
+                .map((row, meta) -> Map.entry(row.get("post_id", UUID.class), row.get("name", String.class)))
+                .all()
+                .collectMultimap(Map.Entry::getKey, Map.Entry::getValue)
+                .map(m -> {
+                    Map<UUID, List<String>> r = new HashMap<>();
+                    m.forEach((k, v) -> r.put(k, new ArrayList<>(v)));
+                    return r;
+                });
     }
 
     public Mono<Long> countPublished() {
