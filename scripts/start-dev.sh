@@ -19,7 +19,7 @@ SERVICES=(
   "recommend:8006:services/recommendation-service:384"
   "content:8004:services/content-service:384"
   "ad:8007:services/ad-service:384"
-  "embedding:8008:services/embedding-service:-"
+  "embedding:8008:../embedding-service:-"
   "gateway:8080:services/gateway:256"
 )
 
