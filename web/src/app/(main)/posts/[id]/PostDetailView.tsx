@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -20,7 +21,10 @@ import MainLayout from '@/components/layout/MainLayout';
 import CommentInput from '@/components/comment/CommentInput';
 import CommentList from '@/components/comment/CommentList';
 import EmptyState from '@/components/common/EmptyState';
+import RecommendationCard from '@/components/recommend/RecommendationCard';
 import { usePost, useToggleLike, useToggleFavorite } from '@/hooks/usePosts';
+import { useRelatedPosts } from '@/hooks/useRecommendations';
+import { sendFeedback } from '@/lib/api/recommend';
 import { useAuthStore } from '@/store/authStore';
 
 // 正文渲染较重（marked + highlight.js），按需加载
@@ -46,6 +50,15 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   const toggleFavorite = useToggleFavorite();
 
   const { data: post, isLoading } = usePost(postId);
+  const { data: relatedPosts } = useRelatedPosts(postId, 4);
+
+  // 看帖即埋点：发 view 行为事件 → 兴趣画像更新（推荐流据此个性化）
+  useEffect(() => {
+    if (isAuthenticated && user?.id && post) {
+      sendFeedback(user.id, postId, 'view').catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, post?.id, isAuthenticated, user?.id]);
 
   const handleShare = async () => {
     try {
@@ -188,6 +201,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                   return;
                 }
                 toggleLike.mutate({ id: post.id, isLiked: post.isLiked || false });
+                if (user?.id) sendFeedback(user.id, postId, 'like').catch(() => {});
               }}
             >
               {post.likeCount || 0}
@@ -212,6 +226,23 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
               分享
             </Button>
           </div>
+
+          {/* 相关推荐（内容相似，走 recommendation-service Milvus） */}
+          {relatedPosts && relatedPosts.length > 0 && (
+            <>
+              <Divider />
+              <div className="mb-8">
+                <Title heading={4} className="mb-4">
+                  相关推荐
+                </Title>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {relatedPosts.map((item) => (
+                    <RecommendationCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* 评论区 */}
           <Divider />
