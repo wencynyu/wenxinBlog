@@ -69,6 +69,53 @@ public class RecommendationService {
         return recomputeUserVector(userId);
     }
 
+    /**
+     * 把用户交互过的帖子向量用 EMA 融入用户向量（item-CF lite）。
+     * new_uv = normalize((1-α)·uv + α·pv)，α = clamp(weight, 0.05, 1)；uv 不存在则从 pv 起步。
+     * 比纯标签聚合更细：直接捕捉交互过的帖子内容语义。
+     */
+    public Mono<Void> updateUserVectorWithPost(String userId, String postId, double weight) {
+        double alpha = Math.min(1.0, Math.max(0.05, weight));
+        return Mono.zip(
+                        milvusService.getPostVector(postId).onErrorResume(e -> Mono.just(new float[0])),
+                        milvusService.getUserVector(userId).onErrorResume(e -> Mono.just(new float[0])))
+                .flatMap(tuple -> {
+                    float[] pv = tuple.getT1();
+                    float[] uv = tuple.getT2();
+                    if (pv.length == 0) {
+                        return Mono.<Void>empty(); // 帖子尚未嵌入
+                    }
+                    int dim = pv.length;
+                    float[] newUser = new float[dim];
+                    if (uv.length == 0) {
+                        System.arraycopy(pv, 0, newUser, 0, dim);
+                    } else {
+                        for (int d = 0; d < dim; d++) {
+                            newUser[d] = (float) (uv[d] * (1 - alpha) + pv[d] * alpha);
+                        }
+                    }
+                    normalizeInPlace(newUser);
+                    return milvusService.upsertUserVector(userId, newUser);
+                })
+                .onErrorResume(e -> {
+                    log.warn("updateUserVectorWithPost failed for {}: {}", userId, e.getMessage());
+                    return Mono.empty();
+                });
+    }
+
+    private static void normalizeInPlace(float[] v) {
+        double norm = 0;
+        for (float f : v) {
+            norm += f * f;
+        }
+        norm = Math.sqrt(norm);
+        if (norm > 1e-12) {
+            for (int d = 0; d < v.length; d++) {
+                v[d] /= (float) norm;
+            }
+        }
+    }
+
     /** 兴趣标签按 weight（来自用户行为权重）加权聚合 → 归一化 → 写入 user_embeddings，返回该向量。 */
     private Mono<float[]> recomputeUserVector(String userId) {
         return interestTagRepository.findByUserId(userId).collectList().flatMap(tags -> {
@@ -316,7 +363,7 @@ public class RecommendationService {
                     try {
                         String json = MAPPER.writeValueAsString(
                                 Map.of("eventType", eventType == null ? "view_post" : eventType,
-                                        "userId", userId, "tags", tags));
+                                        "userId", userId, "postId", pid.toString(), "tags", tags));
                         kafkaTemplate.send("user-behavior-events", userId, json)
                                 .whenComplete((r, ex) -> {
                                     if (ex != null) {

@@ -18,8 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 消费用户行为事件（user-behavior-events），更新用户兴趣标签，并刷新用户画像向量
- * （→ user_embeddings），使个性化推荐流随行为实时演进。
+ * 消费用户行为事件（user-behavior-events）：
+ *  - 把行为涉及的标签存入 user_interest_tags（/interests 展示用）；
+ *  - 用交互过的帖子向量 EMA 更新 user_embeddings（item-CF lite，主画像信号）。
+ * 使个性化推荐流随用户行为实时演进。
  */
 @Slf4j
 @Component
@@ -36,38 +38,44 @@ public class BehaviorEventConsumer {
             JsonNode node = objectMapper.readTree(record.value());
             String eventType = node.get("eventType").asText();
             String userId = node.get("userId").asText();
-            log.info("Consumed behavior event: userId={}, type={}", userId, eventType);
-
-            if (!node.has("tags")) {
-                return;
-            }
+            String postId = node.has("postId") && !node.get("postId").isNull() ? node.get("postId").asText() : null;
             double weight = getWeight(eventType);
-            List<String> tags = new ArrayList<>();
-            node.get("tags").forEach(t -> tags.add(t.asText()));
-            if (tags.isEmpty()) {
-                return;
-            }
+            log.info("Consumed behavior event: userId={}, postId={}, type={}", userId, postId, eventType);
 
-            // 取现有标签 → 只存新增的 → 刷新用户向量（行为→画像闭环）
-            interestTagRepository.findByUserId(userId)
-                    .map(UserInterestTag::getTag)
-                    .collectList()
-                    .flatMap(existing -> {
-                        List<UserInterestTag> toSave = tags.stream()
-                                .filter(t -> !existing.contains(t))
-                                .map(t -> UserInterestTag.builder()
-                                        .userId(userId).tag(t).weight(weight)
-                                        .createdAt(LocalDateTime.now()).build())
-                                .toList();
-                        return Flux.fromIterable(toSave).flatMap(interestTagRepository::save).then();
-                    })
-                    .then(recommendationService.refreshUserVector(userId))
+            Mono<Void> tagPart = node.has("tags") ? saveNewTags(userId, node.get("tags"), weight) : Mono.empty();
+            // 向量更新：有 postId → EMA 帖子向量（item-CF）；无 → 回退标签聚合
+            Mono<Void> vectorPart = postId != null
+                    ? recommendationService.updateUserVectorWithPost(userId, postId, weight)
+                    : recommendationService.refreshUserVector(userId).then();
+
+            tagPart.then(vectorPart)
                     .doOnError(e -> log.warn("behavior→vector refresh failed for {}: {}", userId, e.getMessage()))
                     .onErrorResume(e -> Mono.empty())
                     .subscribe();
         } catch (Exception e) {
             log.error("Failed to process behavior event: {}", e.getMessage(), e);
         }
+    }
+
+    /** 只存该用户尚不存在的标签（避免重复）。 */
+    private Mono<Void> saveNewTags(String userId, JsonNode tagsNode, double weight) {
+        List<String> tags = new ArrayList<>();
+        tagsNode.forEach(t -> tags.add(t.asText()));
+        if (tags.isEmpty()) {
+            return Mono.empty();
+        }
+        return interestTagRepository.findByUserId(userId)
+                .map(UserInterestTag::getTag)
+                .collectList()
+                .flatMap(existing -> {
+                    List<UserInterestTag> toSave = tags.stream()
+                            .filter(t -> !existing.contains(t))
+                            .map(t -> UserInterestTag.builder()
+                                    .userId(userId).tag(t).weight(weight)
+                                    .createdAt(LocalDateTime.now()).build())
+                            .toList();
+                    return Flux.fromIterable(toSave).flatMap(interestTagRepository::save).then();
+                });
     }
 
     private double getWeight(String eventType) {

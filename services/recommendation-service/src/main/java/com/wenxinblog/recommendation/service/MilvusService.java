@@ -115,24 +115,31 @@ public class MilvusService {
 
     /** 取用户兴趣向量；不存在返回长度 0 的数组。 */
     public Mono<float[]> getUserVector(String userId) {
-        return Mono.fromCallable(() -> {
-            R<io.milvus.grpc.QueryResults> r = client.query(QueryParam.newBuilder()
-                    .withCollectionName(MilvusConfig.USER_COLLECTION)
-                    .withExpr("user_id == \"" + userId + "\"")
-                    .addOutField(MilvusConfig.VECTOR_FIELD)
-                    .withLimit(1L)
-                    .build());
-            check(r, "getUserVector " + userId);
-            QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
-            if (wrapper.getRowCount() == 0) {
-                return new float[0];
-            }
-            List<?> fieldData = wrapper.getFieldWrapper(MilvusConfig.VECTOR_FIELD).getFieldData();
-            if (fieldData.isEmpty()) {
-                return new float[0];
-            }
-            return toPrimArray(fieldData.get(0));
-        }).subscribeOn(Schedulers.boundedElastic());
+        return Mono.fromCallable(() -> queryVector(MilvusConfig.USER_COLLECTION, "user_id", userId, "getUserVector"))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /** 取博文向量（item-CF：用户向量 EMA 用）；不存在返回长度 0 的数组。 */
+    public Mono<float[]> getPostVector(String postId) {
+        return Mono.fromCallable(() -> queryVector(MilvusConfig.BLOG_COLLECTION, "post_id", postId, "getPostVector"))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /** 通用：按 pk 查某个 collection 的 embedding 向量。 */
+    private float[] queryVector(String collection, String pkField, String pkValue, String op) {
+        R<io.milvus.grpc.QueryResults> r = client.query(QueryParam.newBuilder()
+                .withCollectionName(collection)
+                .withExpr(pkField + " == \"" + pkValue + "\"")
+                .addOutField(MilvusConfig.VECTOR_FIELD)
+                .withLimit(1L)
+                .build());
+        check(r, op + " " + pkValue);
+        QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
+        if (wrapper.getRowCount() == 0) {
+            return new float[0];
+        }
+        List<?> fieldData = wrapper.getFieldWrapper(MilvusConfig.VECTOR_FIELD).getFieldData();
+        return fieldData.isEmpty() ? new float[0] : toPrimArray(fieldData.get(0));
     }
 
     private List<Float> toFloatList(float[] v) {
