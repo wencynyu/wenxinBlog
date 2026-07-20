@@ -14,6 +14,7 @@ import io.milvus.response.QueryResultsWrapper;
 import io.milvus.response.SearchResultsWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -33,6 +34,10 @@ import java.util.List;
 public class MilvusService {
 
     private final MilvusServiceClient client;
+
+    /** ANN 搜索 nprobe（越大召回越高、越慢），可经 milvus.nprobe 配置。 */
+    @Value("${milvus.nprobe:16}")
+    private int nprobe;
 
     /** 一条检索命中：postId + 相似度分数（IP，向量已归一化即 cosine）。 */
     public record SearchHit(String postId, double score) {}
@@ -77,7 +82,7 @@ public class MilvusService {
                     .withFloatVectors(vectors)
                     .withTopK(topK)
                     .withMetricType(MetricType.IP)
-                    .withParams("{\"nprobe\":16}")
+                    .withParams("{\"nprobe\":" + nprobe + "}")
                     .build());
             check(r, "searchByVector");
             List<SearchResultsWrapper.IDScore> idScores =

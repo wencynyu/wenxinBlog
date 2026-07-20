@@ -24,8 +24,23 @@ spring:
 milvus:
   host: localhost
   port: 19530
+  nprobe: 16  # ANN 搜索参数：nprobe 越大召回越高、越慢
+
+embedding:
+  url: http://localhost:8008  # EmbeddingClient 用，对齐 EMBEDDING_URL env
 
 recommendation:
   feed:
     page-size: 20
     cache-ttl-minutes: 10
+
+# actuator：/health（start-dev 就绪探测 + 运维）、/metrics（micrometer 指标）
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
