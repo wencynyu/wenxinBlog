@@ -3,6 +3,7 @@ package com.wenxinblog.recommendation.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wenxinblog.recommendation.entity.UserInterestTag;
 import com.wenxinblog.recommendation.repository.UserInterestTagRepository;
+import com.wenxinblog.recommendation.service.RecommendationService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +28,9 @@ class BehaviorEventConsumerTest {
     @Mock
     private UserInterestTagRepository interestTagRepository;
 
+    @Mock
+    private RecommendationService recommendationService;
+
     @InjectMocks
     private BehaviorEventConsumer consumer;
 
@@ -33,8 +38,9 @@ class BehaviorEventConsumerTest {
 
     @BeforeEach
     void setUp() {
-        // Inject the objectMapper manually since we're using @InjectMocks
-        consumer = new BehaviorEventConsumer(objectMapper, interestTagRepository);
+        // consume() 末尾会触发 refreshUserVector（行为→画像闭环）；lenient 兜底为空向量，避免 NPE
+        lenient().when(recommendationService.refreshUserVector(anyString())).thenReturn(Mono.empty());
+        consumer = new BehaviorEventConsumer(objectMapper, interestTagRepository, recommendationService);
     }
 
     @Test

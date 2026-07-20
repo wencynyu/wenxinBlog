@@ -63,6 +63,11 @@ public class RecommendationService {
                 .switchIfEmpty(trendingAsFeed(size));
     }
 
+    /** 公共入口：重算并持久化用户向量（行为事件/兴趣标签变更后由 consumer 或 interests 端点触发）。 */
+    public Mono<float[]> refreshUserVector(String userId) {
+        return recomputeUserVector(userId);
+    }
+
     /** 兴趣标签按 weight（来自用户行为权重）加权聚合 → 归一化 → 写入 user_embeddings，返回该向量。 */
     private Mono<float[]> recomputeUserVector(String userId) {
         return interestTagRepository.findByUserId(userId).collectList().flatMap(tags -> {
