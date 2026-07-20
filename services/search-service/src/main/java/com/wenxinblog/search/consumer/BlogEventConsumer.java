@@ -10,6 +10,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,7 +32,7 @@ public class BlogEventConsumer {
             log.info("Consumed blog event: type={}", eventType);
 
             switch (eventType) {
-                case "CREATE", "UPDATE" -> handleUpsert(data);
+                case "CREATE", "UPDATE" -> handleUpsert(data, eventType);
                 case "DELETE" -> handleDelete(data);
                 default -> log.warn("Unknown blog event type: {}", eventType);
             }
@@ -40,7 +41,7 @@ public class BlogEventConsumer {
         }
     }
 
-    private void handleUpsert(JsonNode data) {
+    private void handleUpsert(JsonNode data, String eventType) {
         BlogDocument doc = BlogDocument.builder()
                 .id(getText(data, "id"))
                 .title(getText(data, "title"))
@@ -64,10 +65,12 @@ public class BlogEventConsumer {
         }
 
         if (data.has("publishedAt") && !data.get("publishedAt").isNull()) {
-            doc.setPublishedAt(data.get("publishedAt").asText());
+            doc.setPublishedAt(LocalDateTime.parse(data.get("publishedAt").asString()));
         }
 
-        if ("CREATE".equals(getText(data, "_eventType"))) {
+        // eventType 在顶层（node.eventType），不在 data 里；之前误读 data._eventType 导致
+        // CREATE 永远走 updateBlog。CREATE 全量 index，UPDATE 局部 update。
+        if ("CREATE".equals(eventType)) {
             blogRepo.indexBlog(doc);
         } else {
             blogRepo.updateBlog(doc);
@@ -75,7 +78,7 @@ public class BlogEventConsumer {
     }
 
     private void handleDelete(JsonNode data) {
-        String blogId = data.get("id").asText();
+        String blogId = data.get("id").asString();
         blogRepo.deleteBlog(blogId);
     }
 
