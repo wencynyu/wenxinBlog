@@ -33,6 +33,7 @@ public class BlogEventConsumer {
             String eventType = root.path("eventType").asText();
             JsonNode data = root.path("data");
             String postId = data.path("id").asText();
+            log.info("consumed blog event: type={}, postId={}", eventType, postId);
             if (postId.isEmpty()) {
                 return;
             }
@@ -73,9 +74,14 @@ public class BlogEventConsumer {
             return;
         }
         embeddingClient.embed(embedText)
-                .flatMap(vec -> vec.length == 0
-                        ? Mono.<Void>empty()
-                        : milvusService.upsertPost(postId, authorId, title, vec))
+                .flatMap(vec -> {
+                    if (vec.length == 0) {
+                        log.warn("embedding empty for post {} (model service down?)", postId);
+                        return Mono.<Void>empty();
+                    }
+                    log.info("embedding post {} (dim={}) → Milvus upsert", postId, vec.length);
+                    return milvusService.upsertPost(postId, authorId, title, vec);
+                })
                 .doOnError(e -> log.warn("embed/upsert failed for {}: {}", postId, e.getMessage()))
                 .onErrorResume(e -> Mono.empty())
                 .subscribe();

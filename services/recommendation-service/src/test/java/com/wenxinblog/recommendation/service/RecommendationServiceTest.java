@@ -1,9 +1,12 @@
 package com.wenxinblog.recommendation.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wenxinblog.recommendation.dto.FeedRecommendation;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.wenxinblog.recommendation.client.EmbeddingClient;
 import com.wenxinblog.recommendation.dto.TrendingPost;
+import com.wenxinblog.recommendation.entity.Post;
 import com.wenxinblog.recommendation.entity.UserInterestTag;
+import com.wenxinblog.recommendation.repository.PostReadRepository;
 import com.wenxinblog.recommendation.repository.UserInterestTagRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,354 +23,152 @@ import reactor.test.StepVerifier;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * RecommendationService 单测。新版 trending 走 blog_db（PostReadRepository），
+ * related/feed 走 embedding + Milvus（EmbeddingClient + MilvusService）。
+ * 这里覆盖 DB/缓存/兴趣/反馈路径；related/feed 的真实向量路径由集成测试覆盖。
+ */
 @ExtendWith(MockitoExtension.class)
 class RecommendationServiceTest {
 
-    @Mock
-    private MilvusService milvusService;
+    @Mock private MilvusService milvusService;
+    @Mock private EmbeddingClient embeddingClient;
+    @Mock private ReactiveStringRedisTemplate redisTemplate;
+    @Mock private UserInterestTagRepository interestTagRepository;
+    @Mock private PostReadRepository postReadRepository;
+    @Mock private ReactiveValueOperations<String, String> valueOps;
 
-    @Mock
-    private ReactiveStringRedisTemplate redisTemplate;
+    @InjectMocks private RecommendationService recommendationService;
 
-    @Mock
-    private UserInterestTagRepository interestTagRepository;
-
-    @Mock
-    private ReactiveValueOperations<String, String> valueOps;
-
-    @InjectMocks
-    private RecommendationService recommendationService;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @BeforeEach
     void setUp() {
-        objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
 
-    @Test
-    void getFeedRecommendations_WithCacheHit_ShouldReturnCachedData() throws Exception {
-        // Given
-        String userId = "user-123";
-        int page = 0;
-        int size = 10;
-        String cacheKey = "recommend:feed:" + userId + ":" + page;
-
-        List<FeedRecommendation> cachedItems = List.of(
-                new FeedRecommendation("post-1", "Cached Post", "Summary", "Author", 0.9, "Cached")
-        );
-        String cachedJson = objectMapper.writeValueAsString(cachedItems);
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.just(cachedJson));
-        when(milvusService.searchByUserInterest(userId, size)).thenReturn(Flux.empty());
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getFeedRecommendations(userId, page, size);
-
-        // Then - just verify we get the cached data back
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 1 && items.get(0).postId().equals("post-1"))
-                .verifyComplete();
+    private Post samplePost(String title) {
+        Post p = new Post();
+        p.setId(UUID.randomUUID());
+        p.setAuthorId(UUID.randomUUID());
+        p.setTitle(title);
+        p.setViewCount(10);
+        p.setLikeCount(5);
+        p.setCommentCount(2);
+        p.setCreatedAt(LocalDateTime.now());
+        return p;
     }
 
+    // ---- 热门 ----
     @Test
-    void getFeedRecommendations_WithCacheMiss_ShouldFetchFromMilvus() {
-        // Given
-        String userId = "user-456";
-        int page = 0;
-        int size = 10;
-        String cacheKey = "recommend:feed:" + userId + ":" + page;
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.empty());
-        when(milvusService.searchByUserInterest(userId, size)).thenReturn(Flux.empty());
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getFeedRecommendations(userId, page, size);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 5) // Mock feed has 5 items
-                .verifyComplete();
-
-        verify(milvusService).searchByUserInterest(userId, size);
-    }
-
-    @Test
-    void getFeedRecommendations_WithCacheMiss_ShouldCacheResults() {
-        // Given
-        String userId = "user-789";
-        int page = 0;
-        int size = 10;
-        String cacheKey = "recommend:feed:" + userId + ":" + page;
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.empty());
-        when(milvusService.searchByUserInterest(userId, size)).thenReturn(Flux.empty());
-        when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getFeedRecommendations(userId, page, size);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextCount(1)
-                .verifyComplete();
-
-        verify(valueOps).set(anyString(), anyString(), any(Duration.class));
-    }
-
-    @Test
-    void getRelatedPosts_ShouldReturnMilvusResults() {
-        // Given
-        String postId = "post-123";
-        int topK = 5;
-
-        FeedRecommendation related = new FeedRecommendation("post-rel-1", "Related", "Summary", "Author", 0.85, "Similar");
-        when(milvusService.searchSimilarPosts(postId, topK)).thenReturn(Flux.just(related));
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getRelatedPosts(postId, topK);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 1 && items.get(0).postId().equals("post-rel-1"))
-                .verifyComplete();
-    }
-
-    @Test
-    void getRelatedPosts_WithEmptyMilvusResults_ShouldReturnMockData() {
-        // Given
-        String postId = "post-456";
-        int topK = 10;
-
-        when(milvusService.searchSimilarPosts(postId, topK)).thenReturn(Flux.empty());
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getRelatedPosts(postId, topK);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 3 && items.get(0).postId().equals("post-rel-1"))
-                .verifyComplete();
-    }
-
-    @Test
-    void getTrendingPosts_WithCacheHit_ShouldReturnCachedData() throws Exception {
-        // Given
+    void getTrendingPosts_cacheMiss_fetchesFromDbAndCaches() {
         int limit = 10;
-        String cacheKey = "recommend:trending:" + limit;
-
-        List<TrendingPost> cachedItems = List.of(
-                new TrendingPost("trend-1", "Trending Post", 1000L, 100L, 0.9, "up")
-        );
-        String cachedJson = objectMapper.writeValueAsString(cachedItems);
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.just(cachedJson));
-
-        // When
-        Mono<List<TrendingPost>> result = recommendationService.getTrendingPosts(limit);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 1 && items.get(0).postId().equals("trend-1"))
-                .verifyComplete();
-    }
-
-    @Test
-    void getTrendingPosts_WithCacheMiss_ShouldReturnMockData() {
-        // Given
-        int limit = 5;
-        String cacheKey = "recommend:trending:" + limit;
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.empty());
+        when(valueOps.get("recommend:trending:" + limit)).thenReturn(Mono.empty());
+        when(postReadRepository.findTrending(limit)).thenReturn(Flux.just(samplePost("A"), samplePost("B")));
         when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
 
-        // When
-        Mono<List<TrendingPost>> result = recommendationService.getTrendingPosts(limit);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 5)
+        StepVerifier.create(recommendationService.getTrendingPosts(limit))
+                .expectNextMatches(items -> items.size() == 2 && items.get(0) instanceof TrendingPost)
                 .verifyComplete();
-
-        verify(valueOps).set(eq(cacheKey), anyString(), any(Duration.class));
+        verify(postReadRepository).findTrending(limit);
+        verify(valueOps).set(eq("recommend:trending:" + limit), anyString(), any(Duration.class));
     }
 
     @Test
-    void getUserRecommendations_ShouldReturnMockUsers() {
-        // Given
-        String userId = "user-123";
-        int limit = 2;
+    void getTrendingPosts_cacheHit_returnsCached() throws Exception {
+        int limit = 10;
+        TrendingPost cached = new TrendingPost("id-1", "Cached", 100, 50, 3, null, LocalDateTime.now());
+        when(valueOps.get("recommend:trending:" + limit)).thenReturn(Mono.just(mapper.writeValueAsString(List.of(cached))));
 
-        // When
-        Mono<List<String>> result = recommendationService.getUserRecommendations(userId, limit);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(users -> users.size() == 2)
+        StepVerifier.create(recommendationService.getTrendingPosts(limit))
+                .expectNextMatches(items -> items.size() == 1 && "id-1".equals(items.get(0).id()))
                 .verifyComplete();
+        verify(postReadRepository, never()).findTrending(anyInt());
     }
 
     @Test
-    void getInterestTags_ShouldReturnTagsFromRepository() {
-        // Given
-        String userId = "user-123";
-        UserInterestTag tag1 = UserInterestTag.builder()
-                .userId(userId).tag("java").weight(0.8).createdAt(LocalDateTime.now()).build();
-        UserInterestTag tag2 = UserInterestTag.builder()
-                .userId(userId).tag("spring").weight(0.6).createdAt(LocalDateTime.now()).build();
+    void getTrendingPosts_clampsLimit() {
+        when(valueOps.get("recommend:trending:50")).thenReturn(Mono.empty());
+        when(postReadRepository.findTrending(50)).thenReturn(Flux.empty());
 
-        when(interestTagRepository.findByUserId(userId)).thenReturn(Flux.just(tag1, tag2));
+        StepVerifier.create(recommendationService.getTrendingPosts(9999))
+                .expectNextMatches(List::isEmpty)
+                .verifyComplete();
+        verify(postReadRepository).findTrending(50); // 上限 50
+    }
 
-        // When
-        Flux<UserInterestTag> result = recommendationService.getInterestTags(userId);
+    // ---- 兴趣标签 ----
+    @Test
+    void getInterestTags_returnsFromRepository() {
+        String userId = "u1";
+        UserInterestTag tag = UserInterestTag.builder().userId(userId).tag("java").weight(0.8).createdAt(LocalDateTime.now()).build();
+        when(interestTagRepository.findByUserId(userId)).thenReturn(Flux.just(tag));
 
-        // Then
-        StepVerifier.create(result)
-                .expectNext(tag1)
-                .expectNext(tag2)
+        StepVerifier.create(recommendationService.getInterestTags(userId))
+                .expectNext(tag)
                 .verifyComplete();
     }
 
     @Test
-    void getInterestTags_WithEmptyResult_ShouldReturnEmpty() {
-        // Given
-        String userId = "user-456";
-        when(interestTagRepository.findByUserId(userId)).thenReturn(Flux.empty());
-
-        // When
-        Flux<UserInterestTag> result = recommendationService.getInterestTags(userId);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void updateInterestTags_ShouldDeleteExistingAndSaveNew() {
-        // Given
-        String userId = "user-123";
-        List<String> tags = List.of("java", "spring", "kafka");
-
+    void updateInterestTags_deletesAndSaves() {
+        String userId = "u1";
         when(interestTagRepository.deleteByUserId(userId)).thenReturn(Mono.empty());
-        when(interestTagRepository.save(any(UserInterestTag.class)))
-                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(interestTagRepository.save(any(UserInterestTag.class))).thenAnswer(i -> Mono.just(i.getArgument(0)));
 
-        // When
-        Mono<List<UserInterestTag>> result = recommendationService.updateInterestTags(userId, tags);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(savedTags -> savedTags.size() == 3)
+        StepVerifier.create(recommendationService.updateInterestTags(userId, List.of("a", "b")))
+                .expectNextMatches(saved -> saved.size() == 2)
                 .verifyComplete();
-
         verify(interestTagRepository).deleteByUserId(userId);
-        verify(interestTagRepository, times(3)).save(any(UserInterestTag.class));
+        verify(interestTagRepository, times(2)).save(any(UserInterestTag.class));
     }
 
+    // ---- 反馈 ----
     @Test
-    void updateInterestTags_WithEmptyList_ShouldDeleteOnly() {
-        // Given
-        String userId = "user-456";
-        List<String> tags = List.of();
-
-        when(interestTagRepository.deleteByUserId(userId)).thenReturn(Mono.empty());
-
-        // When
-        Mono<List<UserInterestTag>> result = recommendationService.updateInterestTags(userId, tags);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(savedTags -> savedTags.isEmpty())
-                .verifyComplete();
-
-        verify(interestTagRepository).deleteByUserId(userId);
-        verify(interestTagRepository, never()).save(any(UserInterestTag.class));
-    }
-
-    @Test
-    void recordFeedback_ShouldInvalidateCache() {
-        // Given
-        String userId = "user-123";
-        String postId = "post-456";
-        String action = "like";
-        String pattern = "recommend:feed:" + userId + ":*";
-
-        when(redisTemplate.keys(pattern)).thenReturn(Flux.just("key1", "key2"));
+    void recordFeedback_invalidatesCache() {
+        String userId = "u1";
+        when(redisTemplate.keys("recommend:feed:" + userId + ":*")).thenReturn(Flux.just("k1", "k2"));
         when(redisTemplate.delete(anyString())).thenReturn(Mono.just(1L));
 
-        // When
-        Mono<Void> result = recommendationService.recordFeedback(userId, postId, action);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-
-        verify(redisTemplate).keys(pattern);
+        StepVerifier.create(recommendationService.recordFeedback(userId, "p1", "like")).verifyComplete();
         verify(redisTemplate, times(2)).delete(anyString());
     }
 
     @Test
-    void recordFeedback_WithNoCacheKeys_ShouldComplete() {
-        // Given
-        String userId = "user-789";
-        String postId = "post-999";
-        String action = "dislike";
-        String pattern = "recommend:feed:" + userId + ":*";
-
-        when(redisTemplate.keys(pattern)).thenReturn(Flux.empty());
-
-        // When
-        Mono<Void> result = recommendationService.recordFeedback(userId, postId, action);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-
-        verify(redisTemplate).keys(pattern);
-        verify(redisTemplate, never()).delete(anyString());
-    }
-
-    @Test
-    void getFeedRecommendations_WithInvalidCachedJson_ShouldFetchNewData() {
-        // Given
-        String userId = "user-999";
-        int page = 0;
-        int size = 10;
-        String cacheKey = "recommend:feed:" + userId + ":" + page;
-
-        when(valueOps.get(cacheKey)).thenReturn(Mono.just("invalid json"));
-        when(milvusService.searchByUserInterest(userId, size)).thenReturn(Flux.empty());
-        when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
-
-        // When
-        Mono<List<FeedRecommendation>> result = recommendationService.getFeedRecommendations(userId, page, size);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 5)
+    void getUserRecommendations_returnsEmptyPlaceholder() {
+        StepVerifier.create(recommendationService.getUserRecommendations("u1", 5))
+                .expectNextMatches(List::isEmpty)
                 .verifyComplete();
     }
 
+    // ---- 相关博文：非法 postId → 降级 trending ----
     @Test
-    void getTrendingPosts_WithInvalidCachedJson_ShouldReturnMockData() {
-        // Given
-        int limit = 10;
-        String cacheKey = "recommend:trending:" + limit;
+    void getRelatedPosts_invalidUuid_fallsBackToTrending() {
+        when(valueOps.get(startsWith("recommend:trending:"))).thenReturn(Mono.empty());
+        when(postReadRepository.findTrending(anyInt())).thenReturn(Flux.just(samplePost("T")));
 
-        when(valueOps.get(cacheKey)).thenReturn(Mono.just("invalid json"));
-        when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
-
-        // When
-        Mono<List<TrendingPost>> result = recommendationService.getTrendingPosts(limit);
-
-        // Then
-        StepVerifier.create(result)
-                .expectNextMatches(items -> items.size() == 6)
+        StepVerifier.create(recommendationService.getRelatedPosts("not-a-uuid", 5))
+                .expectNextMatches(items -> !items.isEmpty())
                 .verifyComplete();
+        verify(embeddingClient, never()).embed(anyString());
+    }
+
+    // ---- backfill ----
+    @Test
+    void backfill_embedsAndUpsertsAllPosts() {
+        Post p1 = samplePost("A");
+        Post p2 = samplePost("B");
+        when(postReadRepository.findAllPublished(50)).thenReturn(Flux.just(p1, p2));
+        when(embeddingClient.embed(anyString())).thenReturn(Mono.just(new float[1024]));
+        when(milvusService.upsertPost(anyString(), anyString(), anyString(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(recommendationService.backfill(50))
+                .expectNext(2)
+                .verifyComplete();
+        verify(milvusService, times(2)).upsertPost(anyString(), anyString(), anyString(), any());
     }
 }

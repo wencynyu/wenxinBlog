@@ -1,147 +1,69 @@
 package com.wenxinblog.recommendation.service;
 
-import com.wenxinblog.recommendation.dto.FeedRecommendation;
+import io.milvus.client.MilvusServiceClient;
+import io.milvus.param.R;
+import io.milvus.param.dml.DeleteParam;
+import io.milvus.param.dml.SearchParam;
+import io.milvus.param.dml.UpsertParam;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.Map;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+/**
+ * MilvusService 单测：mock MilvusServiceClient，验证各方法对 R 成功/失败的封装（boundedElastic 包裹、
+ * 失败抛 RuntimeException）。真实向量路径由集成测试（对接 live Milvus）覆盖。
+ */
 @ExtendWith(MockitoExtension.class)
 class MilvusServiceTest {
+
+    @Mock
+    private MilvusServiceClient client;
 
     @InjectMocks
     private MilvusService milvusService;
 
-    @Test
-    void initCollections_ShouldReturnEmptyMono() {
-        // When
-        Mono<Void> result = milvusService.initCollections();
+    private static float[] dim(int n) {
+        return new float[n];
+    }
 
-        // Then
-        StepVerifier.create(result)
+    @Test
+    void upsertPost_success_completes() {
+        when(client.upsert(any(UpsertParam.class))).thenReturn(R.success());
+        StepVerifier.create(milvusService.upsertPost("p1", "a1", "title", dim(1024)))
                 .verifyComplete();
     }
 
     @Test
-    void searchSimilarPosts_ShouldReturnEmptyFlux() {
-        // When
-        Flux<FeedRecommendation> result = milvusService.searchSimilarPosts("post-123", 10);
+    void upsertPost_failure_errors() {
+        when(client.upsert(any(UpsertParam.class))).thenReturn(R.failed(new RuntimeException("boom")));
+        StepVerifier.create(milvusService.upsertPost("p1", "a1", "title", dim(1024)))
+                .verifyError(RuntimeException.class);
+    }
 
-        // Then
-        StepVerifier.create(result)
+    @Test
+    void removePost_success_completes() {
+        when(client.delete(any(DeleteParam.class))).thenReturn(R.success());
+        StepVerifier.create(milvusService.removePost("p1"))
                 .verifyComplete();
     }
 
     @Test
-    void searchSimilarPosts_WithDifferentTopK_ShouldReturnEmptyFlux() {
-        // When
-        Flux<FeedRecommendation> result = milvusService.searchSimilarPosts("post-456", 5);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
+    void removePost_failure_errors() {
+        when(client.delete(any(DeleteParam.class))).thenReturn(R.failed(new RuntimeException("boom")));
+        StepVerifier.create(milvusService.removePost("p1"))
+                .verifyError(RuntimeException.class);
     }
 
     @Test
-    void searchByUserInterest_ShouldReturnEmptyFlux() {
-        // When
-        Flux<FeedRecommendation> result = milvusService.searchByUserInterest("user-123", 10);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void searchByUserInterest_WithDifferentTopK_ShouldReturnEmptyFlux() {
-        // When
-        Flux<FeedRecommendation> result = milvusService.searchByUserInterest("user-456", 20);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void insertPostEmbedding_ShouldReturnEmptyMono() {
-        // Given
-        float[] vector = {0.1f, 0.2f, 0.3f};
-        Map<String, Object> metadata = Map.of("title", "Test Post");
-
-        // When
-        Mono<Void> result = milvusService.insertPostEmbedding("post-123", vector, metadata);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void insertPostEmbedding_WithEmptyVector_ShouldReturnEmptyMono() {
-        // Given
-        float[] vector = {};
-        Map<String, Object> metadata = Map.of();
-
-        // When
-        Mono<Void> result = milvusService.insertPostEmbedding("post-456", vector, metadata);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void insertUserEmbedding_ShouldReturnEmptyMono() {
-        // Given
-        float[] vector = {0.5f, 0.6f, 0.7f};
-
-        // When
-        Mono<Void> result = milvusService.insertUserEmbedding("user-123", vector);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void insertUserEmbedding_WithLargeVector_ShouldReturnEmptyMono() {
-        // Given
-        float[] vector = new float[768]; // Simulating BERT embedding size
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = 0.1f;
-        }
-
-        // When
-        Mono<Void> result = milvusService.insertUserEmbedding("user-456", vector);
-
-        // Then
-        StepVerifier.create(result)
-                .verifyComplete();
-    }
-
-    @Test
-    void allMethods_ShouldNotThrowExceptions() {
-        // This test ensures none of the methods throw exceptions during normal operation
-        assertDoesNotThrow(() -> milvusService.initCollections().block());
-        assertDoesNotThrow(() -> milvusService.searchSimilarPosts("post-1", 10).collectList().block());
-        assertDoesNotThrow(() -> milvusService.searchByUserInterest("user-1", 10).collectList().block());
-        assertDoesNotThrow(() -> milvusService.insertPostEmbedding("post-1", new float[]{1f}, Map.of()).block());
-        assertDoesNotThrow(() -> milvusService.insertUserEmbedding("user-1", new float[]{1f}).block());
-    }
-
-    private void assertDoesNotThrow(Runnable action) {
-        try {
-            action.run();
-        } catch (Exception e) {
-            throw new AssertionError("Expected no exception, but got: " + e.getMessage(), e);
-        }
+    void searchByVector_failure_errors() {
+        when(client.search(any(SearchParam.class))).thenReturn(R.failed(new RuntimeException("boom")));
+        StepVerifier.create(milvusService.searchByVector(dim(1024), 5))
+                .verifyError(RuntimeException.class);
     }
 }

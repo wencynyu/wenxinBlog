@@ -74,4 +74,10 @@ public class RecommendationController {
         return recommendationService.recordFeedback(userId, postId, action)
                 .thenReturn(Result.success("ok"));
     }
+
+    /** 把已有已发布帖子批量嵌入 Milvus（返回成功 upsert 条数）。 */
+    @PostMapping("/admin/backfill")
+    public Mono<Result<Integer>> backfill(@RequestParam(defaultValue = "1000") int limit) {
+        return recommendationService.backfill(limit).map(Result::success);
+    }
 }

@@ -44,8 +44,8 @@ public class RecommendationService {
         String cacheKey = String.format("recommend:feed:%s:%d", userId, page);
         return cacheGetRaw(cacheKey)
                 .flatMap(json -> readJson(json, new TypeReference<List<FeedRecommendation>>() {}))
-                .switchIfEmpty(computeFeed(userId, size)
-                        .flatMap(items -> cachePut(cacheKey, items, Duration.ofMinutes(10)).thenReturn(items)));
+                .switchIfEmpty(Mono.defer(() -> computeFeed(userId, size)
+                        .flatMap(items -> cachePut(cacheKey, items, Duration.ofMinutes(10)).thenReturn(items))));
     }
 
     private Mono<List<FeedRecommendation>> computeFeed(String userId, int size) {
@@ -139,16 +139,35 @@ public class RecommendationService {
         return sb.toString();
     }
 
+    // ============ Backfill：把已有已发布帖子批量嵌入 Milvus（启动后/手动触发） ============
+    public Mono<Integer> backfill(int limit) {
+        return postReadRepository.findAllPublished(limit)
+                .flatMap(post -> embeddingClient.embed(embeddingText(post))
+                        .flatMap(vec -> vec.length == 0
+                                ? Mono.just(false)
+                                : milvusService.upsertPost(
+                                        post.getId().toString(),
+                                        post.getAuthorId() != null ? post.getAuthorId().toString() : "",
+                                        post.getTitle(), vec)
+                                        .thenReturn(true))
+                        .onErrorResume(e -> {
+                            log.warn("backfill embed failed for {}: {}", post.getId(), e.getMessage());
+                            return Mono.just(false);
+                        }))
+                .collectList()
+                .map(list -> (int) list.stream().filter(Boolean::booleanValue).count());
+    }
+
     // ============ 热门（blog_db 真实信号 × 时间衰减） ============
     public Mono<List<TrendingPost>> getTrendingPosts(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 50));
         String cacheKey = "recommend:trending:" + safeLimit;
         return cacheGetRaw(cacheKey)
                 .flatMap(json -> readJson(json, new TypeReference<List<TrendingPost>>() {}))
-                .switchIfEmpty(postReadRepository.findTrending(safeLimit)
+                .switchIfEmpty(Mono.defer(() -> postReadRepository.findTrending(safeLimit)
                         .map(this::toTrendingPost)
                         .collectList()
-                        .flatMap(items -> cachePut(cacheKey, items, Duration.ofMinutes(10)).thenReturn(items)));
+                        .flatMap(items -> cachePut(cacheKey, items, Duration.ofMinutes(10)).thenReturn(items))));
     }
 
     private TrendingPost toTrendingPost(Post p) {

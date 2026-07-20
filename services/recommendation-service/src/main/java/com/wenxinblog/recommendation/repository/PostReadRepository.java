@@ -99,6 +99,19 @@ public class PostReadRepository {
                 .defaultIfEmpty(0L);
     }
 
+    /** 所有已发布帖子（backfill 用，按创建时间倒序）。 */
+    public Flux<Post> findAllPublished(int limit) {
+        String sql = """
+                SELECT p.*, a.username AS author_username, a.display_name AS author_display_name,
+                       a.avatar_url AS author_avatar_url
+                FROM posts p LEFT JOIN authors a ON p.author_id = a.id
+                WHERE p.status = 'published'
+                ORDER BY p.created_at DESC
+                LIMIT :limit
+                """;
+        return db.sql(sql).bind("limit", limit).map((row, meta) -> mapPostWithAuthor(row)).all();
+    }
+
     private Post mapPostWithAuthor(Row row) {
         Post p = new Post();
         p.setId(row.get("id", UUID.class));
