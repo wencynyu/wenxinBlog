@@ -3,6 +3,7 @@ package com.wenxinblog.recommendation.service;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.param.R;
 import io.milvus.param.dml.DeleteParam;
+import io.milvus.param.dml.QueryParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.dml.UpsertParam;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,20 @@ class MilvusServiceTest {
     void searchByVector_failure_errors() {
         when(client.search(any(SearchParam.class))).thenReturn(R.failed(new RuntimeException("boom")));
         StepVerifier.create(milvusService.searchByVector(dim(1024), 5))
+                .verifyError(RuntimeException.class);
+    }
+
+    @Test
+    void upsertUserVector_success_completes() {
+        when(client.upsert(any(UpsertParam.class))).thenReturn(R.success());
+        StepVerifier.create(milvusService.upsertUserVector("u1", dim(1024)))
+                .verifyComplete();
+    }
+
+    @Test
+    void getUserVector_failure_errors() {
+        when(client.query(any(QueryParam.class))).thenReturn(R.failed(new RuntimeException("boom")));
+        StepVerifier.create(milvusService.getUserVector("u1"))
                 .verifyError(RuntimeException.class);
     }
 }

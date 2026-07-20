@@ -7,8 +7,10 @@ import io.milvus.param.MetricType;
 import io.milvus.param.R;
 import io.milvus.param.dml.DeleteParam;
 import io.milvus.param.dml.InsertParam;
+import io.milvus.param.dml.QueryParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.dml.UpsertParam;
+import io.milvus.response.QueryResultsWrapper;
 import io.milvus.response.SearchResultsWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,12 +90,67 @@ public class MilvusService {
         }).subscribeOn(Schedulers.boundedElastic());
     }
 
+    // ============ 用户兴趣向量（user_embeddings） ============
+
+    /** upsert 用户兴趣向量（聚合兴趣标签得到）。 */
+    public Mono<Void> upsertUserVector(String userId, float[] vector) {
+        return Mono.fromCallable(() -> {
+            List<InsertParam.Field> fields = List.of(
+                    new InsertParam.Field("user_id", List.of(userId)),
+                    new InsertParam.Field(MilvusConfig.VECTOR_FIELD, List.of(toFloatList(vector)))
+            );
+            R<?> r = client.upsert(UpsertParam.newBuilder()
+                    .withCollectionName(MilvusConfig.USER_COLLECTION)
+                    .withFields(fields)
+                    .build());
+            check(r, "upsertUserVector " + userId);
+            return true;
+        }).subscribeOn(Schedulers.boundedElastic()).then();
+    }
+
+    /** 取用户兴趣向量；不存在返回长度 0 的数组。 */
+    public Mono<float[]> getUserVector(String userId) {
+        return Mono.fromCallable(() -> {
+            R<io.milvus.grpc.QueryResults> r = client.query(QueryParam.newBuilder()
+                    .withCollectionName(MilvusConfig.USER_COLLECTION)
+                    .withExpr("user_id == \"" + userId + "\"")
+                    .addOutField(MilvusConfig.VECTOR_FIELD)
+                    .withLimit(1L)
+                    .build());
+            check(r, "getUserVector " + userId);
+            QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
+            if (wrapper.getRowCount() == 0) {
+                return new float[0];
+            }
+            List<?> fieldData = wrapper.getFieldWrapper(MilvusConfig.VECTOR_FIELD).getFieldData();
+            if (fieldData.isEmpty()) {
+                return new float[0];
+            }
+            return toPrimArray(fieldData.get(0));
+        }).subscribeOn(Schedulers.boundedElastic());
+    }
+
     private List<Float> toFloatList(float[] v) {
         List<Float> list = new ArrayList<>(v.length);
         for (float f : v) {
             list.add(f);
         }
         return list;
+    }
+
+    private float[] toPrimArray(Object v) {
+        if (v instanceof float[] arr) {
+            return arr;
+        }
+        if (v instanceof List<?> list) {
+            float[] arr = new float[list.size()];
+            int i = 0;
+            for (Object o : list) {
+                arr[i++] = ((Number) o).floatValue();
+            }
+            return arr;
+        }
+        return new float[0];
     }
 
     private void check(R<?> r, String op) {

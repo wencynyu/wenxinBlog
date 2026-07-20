@@ -19,7 +19,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,20 +51,59 @@ public class RecommendationService {
     }
 
     private Mono<List<FeedRecommendation>> computeFeed(String userId, int size) {
-        // 用户兴趣标签 → 拼成一段文本 → embedding → Milvus ANN → 丰富。
-        // 无兴趣标签（冷启动）或 embedding/Milvus 不可用 → 降级 trending。
-        return interestTagRepository.findByUserId(userId)
-                .map(UserInterestTag::getTag)
-                .collectList()
-                .flatMap(tags -> tags.isEmpty()
-                        ? trendingAsFeed(size)
-                        : embeddingClient.embed(String.join(" ", tags))
-                                .flatMap(vec -> vec.length == 0
-                                        ? Mono.just(List.<MilvusService.SearchHit>of())
-                                        : milvusService.searchByVector(vec, size))
-                                .flatMap(this::enrich)
-                                .filter(list -> !list.isEmpty())
-                                .switchIfEmpty(trendingAsFeed(size)));
+        // Phase 3：优先用 user_embeddings 里持久化的用户向量；缺失则按兴趣标签加权聚合一次并写入；
+        // 都没有（冷启动）或 embedding/Milvus 不可用 → 降级 trending。
+        Mono<float[]> vecMono = milvusService.getUserVector(userId)
+                .filter(v -> v.length > 0)
+                .switchIfEmpty(Mono.defer(() -> recomputeUserVector(userId).filter(v -> v.length > 0)));
+        return vecMono
+                .flatMap(vec -> milvusService.searchByVector(vec, size))
+                .flatMap(hits -> enrich(hits, true))  // 混合排序（相似+热度+新鲜）
+                .filter(list -> !list.isEmpty())
+                .switchIfEmpty(trendingAsFeed(size));
+    }
+
+    /** 兴趣标签按 weight（来自用户行为权重）加权聚合 → 归一化 → 写入 user_embeddings，返回该向量。 */
+    private Mono<float[]> recomputeUserVector(String userId) {
+        return interestTagRepository.findByUserId(userId).collectList().flatMap(tags -> {
+            if (tags.isEmpty()) {
+                return Mono.just(new float[0]);
+            }
+            List<String> names = tags.stream().map(UserInterestTag::getTag).toList();
+            return embeddingClient.embedBatch(names).flatMap(vectors -> {
+                if (vectors.isEmpty()) {
+                    return Mono.just(new float[0]);
+                }
+                int dim = vectors.get(0).length;
+                float[] acc = new float[dim];
+                double totalW = 0;
+                for (int i = 0; i < tags.size() && i < vectors.size(); i++) {
+                    double w = tags.get(i).getWeight() != null ? tags.get(i).getWeight() : 1.0;
+                    float[] vec = vectors.get(i);
+                    for (int d = 0; d < dim; d++) {
+                        acc[d] += vec[d] * (float) w;
+                    }
+                    totalW += w;
+                }
+                if (totalW > 0) {
+                    for (int d = 0; d < dim; d++) {
+                        acc[d] /= (float) totalW;
+                    }
+                }
+                double norm = 0;
+                for (float f : acc) {
+                    norm += f * f;
+                }
+                norm = Math.sqrt(norm);
+                if (norm > 1e-12) {
+                    for (int d = 0; d < dim; d++) {
+                        acc[d] /= (float) norm;
+                    }
+                }
+                float[] finalVec = acc;
+                return milvusService.upsertUserVector(userId, finalVec).thenReturn(finalVec);
+            });
+        });
     }
 
     // ============ 相关博文（内容相似） ============
@@ -83,13 +124,16 @@ public class RecommendationService {
                                                 .filter(h -> !postId.equals(h.postId()))
                                                 .limit(topK)
                                                 .toList())))
-                .flatMap(this::enrich)
+                .flatMap(hits -> enrich(hits, false))
                 .filter(list -> !list.isEmpty())
                 .switchIfEmpty(trendingAsFeed(topK));
     }
 
-    /** Milvus 命中 → 批量取 post 详情 + 标签 → 组装 FeedRecommendation（带相似度 score）。 */
-    private Mono<List<FeedRecommendation>> enrich(List<MilvusService.SearchHit> hits) {
+    /**
+     * Milvus 命中 → 批量取 post 详情 + 标签 → 组装 FeedRecommendation（score=相似度）。
+     * hybrid=true 时按"相似+热度+新鲜"混合分重排（用于推荐流）；相关博文用 pure 相似度（false）。
+     */
+    private Mono<List<FeedRecommendation>> enrich(List<MilvusService.SearchHit> hits, boolean hybrid) {
         if (hits.isEmpty()) {
             return Mono.just(List.of());
         }
@@ -109,8 +153,30 @@ public class RecommendationService {
                             result.add(FeedRecommendation.from(p, tagMap.getOrDefault(pid, List.of()), h.score()));
                         }
                     }
+                    if (hybrid && result.size() > 1) {
+                        sortByHybrid(result);
+                    }
                     return result;
                 });
+    }
+
+    /** 混合分 = 0.6×相似 + 0.3×热度(归一) + 0.1×新鲜度。原地重排；score 字段保持相似度不变。 */
+    private void sortByHybrid(List<FeedRecommendation> items) {
+        double maxPop = items.stream()
+                .mapToDouble(x -> x.likeCount() + x.commentCount() * 2.0)
+                .max().orElse(1.0);
+        long nowMs = System.currentTimeMillis();
+        items.sort(Comparator.comparingDouble((FeedRecommendation x) -> {
+            double sim = x.score();
+            double pop = (x.likeCount() + x.commentCount() * 2.0) / maxPop;
+            double ageDays = 999;
+            if (x.createdAt() != null) {
+                long createdMs = x.createdAt().toEpochSecond(ZoneOffset.UTC) * 1000L;
+                ageDays = Math.max(0, (nowMs - createdMs) / 86400000.0);
+            }
+            double fresh = 1.0 / (1.0 + ageDays);
+            return 0.6 * sim + 0.3 * pop + 0.1 * fresh;
+        }).reversed());
     }
 
     /** 把 trending 结果映射成 FeedRecommendation（冷启动/降级用；score=0）。 */
@@ -203,7 +269,18 @@ public class RecommendationService {
                                 .userId(userId).tag(tag).weight(1.0)
                                 .createdAt(java.time.LocalDateTime.now()).build())
                         .flatMap(interestTagRepository::save))
-                .collectList();
+                .collectList()
+                // 标签变更后异步重算用户向量，刷新 user_embeddings（best-effort，失败不影响主流程）
+                .doOnNext(saved -> {
+                    try {
+                        recomputeUserVector(userId)
+                                .doOnError(e -> log.warn("recomputeUserVector failed for {}: {}", userId, e.getMessage()))
+                                .onErrorResume(e -> Mono.empty())
+                                .subscribe();
+                    } catch (Exception e) {
+                        log.warn("recomputeUserVector trigger failed for {}: {}", userId, e.getMessage());
+                    }
+                });
     }
 
     public Mono<Void> recordFeedback(String userId, String postId, String action) {
