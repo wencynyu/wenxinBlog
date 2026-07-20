@@ -37,6 +37,7 @@ public class RecommendationService {
     private final ReactiveStringRedisTemplate redisTemplate;
     private final UserInterestTagRepository interestTagRepository;
     private final PostReadRepository postReadRepository;
+    private final org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate;
 
     // Redis 缓存 JSON 序列化用（带 JavaTime）；不注入 Spring 的 ObjectMapper，避免多 bean 冲突
     private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -288,13 +289,48 @@ public class RecommendationService {
                 });
     }
 
+    /**
+     * 用户行为反馈（前端 view/like/comment/share）：把行为 + 帖子标签发到 user-behavior-events，
+     * BehaviorEventConsumer 据此更新兴趣标签并刷新用户向量；同时失效该用户的推荐流缓存。
+     */
     public Mono<Void> recordFeedback(String userId, String postId, String action) {
         log.info("Recording feedback: userId={}, postId={}, action={}", userId, postId, action);
-        // 失效该用户的推荐流缓存
-        String pattern = "recommend:feed:" + userId + ":*";
-        return redisTemplate.keys(pattern)
-                .flatMap(redisTemplate::delete)
-                .then();
+        String eventType = (action == null || action.endsWith("_post")) ? action : action + "_post";
+        Mono<Void> produce = produceBehaviorEvent(userId, eventType, postId);
+        Mono<Void> invalidate = redisTemplate.keys("recommend:feed:" + userId + ":*")
+                .flatMap(redisTemplate::delete).then();
+        return Mono.when(produce, invalidate);
+    }
+
+    private Mono<Void> produceBehaviorEvent(String userId, String eventType, String postId) {
+        final UUID pid;
+        try {
+            pid = UUID.fromString(postId);
+        } catch (IllegalArgumentException e) {
+            return Mono.empty();
+        }
+        // defer：让 findTagsForPosts/kafkaTemplate 的异常在订阅期抛出，被 onErrorResume 兜住（best-effort）
+        return Mono.defer(() -> postReadRepository.findTagsForPosts(List.of(pid))
+                .map(tagMap -> tagMap.getOrDefault(pid, List.of()))
+                .flatMap(tags -> Mono.fromRunnable(() -> {
+                    try {
+                        String json = MAPPER.writeValueAsString(
+                                Map.of("eventType", eventType == null ? "view_post" : eventType,
+                                        "userId", userId, "tags", tags));
+                        kafkaTemplate.send("user-behavior-events", userId, json)
+                                .whenComplete((r, ex) -> {
+                                    if (ex != null) {
+                                        log.warn("produce behavior event failed: {}", ex.getMessage());
+                                    }
+                                });
+                    } catch (Exception e) {
+                        log.warn("serialize behavior event failed: {}", e.getMessage());
+                    }
+                }).subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic()).then()))
+                .onErrorResume(e -> {
+                    log.warn("produce behavior event failed: {}", e.getMessage());
+                    return Mono.empty();
+                });
     }
 
     // ---- Redis 缓存小工具 ----
