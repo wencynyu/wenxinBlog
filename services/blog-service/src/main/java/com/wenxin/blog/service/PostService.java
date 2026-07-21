@@ -130,11 +130,11 @@ public class PostService {
         }
 
         Mono<Long> total = countSpec.map(row -> row.get("c", Long.class)).one().defaultIfEmpty(0L);
-        // flatMapSequential：并发跑 fillAuthorAndTags 但按 DB 返回顺序回放，保住 ORDER BY 结果
-        Flux<Post> posts =
-                listSpec.map((row, meta) -> mapPost(row)).all().flatMapSequential(this::fillAuthorAndTags);
+        // 批量填充 author + tags（2 次查询替代 2N 次 N+1）
+        Mono<List<Post>> posts = listSpec.map((row, meta) -> mapPost(row)).all()
+                .collectList().flatMap(this::batchFillAuthorsAndTags);
 
-        return Mono.zip(posts.collectList(), total)
+        return Mono.zip(posts, total)
                 .map(t -> new PostListResult(t.getT1(), t.getT2()));
     }
 
@@ -168,6 +168,57 @@ public class PostService {
         p.setCreatedAt(row.get("created_at", LocalDateTime.class));
         p.setUpdatedAt(row.get("updated_at", LocalDateTime.class));
         return p;
+    }
+
+    /**
+     * 批量填充 author + tags：2 次 ANY(:ids) 查询替代 per-post 的 2N 次（N+1 修复）。
+     */
+    private Mono<List<Post>> batchFillAuthorsAndTags(List<Post> posts) {
+        if (posts.isEmpty()) return Mono.just(posts);
+        java.util.UUID[] authorIds = posts.stream().map(Post::getAuthorId)
+                .filter(java.util.Objects::nonNull).distinct().toArray(UUID[]::new);
+        UUID[] postIds = posts.stream().map(Post::getId).toArray(UUID[]::new);
+
+        Mono<java.util.Map<UUID, Post.AuthorInfo>> authorsMono = authorIds.length == 0
+                ? Mono.just(java.util.Map.of())
+                : r2dbc.getDatabaseClient()
+                        .sql("SELECT id, username, display_name, avatar_url FROM authors WHERE id = ANY(:ids)")
+                        .bind("ids", authorIds)
+                        .map((row, meta) -> java.util.Map.entry(
+                                row.get("id", UUID.class),
+                                new Post.AuthorInfo(
+                                        row.get("id", UUID.class).toString(),
+                                        row.get("username", String.class),
+                                        row.get("display_name", String.class),
+                                        row.get("avatar_url", String.class))))
+                        .all()
+                        .collectMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue);
+
+        Mono<java.util.Map<UUID, List<String>>> tagsMono =
+                r2dbc.getDatabaseClient()
+                        .sql("SELECT pt.post_id AS post_id, t.name AS name FROM post_tags pt "
+                                + "JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id = ANY(:ids)")
+                        .bind("ids", postIds)
+                        .map((row, meta) -> java.util.Map.entry(
+                                row.get("post_id", UUID.class), row.get("name", String.class)))
+                        .all()
+                        .collectMultimap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue)
+                        .map(m -> {
+                            java.util.Map<UUID, List<String>> r = new java.util.HashMap<>();
+                            m.forEach((k, v) -> r.put(k, new java.util.ArrayList<>(v)));
+                            return r;
+                        });
+
+        return Mono.zip(authorsMono, tagsMono).map(t -> {
+            java.util.Map<UUID, Post.AuthorInfo> am = t.getT1();
+            java.util.Map<UUID, List<String>> tm = t.getT2();
+            for (Post p : posts) {
+                Post.AuthorInfo a = am.get(p.getAuthorId());
+                if (a != null) p.setAuthor(a);
+                p.setTags(tm.getOrDefault(p.getId(), List.of()));
+            }
+            return posts;
+        });
     }
 
     /** listPublishedPosts 结果：帖子列表 + 真实总数（供 PaginatedResponse.totalPages 计算）。 */
