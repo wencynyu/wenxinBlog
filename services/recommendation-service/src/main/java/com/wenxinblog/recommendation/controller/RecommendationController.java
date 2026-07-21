@@ -12,6 +12,11 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 推荐接口。用户身份统一从网关注入的 X-User-Id header 读取（来自 JWT，可信），
+ * 不再用客户端可伪造的 userId 查询参数。
+ * GET 端点 X-User-Id 可空（匿名 → trending 兜底）；POST/PUT 由网关保证必填。
+ */
 @RestController
 @RequestMapping("/api/v1/recommend")
 @RequiredArgsConstructor
@@ -21,7 +26,7 @@ public class RecommendationController {
 
     @GetMapping("/feed")
     public Mono<Result<List<FeedRecommendation>>> getFeed(
-            @RequestParam String userId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return recommendationService.getFeedRecommendations(userId, page, size)
@@ -54,14 +59,18 @@ public class RecommendationController {
 
     @GetMapping("/users")
     public Mono<Result<List<String>>> getUserRecommendations(
-            @RequestParam String userId,
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestParam(defaultValue = "10") int limit) {
         return recommendationService.getUserRecommendations(userId, limit)
                 .map(Result::success);
     }
 
     @GetMapping("/interests")
-    public Mono<Result<List<UserInterestTag>>> getInterests(@RequestParam String userId) {
+    public Mono<Result<List<UserInterestTag>>> getInterests(
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Mono.just(Result.success(List.of()));
+        }
         return recommendationService.getInterestTags(userId)
                 .collectList()
                 .map(Result::success);
@@ -69,15 +78,16 @@ public class RecommendationController {
 
     @PutMapping("/interests")
     public Mono<Result<List<UserInterestTag>>> updateInterests(
-            @RequestParam String userId,
+            @RequestHeader("X-User-Id") String userId,
             @RequestBody List<String> tags) {
         return recommendationService.updateInterestTags(userId, tags)
                 .map(Result::success);
     }
 
     @PostMapping("/feedback")
-    public Mono<Result<String>> feedback(@RequestBody Map<String, String> body) {
-        String userId = body.get("userId");
+    public Mono<Result<String>> feedback(
+            @RequestHeader("X-User-Id") String userId,
+            @RequestBody Map<String, String> body) {
         String postId = body.get("postId");
         String action = body.get("action");
         return recommendationService.recordFeedback(userId, postId, action)

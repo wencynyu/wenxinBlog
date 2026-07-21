@@ -17,7 +17,7 @@ export default function FeedPage() {
   const hasUser = !!user?.id;
 
   // 登录用户：个性化推荐流（recommendation-service，基于兴趣的内容相似）
-  const recs = useFeedRecommendations(user?.id, { size: 12 });
+  const recs = useFeedRecommendations({ size: 12 });
   // 匿名：最新博文兜底（仅未登录时请求）
   const latest = useQuery({
     queryKey: ['posts', 'feed-anonymous'],

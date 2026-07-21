@@ -32,7 +32,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (user?.id) {
-      getUserInterests(user.id)
+      getUserInterests()
         .then((tags) => {
           setInterests(tags.map((t: any) => t.tag));
         })
@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const handleSaveInterests = async () => {
     if (!user?.id) return;
     try {
-      await updateUserInterests(user.id, interests);
+      await updateUserInterests(interests);
       Toast.success('兴趣标签已更新');
     } catch (error: any) {
       Toast.error(error?.message || '更新失败');

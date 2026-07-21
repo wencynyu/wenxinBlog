@@ -44,6 +44,9 @@ public class RecommendationService {
 
     // ============ 推荐流（内容相似） ============
     public Mono<List<FeedRecommendation>> getFeedRecommendations(String userId, int page, int size) {
+        if (userId == null || userId.isBlank()) {
+            return trendingAsFeed(size); // 匿名（无 X-User-Id）→ trending 兜底
+        }
         String cacheKey = String.format("recommend:feed:%s:%d", userId, page);
         return cacheGetRaw(cacheKey)
                 .flatMap(json -> readJson(json, new TypeReference<List<FeedRecommendation>>() {}))

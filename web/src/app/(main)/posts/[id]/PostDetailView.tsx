@@ -55,7 +55,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
   // 看帖即埋点：发 view 行为事件 → 兴趣画像更新（推荐流据此个性化）
   useEffect(() => {
     if (isAuthenticated && user?.id && post) {
-      sendFeedback(user.id, postId, 'view').catch(() => {});
+      sendFeedback(postId, 'view').catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId, post?.id, isAuthenticated, user?.id]);
@@ -201,7 +201,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                   return;
                 }
                 toggleLike.mutate({ id: post.id, isLiked: post.isLiked || false });
-                if (user?.id) sendFeedback(user.id, postId, 'like').catch(() => {});
+                if (user?.id) sendFeedback(postId, 'like').catch(() => {});
               }}
             >
               {post.likeCount || 0}

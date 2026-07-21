@@ -41,12 +41,12 @@ export interface UserInterestTag {
   weight: number;
 }
 
-export async function getFeed(
-  userId: string,
-  params?: { page?: number; size?: number },
-): Promise<FeedRecommendation[]> {
+export async function getFeed(params?: {
+  page?: number;
+  size?: number;
+}): Promise<FeedRecommendation[]> {
   const response: ApiResponse<FeedRecommendation[]> = await client.get('/api/v1/recommend/feed', {
-    params: { userId, ...params },
+    params,
   });
   return response.data;
 }
@@ -68,27 +68,19 @@ export async function getTrendingPosts(limit = 10): Promise<TrendingPost[]> {
   return response.data;
 }
 
-export async function getUserInterests(userId: string): Promise<UserInterestTag[]> {
-  const response: ApiResponse<UserInterestTag[]> = await client.get('/api/v1/recommend/interests', {
-    params: { userId },
-  });
+export async function getUserInterests(): Promise<UserInterestTag[]> {
+  const response: ApiResponse<UserInterestTag[]> = await client.get('/api/v1/recommend/interests');
   return response.data;
 }
 
-export async function updateUserInterests(
-  userId: string,
-  tags: string[],
-): Promise<UserInterestTag[]> {
+export async function updateUserInterests(tags: string[]): Promise<UserInterestTag[]> {
   const response: ApiResponse<UserInterestTag[]> = await client.put(
     '/api/v1/recommend/interests',
     tags,
-    {
-      params: { userId },
-    },
   );
   return response.data;
 }
 
-export async function sendFeedback(userId: string, postId: string, action: string): Promise<void> {
-  await client.post('/api/v1/recommend/feedback', { userId, postId, action });
+export async function sendFeedback(postId: string, action: string): Promise<void> {
+  await client.post('/api/v1/recommend/feedback', { postId, action });
 }

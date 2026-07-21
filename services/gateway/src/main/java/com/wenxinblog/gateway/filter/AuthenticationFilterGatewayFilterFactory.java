@@ -43,32 +43,45 @@ public class AuthenticationFilterGatewayFilterFactory
             String path = exchange.getRequest().getURI().getPath();
             HttpMethod method = exchange.getRequest().getMethod();
 
-            // GET 请求 + 白名单 → 直接放行
-            if (method == HttpMethod.GET || isWhitelisted(path)) {
+            // 白名单 → 直接放行
+            if (isWhitelisted(path)) {
                 return chain.filter(exchange);
             }
 
-            // 提取 Bearer token
             String token = extractToken(exchange);
+
+            // GET：有 token 则验证并注入用户信息（供个性化 GET，如 /recommend/feed），
+            // 无 token 或验证失败 → 放行（公开读，降级匿名，不阻断）。
+            if (method == HttpMethod.GET) {
+                if (token == null || token.isEmpty()) {
+                    return chain.filter(exchange);
+                }
+                return validateToken(token)
+                        .flatMap(userInfo -> chain.filter(
+                                userInfo != null && userInfo.isValid()
+                                        ? exchange.mutate().request(r -> r
+                                                .header("X-User-Id", userInfo.userId())
+                                                .header("X-User-Roles", String.join(",", userInfo.roles()))
+                                                .header("X-User-Email", userInfo.email())).build()
+                                        : exchange))
+                        .onErrorResume(e -> chain.filter(exchange));
+            }
+
+            // POST/PUT/DELETE：必须有有效 token
             if (token == null || token.isEmpty()) {
                 return unauthorized(exchange, "Missing authorization token");
             }
-
-            // 验证 token → 注入用户信息
             return validateToken(token)
                     .flatMap(userInfo -> {
                         if (userInfo == null || !userInfo.isValid()) {
                             return unauthorized(exchange, "Invalid or expired token");
                         }
-                        String userId = userInfo.userId();
-                        log.debug("Auth OK: user={} method={} path={}", userId, method, path);
+                        log.debug("Auth OK: user={} method={} path={}", userInfo.userId(), method, path);
                         return chain.filter(
-                                exchange.mutate()
-                                        .request(r -> r.header("X-User-Id", userId)
-                                                .header("X-User-Roles", String.join(",", userInfo.roles()))
-                                                .header("X-User-Email", userInfo.email()))
-                                        .build()
-                        );
+                                exchange.mutate().request(r -> r
+                                        .header("X-User-Id", userInfo.userId())
+                                        .header("X-User-Roles", String.join(",", userInfo.roles()))
+                                        .header("X-User-Email", userInfo.email())).build());
                     })
                     .onErrorResume(e -> {
                         log.error("Auth error for {} {}: {}", method, path, e.getMessage());

@@ -9,15 +9,11 @@ export function useTrendingPosts(limit = 10) {
   });
 }
 
-/** 个性化推荐流（需登录 userId；匿名不要调用） */
-export function useFeedRecommendations(
-  userId: string | undefined,
-  params?: { page?: number; size?: number },
-) {
+/** 个性化推荐流（userId 由网关从 JWT 注入 X-User-Id，前端不传） */
+export function useFeedRecommendations(params?: { page?: number; size?: number }) {
   return useQuery({
-    queryKey: ['recommend', 'feed', userId, params],
-    queryFn: () => getFeed(userId!, params),
-    enabled: !!userId,
+    queryKey: ['recommend', 'feed', params],
+    queryFn: () => getFeed(params),
   });
 }
 
