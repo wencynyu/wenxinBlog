@@ -159,6 +159,27 @@ public class RecommendationService {
         });
     }
 
+    // ============ 图文混合：以封面图找相关博文（VL 模型，图像/文本同空间）============
+    public Mono<List<FeedRecommendation>> getRelatedByImage(String postId, int topK) {
+        final UUID id;
+        try {
+            id = UUID.fromString(postId);
+        } catch (IllegalArgumentException e) {
+            return trendingAsFeed(topK);
+        }
+        // 取帖子封面图 → 嵌图 → 检索 blog_embeddings（文本向量）→ 丰富。
+        // 无封面图/帖不存在 → 降级 trending。
+        return postReadRepository.findById(id)
+                .filter(p -> p.getCoverImage() != null && !p.getCoverImage().isBlank())
+                .flatMap(p -> embeddingClient.embedImage(p.getCoverImage())
+                        .flatMap(vec -> vec.length == 0
+                                ? Mono.just(List.<MilvusService.SearchHit>of())
+                                : milvusService.searchByVector(vec, topK))
+                        .flatMap(hits -> enrich(hits, false)))
+                .filter(list -> !list.isEmpty())
+                .switchIfEmpty(trendingAsFeed(topK));
+    }
+
     // ============ 相关博文（内容相似） ============
     public Mono<List<FeedRecommendation>> getRelatedPosts(String postId, int topK) {
         final UUID id;

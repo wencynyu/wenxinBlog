@@ -36,6 +36,15 @@ public class RecommendationController {
                 .map(Result::success);
     }
 
+    /** 图文混合：以帖子封面图找相关博文（VL 图像向量检索文本向量）。 */
+    @GetMapping("/related-by-image/{postId}")
+    public Mono<Result<List<FeedRecommendation>>> getRelatedByImage(
+            @PathVariable String postId,
+            @RequestParam(defaultValue = "10") int topK) {
+        return recommendationService.getRelatedByImage(postId, topK)
+                .map(Result::success);
+    }
+
     @GetMapping("/trending")
     public Mono<Result<List<TrendingPost>>> getTrending(
             @RequestParam(defaultValue = "10") int limit) {

@@ -48,6 +48,27 @@ public class EmbeddingClient {
         return embedBatch(List.of(text)).map(list -> list.isEmpty() ? new float[0] : list.get(0));
     }
 
+    /** 多模态：嵌入图像（URL/base64/路径）。VL 模型下与文本同空间，可用于图文混合检索。 */
+    public Mono<float[]> embedImage(String imageSrc) {
+        if (imageSrc == null || imageSrc.isBlank()) {
+            return Mono.just(new float[0]);
+        }
+        return client.post()
+                .uri("/embed-image")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("image", imageSrc, "dimensions", DIM))
+                .retrieve()
+                .bodyToMono(EmbedImageResponse.class)
+                .timeout(Duration.ofSeconds(30)) // 图像处理更慢
+                .map(resp -> resp == null || resp.embedding() == null ? new float[0] : resp.embedding())
+                .onErrorResume(e -> {
+                    log.warn("embed-image failed, degrading: {}", e.getMessage());
+                    return Mono.just(new float[0]);
+                });
+    }
+
+    public record EmbedImageResponse(float[] embedding, int dimensions) {}
+
     public Mono<List<float[]>> embedBatch(List<String> texts) {
         if (texts == null || texts.isEmpty()) {
             return Mono.just(List.of());
