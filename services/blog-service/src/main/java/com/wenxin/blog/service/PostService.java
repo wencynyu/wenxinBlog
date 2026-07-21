@@ -49,7 +49,6 @@ public class PostService {
                 })
                 .doOnNext(saved -> {
                     if ("published".equalsIgnoreCase(saved.getStatus())) {
-                        searchIndexService.indexPost(saved);
                         blogEventPublisher.publishCreate(saved, req.getTags());
                     }
                 });
@@ -77,7 +76,6 @@ public class PostService {
                     })
                     .doOnNext(saved -> {
                         if ("published".equalsIgnoreCase(saved.getStatus())) {
-                            searchIndexService.indexPost(saved);
                             blogEventPublisher.publishUpdate(saved, req.getTags());
                         }
                     });
@@ -95,10 +93,7 @@ public class PostService {
 
     public Mono<Void> deletePost(UUID id) {
         return postRepository.deleteById(id)
-                .doOnSuccess(v -> {
-                    searchIndexService.deletePost(id);
-                    blogEventPublisher.publishDelete(id.toString());
-                });
+                .doOnSuccess(v -> blogEventPublisher.publishDelete(id.toString()));
     }
 
     /**

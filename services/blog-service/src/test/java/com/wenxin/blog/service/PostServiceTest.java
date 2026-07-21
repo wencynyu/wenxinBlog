@@ -42,6 +42,9 @@ class PostServiceTest {
     @Mock
     private SearchIndexService searchIndexService;
 
+    @Mock
+    private BlogEventPublisher blogEventPublisher;
+
     @InjectMocks
     private PostService postService;
 
