@@ -47,8 +47,12 @@ public class BehaviorEventConsumer {
             Mono<Void> vectorPart = postId != null
                     ? recommendationService.updateUserVectorWithPost(userId, postId, weight)
                     : recommendationService.refreshUserVector(userId).then();
+            // 记录已看/已赞帖子 → feed 去重
+            Mono<Void> recordPart = postId != null
+                    ? recommendationService.recordViewedPost(userId, postId)
+                    : Mono.empty();
 
-            tagPart.then(vectorPart)
+            tagPart.then(vectorPart).then(recordPart)
                     .doOnError(e -> log.warn("behavior→vector refresh failed for {}: {}", userId, e.getMessage()))
                     .onErrorResume(e -> Mono.empty())
                     .subscribe();

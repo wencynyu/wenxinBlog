@@ -61,10 +61,39 @@ public class RecommendationService {
                 .filter(v -> v.length > 0)
                 .switchIfEmpty(Mono.defer(() -> recomputeUserVector(userId).filter(v -> v.length > 0)));
         return vecMono
-                .flatMap(vec -> milvusService.searchByVector(vec, size))
-                .flatMap(hits -> enrich(hits, true))  // 混合排序（相似+热度+新鲜）
+                .flatMap(vec -> milvusService.searchByVector(vec, size + 20))  // 过-fetch，留余量给去重
+                .flatMap(hits -> enrich(hits, true))
+                .flatMap(items -> filterViewed(userId, items))
+                .map(items -> items.stream().limit(size).toList())
                 .filter(list -> !list.isEmpty())
                 .switchIfEmpty(trendingAsFeed(size));
+    }
+
+    /** 记录用户看/赞过的帖子（Redis SET，30 天滚动窗口），供 feed 去重。 */
+    public Mono<Void> recordViewedPost(String userId, String postId) {
+        if (userId == null || postId == null) {
+            return Mono.empty();
+        }
+        String key = "user:viewed:" + userId;
+        return redisTemplate.opsForSet().add(key, postId)
+                .then(redisTemplate.expire(key, Duration.ofDays(30)).then())
+                .onErrorResume(e -> {
+                    log.warn("recordViewed failed: {}", e.getMessage());
+                    return Mono.empty();
+                });
+    }
+
+    /** 从推荐结果中剔除用户已看/已赞的帖子。Redis 不可用则不过滤。 */
+    private Mono<List<FeedRecommendation>> filterViewed(String userId, List<FeedRecommendation> items) {
+        if (userId == null || items.isEmpty()) {
+            return Mono.just(items);
+        }
+        return redisTemplate.opsForSet().members("user:viewed:" + userId)
+                .collectList()
+                .map(viewed -> items.stream()
+                        .filter(item -> !viewed.contains(item.id()))
+                        .toList())
+                .onErrorResume(e -> Mono.just(items));
     }
 
     /** 公共入口：重算并持久化用户向量（行为事件/兴趣标签变更后由 consumer 或 interests 端点触发）。 */
