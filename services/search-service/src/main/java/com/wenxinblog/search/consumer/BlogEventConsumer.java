@@ -65,7 +65,7 @@ public class BlogEventConsumer {
         }
 
         if (data.has("publishedAt") && !data.get("publishedAt").isNull()) {
-            doc.setPublishedAt(LocalDateTime.parse(data.get("publishedAt").asString()));
+            doc.setPublishedAt(data.get("publishedAt").asString());
         }
 
         // eventType 在顶层（node.eventType），不在 data 里；之前误读 data._eventType 导致

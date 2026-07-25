@@ -170,6 +170,7 @@ class BlogEventConsumerTest {
         when(node.get("data")).thenReturn(dataNode);
         when(dataNode.get("id")).thenReturn(idNode);
         when(idNode.asText()).thenReturn("blog123");
+        when(idNode.asString()).thenReturn("blog123"); // Jackson 3
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
@@ -285,6 +286,7 @@ class BlogEventConsumerTest {
         when(node.get(field)).thenReturn(fieldNode);
         when(fieldNode.isNull()).thenReturn(false);
         when(fieldNode.asText()).thenReturn(value);
+        when(fieldNode.asString()).thenReturn(value); // Jackson 3 用 asString
     }
 
     private void setupJsonIntMock(JsonNode node, String field, int value) {
