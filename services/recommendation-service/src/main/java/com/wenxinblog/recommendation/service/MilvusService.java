@@ -1,6 +1,8 @@
 package com.wenxinblog.recommendation.service;
 
 import com.wenxinblog.recommendation.config.MilvusConfig;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.SearchResults;
 import io.milvus.param.MetricType;
@@ -34,6 +36,7 @@ import java.util.List;
 public class MilvusService {
 
     private final MilvusServiceClient client;
+    private final MeterRegistry meterRegistry;
 
     /** ANN 搜索 nprobe（越大召回越高、越慢），可经 milvus.nprobe 配置。 */
     @Value("${milvus.nprobe:16}")
@@ -45,18 +48,23 @@ public class MilvusService {
     /** upsert 博文向量（post_id 为主键，重复写幂等）。 */
     public Mono<Void> upsertPost(String postId, String authorId, String title, float[] vector) {
         return Mono.fromCallable(() -> {
-            List<InsertParam.Field> fields = List.of(
-                    new InsertParam.Field("post_id", List.of(postId)),
-                    new InsertParam.Field("author_id", List.of(authorId != null ? authorId : "")),
-                    new InsertParam.Field("title", List.of(title != null ? title : "")),
-                    new InsertParam.Field(MilvusConfig.VECTOR_FIELD, List.of(toFloatList(vector)))
-            );
-            R<?> r = client.upsert(UpsertParam.newBuilder()
-                    .withCollectionName(MilvusConfig.BLOG_COLLECTION)
-                    .withFields(fields)
-                    .build());
-            check(r, "upsertPost " + postId);
-            return true;
+            Timer.Sample sample = Timer.start(meterRegistry);
+            try {
+                List<InsertParam.Field> fields = List.of(
+                        new InsertParam.Field("post_id", List.of(postId)),
+                        new InsertParam.Field("author_id", List.of(authorId != null ? authorId : "")),
+                        new InsertParam.Field("title", List.of(title != null ? title : "")),
+                        new InsertParam.Field(MilvusConfig.VECTOR_FIELD, List.of(toFloatList(vector)))
+                );
+                R<?> r = client.upsert(UpsertParam.newBuilder()
+                        .withCollectionName(MilvusConfig.BLOG_COLLECTION)
+                        .withFields(fields)
+                        .build());
+                check(r, "upsertPost " + postId);
+                return true;
+            } finally {
+                sample.stop(Timer.builder("milvus_upsert_seconds").tag("op", "post").register(meterRegistry));
+            }
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
 
@@ -75,23 +83,28 @@ public class MilvusService {
     /** 按向量检索最相似的 topK 博文。 */
     public Mono<List<SearchHit>> searchByVector(float[] vector, int topK) {
         return Mono.fromCallable(() -> {
-            List<List<Float>> vectors = List.of(toFloatList(vector));
-            R<SearchResults> r = client.search(SearchParam.newBuilder()
-                    .withCollectionName(MilvusConfig.BLOG_COLLECTION)
-                    .withVectorFieldName(MilvusConfig.VECTOR_FIELD)
-                    .withFloatVectors(vectors)
-                    .withTopK(topK)
-                    .withMetricType(MetricType.IP)
-                    .withParams("{\"nprobe\":" + nprobe + "}")
-                    .build());
-            check(r, "searchByVector");
-            List<SearchResultsWrapper.IDScore> idScores =
-                    new SearchResultsWrapper(r.getData().getResults()).getIDScore(0);
-            List<SearchHit> hits = new ArrayList<>(idScores.size());
-            for (SearchResultsWrapper.IDScore s : idScores) {
-                hits.add(new SearchHit(s.getStrID(), s.getScore()));
+            Timer.Sample sample = Timer.start(meterRegistry);
+            try {
+                List<List<Float>> vectors = List.of(toFloatList(vector));
+                R<SearchResults> r = client.search(SearchParam.newBuilder()
+                        .withCollectionName(MilvusConfig.BLOG_COLLECTION)
+                        .withVectorFieldName(MilvusConfig.VECTOR_FIELD)
+                        .withFloatVectors(vectors)
+                        .withTopK(topK)
+                        .withMetricType(MetricType.IP)
+                        .withParams("{\"nprobe\":" + nprobe + "}")
+                        .build());
+                check(r, "searchByVector");
+                List<SearchResultsWrapper.IDScore> idScores =
+                        new SearchResultsWrapper(r.getData().getResults()).getIDScore(0);
+                List<SearchHit> hits = new ArrayList<>(idScores.size());
+                for (SearchResultsWrapper.IDScore s : idScores) {
+                    hits.add(new SearchHit(s.getStrID(), s.getScore()));
+                }
+                return hits;
+            } finally {
+                sample.stop(Timer.builder("milvus_search_seconds").register(meterRegistry));
             }
-            return hits;
         }).subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -100,16 +113,21 @@ public class MilvusService {
     /** upsert 用户兴趣向量（聚合兴趣标签得到）。 */
     public Mono<Void> upsertUserVector(String userId, float[] vector) {
         return Mono.fromCallable(() -> {
-            List<InsertParam.Field> fields = List.of(
-                    new InsertParam.Field("user_id", List.of(userId)),
-                    new InsertParam.Field(MilvusConfig.VECTOR_FIELD, List.of(toFloatList(vector)))
-            );
-            R<?> r = client.upsert(UpsertParam.newBuilder()
-                    .withCollectionName(MilvusConfig.USER_COLLECTION)
-                    .withFields(fields)
-                    .build());
-            check(r, "upsertUserVector " + userId);
-            return true;
+            Timer.Sample sample = Timer.start(meterRegistry);
+            try {
+                List<InsertParam.Field> fields = List.of(
+                        new InsertParam.Field("user_id", List.of(userId)),
+                        new InsertParam.Field(MilvusConfig.VECTOR_FIELD, List.of(toFloatList(vector)))
+                );
+                R<?> r = client.upsert(UpsertParam.newBuilder()
+                        .withCollectionName(MilvusConfig.USER_COLLECTION)
+                        .withFields(fields)
+                        .build());
+                check(r, "upsertUserVector " + userId);
+                return true;
+            } finally {
+                sample.stop(Timer.builder("milvus_upsert_seconds").tag("op", "user").register(meterRegistry));
+            }
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
 

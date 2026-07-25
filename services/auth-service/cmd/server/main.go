@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	t "github.com/ansrivas/fiberprometheus/v2"
 	"log"
 
 	"wenxinblog/auth-service/internal/config"
@@ -9,6 +10,7 @@ import (
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
 
+	t "github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -49,6 +51,11 @@ func main() {
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New())
+
+	// Prometheus metrics（每路由自动采集 QPS + 延迟直方图）
+	promMetrics := fiberprometheus.New("auth-service")
+	promMetrics.RegisterAt(app, "/metrics")
+	app.Use(promMetrics.Middleware)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {

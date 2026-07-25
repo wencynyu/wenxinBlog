@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	t "github.com/ansrivas/fiberprometheus/v2"
 	"log"
 
 	"wenxinblog/user-service/internal/config"
@@ -10,6 +11,7 @@ import (
 	"wenxinblog/user-service/internal/repository"
 	"wenxinblog/user-service/internal/service"
 
+	t "github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -56,6 +58,11 @@ func main() {
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New())
+
+	t // Prometheus metrics
+	tpromMetrics := fiberprometheus.New("user-service")
+	tpromMetrics.RegisterAt(app, "/metrics")
+	tapp.Use(promMetrics.Middleware)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {

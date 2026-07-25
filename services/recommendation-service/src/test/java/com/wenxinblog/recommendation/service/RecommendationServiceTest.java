@@ -8,14 +8,16 @@ import com.wenxinblog.recommendation.entity.Post;
 import com.wenxinblog.recommendation.entity.UserInterestTag;
 import com.wenxinblog.recommendation.repository.PostReadRepository;
 import com.wenxinblog.recommendation.repository.UserInterestTagRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
+import org.springframework.kafka.core.KafkaTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -41,14 +43,20 @@ class RecommendationServiceTest {
     @Mock private ReactiveStringRedisTemplate redisTemplate;
     @Mock private UserInterestTagRepository interestTagRepository;
     @Mock private PostReadRepository postReadRepository;
+    @Mock private KafkaTemplate<String, String> kafkaTemplate;
     @Mock private ReactiveValueOperations<String, String> valueOps;
 
-    @InjectMocks private RecommendationService recommendationService;
+    private RecommendationService recommendationService;
+    private MeterRegistry meterRegistry;
 
     private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
+        recommendationService = new RecommendationService(
+                milvusService, embeddingClient, redisTemplate, interestTagRepository,
+                postReadRepository, kafkaTemplate, meterRegistry);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
     }
 

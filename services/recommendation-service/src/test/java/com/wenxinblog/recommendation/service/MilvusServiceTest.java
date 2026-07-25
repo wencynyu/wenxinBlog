@@ -1,14 +1,16 @@
 package com.wenxinblog.recommendation.service;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.param.R;
 import io.milvus.param.dml.DeleteParam;
 import io.milvus.param.dml.QueryParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.dml.UpsertParam;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.test.StepVerifier;
@@ -26,8 +28,13 @@ class MilvusServiceTest {
     @Mock
     private MilvusServiceClient client;
 
-    @InjectMocks
     private MilvusService milvusService;
+
+    @BeforeEach
+    void setUp() {
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        milvusService = new MilvusService(client, meterRegistry);
+    }
 
     private static float[] dim(int n) {
         return new float[n];

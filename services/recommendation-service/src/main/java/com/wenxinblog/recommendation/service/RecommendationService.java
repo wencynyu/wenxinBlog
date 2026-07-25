@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.wenxinblog.recommendation.client.EmbeddingClient;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.wenxinblog.recommendation.dto.AuthorDto;
 import com.wenxinblog.recommendation.dto.FeedRecommendation;
 import com.wenxinblog.recommendation.dto.TrendingPost;
@@ -38,6 +39,7 @@ public class RecommendationService {
     private final UserInterestTagRepository interestTagRepository;
     private final PostReadRepository postReadRepository;
     private final org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate;
+    private final MeterRegistry meterRegistry;
 
     // Redis 缓存 JSON 序列化用（带 JavaTime）；不注入 Spring 的 ObjectMapper，避免多 bean 冲突
     private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -62,7 +64,14 @@ public class RecommendationService {
                 .switchIfEmpty(Mono.defer(() -> recomputeUserVector(userId).filter(v -> v.length > 0)));
         return vecMono
                 .flatMap(vec -> milvusService.searchByVector(vec, size + 20))  // 过-fetch，留余量给去重
-                .flatMap(hits -> enrich(hits, true))
+                .flatMap(hits -> {
+                    if (hits.isEmpty()) {
+                        meterRegistry.counter("recommendation_source_total", "source", "tags_fallback").increment();
+                    } else {
+                        meterRegistry.counter("recommendation_source_total", "source", "personalized").increment();
+                    }
+                    return enrich(hits, true);
+                })
                 .flatMap(items -> filterViewed(userId, items))
                 .map(items -> items.stream().limit(size).toList())
                 .filter(list -> !list.isEmpty())
@@ -127,7 +136,8 @@ public class RecommendationService {
                         }
                     }
                     normalizeInPlace(newUser);
-                    return milvusService.upsertUserVector(userId, newUser);
+                    return milvusService.upsertUserVector(userId, newUser)
+                            .doOnSuccess(v -> meterRegistry.counter("user_vector_update_total").increment());
                 })
                 .onErrorResume(e -> {
                     log.warn("updateUserVectorWithPost failed for {}: {}", userId, e.getMessage());
@@ -186,7 +196,9 @@ public class RecommendationService {
                     }
                 }
                 float[] finalVec = acc;
-                return milvusService.upsertUserVector(userId, finalVec).thenReturn(finalVec);
+                return milvusService.upsertUserVector(userId, finalVec)
+                        .doOnSuccess(v -> meterRegistry.counter("user_vector_update_total").increment())
+                        .thenReturn(finalVec);
             });
         });
     }
@@ -209,6 +221,7 @@ public class RecommendationService {
                                 : milvusService.searchByVector(vec, topK))
                         .flatMap(hits -> enrich(hits, false)))
                 .filter(list -> !list.isEmpty())
+                .doOnNext(list -> meterRegistry.counter("recommendation_source_total", "source", "image_related").increment())
                 .switchIfEmpty(trendingAsFeed(topK));
     }
 
@@ -232,6 +245,7 @@ public class RecommendationService {
                                                 .toList())))
                 .flatMap(hits -> enrich(hits, false))
                 .filter(list -> !list.isEmpty())
+                .doOnNext(list -> meterRegistry.counter("recommendation_source_total", "source", "related").increment())
                 .switchIfEmpty(trendingAsFeed(topK));
     }
 
@@ -287,7 +301,9 @@ public class RecommendationService {
 
     /** 把 trending 结果映射成 FeedRecommendation（冷启动/降级用；score=0）。 */
     private Mono<List<FeedRecommendation>> trendingAsFeed(int size) {
-        return getTrendingPosts(size).map(list -> list.stream().map(tp -> new FeedRecommendation(
+        return getTrendingPosts(size)
+                .doOnNext(list -> meterRegistry.counter("recommendation_source_total", "source", "trending").increment())
+                .map(list -> list.stream().map(tp -> new FeedRecommendation(
                 tp.id(), tp.title(), null, null,
                 tp.author() != null ? tp.author().id() : null,
                 tp.author(), List.of(),
@@ -325,7 +341,8 @@ public class RecommendationService {
                         .onErrorResume(e -> {
                             log.warn("backfill embed failed for {}: {}", post.getId(), e.getMessage());
                             return Mono.just(false);
-                        }))
+                        })
+                        .doOnNext(success -> meterRegistry.counter("backfill_total", "result", success ? "success" : "fail").increment()))
                 .collectList()
                 .map(list -> (int) list.stream().filter(Boolean::booleanValue).count());
     }
@@ -435,10 +452,14 @@ public class RecommendationService {
 
     // ---- Redis 缓存小工具 ----
     private Mono<String> cacheGetRaw(String key) {
-        return redisTemplate.opsForValue().get(key);
+        String cache = key.startsWith("recommend:trending:") ? "trending" : "feed";
+        return redisTemplate.opsForValue().get(key)
+                .doOnNext(v -> meterRegistry.counter("recommendation_cache_total", "cache", cache, "result", "hit").increment());
     }
 
     private Mono<Void> cachePut(String key, Object value, Duration ttl) {
+        String cache = key.startsWith("recommend:trending:") ? "trending" : "feed";
+        meterRegistry.counter("recommendation_cache_total", "cache", cache, "result", "miss").increment();
         try {
             return redisTemplate.opsForValue().set(key, MAPPER.writeValueAsString(value), ttl).then();
         } catch (Exception e) {
