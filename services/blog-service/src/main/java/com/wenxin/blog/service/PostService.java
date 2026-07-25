@@ -23,7 +23,6 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final R2dbcEntityTemplate r2dbc;
-    private final SearchIndexService searchIndexService;
     private final BlogEventPublisher blogEventPublisher;
 
     public Mono<Post> createPost(UUID authorId, PostRequest req) {

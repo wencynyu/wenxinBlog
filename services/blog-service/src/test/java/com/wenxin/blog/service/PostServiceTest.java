@@ -39,8 +39,6 @@ class PostServiceTest {
     @Mock
     private R2dbcEntityTemplate r2dbc;
 
-    @Mock
-    private SearchIndexService searchIndexService;
 
     @Mock
     private BlogEventPublisher blogEventPublisher;
