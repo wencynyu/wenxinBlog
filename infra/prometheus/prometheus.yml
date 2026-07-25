@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # blog-service（博文 CRUD + Kafka 事件）
+  - job_name: 'blog-service'
+    metrics_path: '/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8003']
+        labels:
+          service: 'blog-service'
+
+  # recommendation-service（推荐 + Milvus + embedding）
+  - job_name: 'recommendation-service'
+    metrics_path: '/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8006']
+        labels:
+          service: 'recommendation-service'
+
+  # gateway（API 网关 + 鉴权 + 限流）
+  - job_name: 'gateway'
+    metrics_path: '/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: 'gateway'

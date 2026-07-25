@@ -18,3 +18,11 @@ opensearch:
   uris: http://localhost:9200
   index:
     blog: wenxinblog-blog
+
+# actuator + prometheus 指标（Grafana 采集）
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health,info,metrics,prometheus
