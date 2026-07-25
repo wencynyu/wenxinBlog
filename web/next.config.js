@@ -18,14 +18,12 @@ const nextConfig = {
     optimizePackageImports: ['@douyinfe/semi-ui', '@douyinfe/semi-icons'],
   },
 
-  // 图片域名配置
+  // 图片域名配置（封面图等外部图片 URL；开发环境放开，生产应限定 CDN 域名）
   images: {
     domains: ['localhost', 'cdn.wenxinblog.com'],
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.wenxinblog.com',
-      },
+      { protocol: 'https', hostname: '**.wenxinblog.com' },
+      { protocol: 'https', hostname: '**' },
     ],
   },
 
