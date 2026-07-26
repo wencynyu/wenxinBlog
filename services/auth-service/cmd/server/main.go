@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	t "github.com/ansrivas/fiberprometheus/v2"
 	"log"
 
 	"wenxinblog/auth-service/internal/config"
@@ -10,7 +9,7 @@ import (
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
 
-	t "github.com/ansrivas/fiberprometheus/v2"
+	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
