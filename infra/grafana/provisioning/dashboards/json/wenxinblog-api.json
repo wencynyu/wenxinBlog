@@ -12,7 +12,7 @@
         "name": "service",
         "type": "query",
         "datasource": "Prometheus",
-        "query": "label_values(http_server_requests_seconds_count, service)",
+        "query": "label_values(up, service)",
         "refresh": 1,
         "includeAll": true,
         "current": { "text": "All", "value": "$__all" }
@@ -34,8 +34,8 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[1m])) by (service, uri)",
-          "legendFormat": "{{service}} {{uri}}"
+          "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[1m])) by (service, uri) or sum(rate(http_requests_total{service=~\"$service\"}[1m])) by (service, path)",
+          "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
     },
@@ -53,8 +53,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri))",
-          "legendFormat": "{{service}} {{uri}}"
+          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri)) or histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, path))",
+          "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
     },
@@ -72,8 +72,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri))",
-          "legendFormat": "{{service}} {{uri}}"
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri)) or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, path))",
+          "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
     },
