@@ -19,11 +19,11 @@ scrape_configs:
         labels:
           service: 'recommendation-service'
 
-  # gateway（API 网关 + 鉴权 + 限流）
+  # gateway management 端口 8081（独立于路由端口 8080）
   - job_name: 'gateway'
-    metrics_path: '/prometheus'
+    metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['host.docker.internal:8081']
         labels:
           service: 'gateway'
 

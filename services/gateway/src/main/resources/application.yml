@@ -165,11 +165,12 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
-# 管理端点 + prometheus 指标
+# 管理端点（独立端口 8081，避免 Spring Cloud Gateway 路由管道拦截 actuator 请求）
 management:
+  server:
+    port: 8081
   endpoints:
     web:
-      base-path: /
       exposure:
         include: health,info,metrics,gateway,prometheus
   endpoint:

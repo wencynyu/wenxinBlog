@@ -58,10 +58,10 @@ func main() {
 	app.Use(recover.New())
 	app.Use(cors.New())
 
-	t // Prometheus metrics
-	tpromMetrics := fiberprometheus.New("user-service")
-	tpromMetrics.RegisterAt(app, "/metrics")
-	tapp.Use(promMetrics.Middleware)
+	// Prometheus metrics
+	promMetrics := fiberprometheus.New("user-service")
+	promMetrics.RegisterAt(app, "/metrics")
+	app.Use(promMetrics.Middleware)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
