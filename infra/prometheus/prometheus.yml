@@ -27,6 +27,14 @@ scrape_configs:
         labels:
           service: 'gateway'
 
+  # experiment-service（A/B 测试平台）
+  - job_name: 'experiment-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8009']
+        labels:
+          service: 'experiment-service'
+
   # auth-service（Go + Fiber，/metrics 端点）
   - job_name: 'auth-service'
     metrics_path: '/metrics'

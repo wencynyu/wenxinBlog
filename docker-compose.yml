@@ -83,6 +83,19 @@ services:
     volumes:
       - postgres-blog-data:/var/lib/postgresql/data
 
+  # 实验数据库
+  postgres-experiment:
+    <<: *postgres-defaults
+    container_name: wenxinblog-postgres-experiment
+    environment:
+      POSTGRES_DB: experiment_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-experiment-data:/var/lib/postgresql/data
+
   # =====================================================
   # Redis 缓存
   # =====================================================
@@ -289,7 +302,7 @@ services:
   # 可观测性：Prometheus + Grafana
   # =====================================================
   prometheus:
-    image: prom/prometheus:v2.55.0
+    image: prom/prometheus:v3.13.1
     container_name: wenxinblog-prometheus
     restart: unless-stopped
     ports:
@@ -303,7 +316,7 @@ services:
       - wenxinblog
 
   grafana:
-    image: grafana/grafana:11.3.0
+    image: grafana/grafana:13.1
     container_name: wenxinblog-grafana
     restart: unless-stopped
     ports:
@@ -369,6 +382,10 @@ volumes:
   # MinIO OSS data
   minio-oss-data:
     name: wenxinblog-minio-oss-data
+
+  # Experiment DB data
+  postgres-experiment-data:
+    name: wenxinblog-postgres-experiment-data
 
   # Observability
   prometheus-data:

@@ -17,6 +17,7 @@ SERVICES=(
   "blog:8003:services/blog-service:512"
   "search:8005:services/search-service:384"
   "recommend:8006:services/recommendation-service:384"
+  "experiment:8009:services/experiment-service:384"
   "content:8004:services/content-service:384"
   "ad:8007:services/ad-service:384"
   "embedding:8008:../embedding-service:-"

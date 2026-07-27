@@ -64,6 +64,15 @@ spring:
                 - StripPrefix=0
                 - name: AuthenticationFilter
 
+            # A/B 实验服务（管理端点需鉴权，分配端点 GET 公开）
+            - id: experiment-service
+              uri: http://localhost:8009
+              predicates:
+                - Path=/api/v1/experiments/**,/api/v1/layers/**
+              filters:
+                - StripPrefix=0
+                - name: AuthenticationFilter
+
             # 广告追踪 (公开)
             - id: ad-tracking
               uri: http://localhost:8007

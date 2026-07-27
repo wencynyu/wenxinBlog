@@ -62,21 +62,78 @@ public class RecommendationService {
         Mono<float[]> vecMono = milvusService.getUserVector(userId)
                 .filter(v -> v.length > 0)
                 .switchIfEmpty(Mono.defer(() -> recomputeUserVector(userId).filter(v -> v.length > 0)));
-        return vecMono
-                .flatMap(vec -> milvusService.searchByVector(vec, size + 20))  // 过-fetch，留余量给去重
-                .flatMap(hits -> {
-                    if (hits.isEmpty()) {
-                        meterRegistry.counter("recommendation_source_total", "source", "tags_fallback").increment();
-                    } else {
-                        meterRegistry.counter("recommendation_source_total", "source", "personalized").increment();
-                    }
-                    return enrich(hits, true);
-                })
+        // A/B 测试：读 Redis 分桶，拿变体参数（hybridWeights）
+        Mono<double[]> weightsMono = getExperimentWeights(userId);
+        return Mono.zip(vecMono, weightsMono)
+                .flatMap(tuple -> milvusService.searchByVector(tuple.getT1(), size + 20)
+                        .flatMap(hits -> {
+                            if (hits.isEmpty()) {
+                                meterRegistry.counter("recommendation_source_total", "source", "tags_fallback").increment();
+                            } else {
+                                meterRegistry.counter("recommendation_source_total", "source", "personalized").increment();
+                            }
+                            return enrich(hits, true, tuple.getT2());
+                        }))
                 .flatMap(items -> filterViewed(userId, items))
-                .map(items -> items.stream().limit(size).toList())
+                .flatMap(items -> {
+                    // 发 impression 事件（带 A/B 标签），供 experiment-service 统计 CTR
+                    sendImpressionEvent(userId, items);
+                    return Mono.just(items.stream().limit(size).toList());
+                })
                 .filter(list -> !list.isEmpty())
                 .switchIfEmpty(trendingAsFeed(size));
     }
+
+    /** 读 A/B 分桶（Redis ab:{userId}:recommendation），返回 hybridWeights 或默认 [0.6,0.3,0.1]。 */
+    private Mono<double[]> getExperimentWeights(String userId) {
+        return redisTemplate.opsForValue().get("ab:" + userId + ":recommendation")
+                .map(json -> {
+                    if ("null".equals(json) || json == null) return DEFAULT_HYBRID_WEIGHTS;
+                    try {
+                        var node = MAPPER.readTree(json);
+                        var params = node.path("params");
+                        var weightsNode = params.path("hybridWeights");
+                        if (weightsNode.isArray() && weightsNode.size() == 3) {
+                            return new double[]{
+                                weightsNode.get(0).asDouble(0.6),
+                                weightsNode.get(1).asDouble(0.3),
+                                weightsNode.get(2).asDouble(0.1)
+                            };
+                        }
+                    } catch (Exception ignored) {}
+                    return DEFAULT_HYBRID_WEIGHTS;
+                })
+                .defaultIfEmpty(DEFAULT_HYBRID_WEIGHTS);
+    }
+
+    /** 发 impression 事件到 Kafka（带 experimentId + variant，供 CTR 分母）。 */
+    private void sendImpressionEvent(String userId, List<FeedRecommendation> items) {
+        if (items.isEmpty()) return;
+        try {
+            redisTemplate.opsForValue().get("ab:" + userId + ":recommendation")
+                .subscribe(json -> {
+                    if (json == null || "null".equals(json)) return;
+                    try {
+                        var node = MAPPER.readTree(json);
+                        String expId = node.path("experimentId").asText(null);
+                        String variant = node.path("variant").asText(null);
+                        if (expId == null) return;
+                        List<String> postIds = items.stream().limit(10).map(FeedRecommendation::id).toList();
+                        String event = MAPPER.writeValueAsString(java.util.Map.of(
+                            "eventType", "impression",
+                            "userId", userId,
+                            "experimentId", expId,
+                            "variant", variant,
+                            "layer", "recommendation",
+                            "postIds", postIds
+                        ));
+                        kafkaTemplate.send("user-behavior-events", userId, event);
+                    } catch (Exception ignored) {}
+                });
+        } catch (Exception ignored) {}
+    }
+
+    private static final double[] DEFAULT_HYBRID_WEIGHTS = {0.6, 0.3, 0.1};
 
     /** 记录用户看/赞过的帖子（Redis SET，30 天滚动窗口），供 feed 去重。 */
     public Mono<Void> recordViewedPost(String userId, String postId) {
@@ -254,6 +311,10 @@ public class RecommendationService {
      * hybrid=true 时按"相似+热度+新鲜"混合分重排（用于推荐流）；相关博文用 pure 相似度（false）。
      */
     private Mono<List<FeedRecommendation>> enrich(List<MilvusService.SearchHit> hits, boolean hybrid) {
+        return enrich(hits, hybrid, DEFAULT_HYBRID_WEIGHTS);
+    }
+
+    private Mono<List<FeedRecommendation>> enrich(List<MilvusService.SearchHit> hits, boolean hybrid, double[] weights) {
         if (hits.isEmpty()) {
             return Mono.just(List.of());
         }
@@ -274,7 +335,7 @@ public class RecommendationService {
                         }
                     }
                     if (hybrid && result.size() > 1) {
-                        sortByHybrid(result);
+                        sortByHybrid(result, weights);
                     }
                     return result;
                 });
@@ -282,6 +343,10 @@ public class RecommendationService {
 
     /** 混合分 = 0.6×相似 + 0.3×热度(归一) + 0.1×新鲜度。原地重排；score 字段保持相似度不变。 */
     private void sortByHybrid(List<FeedRecommendation> items) {
+        sortByHybrid(items, DEFAULT_HYBRID_WEIGHTS);
+    }
+
+    private void sortByHybrid(List<FeedRecommendation> items, double[] w) {
         double maxPop = items.stream()
                 .mapToDouble(x -> x.likeCount() + x.commentCount() * 2.0)
                 .max().orElse(1.0);
@@ -295,7 +360,7 @@ public class RecommendationService {
                 ageDays = Math.max(0, (nowMs - createdMs) / 86400000.0);
             }
             double fresh = 1.0 / (1.0 + ageDays);
-            return 0.6 * sim + 0.3 * pop + 0.1 * fresh;
+            return w[0] * sim + w[1] * pop + w[2] * fresh;
         }).reversed());
     }
 

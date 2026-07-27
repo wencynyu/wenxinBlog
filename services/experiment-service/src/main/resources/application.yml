@@ -1,0 +1,34 @@
+server:
+  port: 8009
+
+spring:
+  application:
+    name: experiment-service
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5435/experiment_db
+    username: postgres
+    password: ${POSTGRES_PASSWORD:postgres}
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:redis}
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: experiment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s
