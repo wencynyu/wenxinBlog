@@ -64,6 +64,15 @@ spring:
                 - StripPrefix=0
                 - name: AuthenticationFilter
 
+            # 分析服务（事件 BI 查询）
+            - id: analytics-service
+              uri: http://localhost:8010
+              predicates:
+                - Path=/api/v1/analytics/**
+              filters:
+                - StripPrefix=0
+
+
             # A/B 实验服务（管理端点需鉴权，分配端点 GET 公开）
             - id: experiment-service
               uri: http://localhost:8009

@@ -1,25 +1,21 @@
 server:
-  port: 8009
+  port: 8010
 
 spring:
   application:
-    name: experiment-service
-  r2dbc:
-    url: r2dbc:postgresql://localhost:5435/experiment_db
-    username: postgres
-    password: ${POSTGRES_PASSWORD:postgres}
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      password: ${REDIS_PASSWORD:redis}
+    name: analytics-service
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
-      group-id: experiment-service
+      group-id: analytics-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  main:
+    allow-bean-definition-overriding: true
+
+clickhouse:
+  url: http://localhost:8123
 
 management:
   endpoints:
@@ -32,6 +28,3 @@ management:
         http.server.requests: true
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s
-
-clickhouse:
-  url: http://localhost:8123

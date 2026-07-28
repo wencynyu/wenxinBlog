@@ -27,6 +27,15 @@ scrape_configs:
         labels:
           service: 'gateway'
 
+  # analytics-service（事件 BI）
+  - job_name: 'analytics-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8010']
+        labels:
+          service: 'analytics-service'
+
+
   # experiment-service（A/B 测试平台）
   - job_name: 'experiment-service'
     metrics_path: '/actuator/prometheus'

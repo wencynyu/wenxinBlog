@@ -299,6 +299,30 @@ services:
       - wenxinblog
 
   # =====================================================
+  # ClickHouse OLAP（事件存储 + A/B 分析）
+  # =====================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: wenxinblog-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"    # HTTP（JDBC 驱动）
+      # TCP 9000 不映射到宿主机（MinIO 占了 9000-9001），Docker 网络内直连 clickhouse:9000
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - wenxinblog
+
+  # =====================================================
   # 可观测性：Prometheus + Grafana
   # =====================================================
   prometheus:
@@ -392,3 +416,7 @@ volumes:
     name: wenxinblog-prometheus-data
   grafana-data:
     name: wenxinblog-grafana-data
+
+  # ClickHouse OLAP
+  clickhouse-data:
+    name: wenxinblog-clickhouse-data
