@@ -15,7 +15,7 @@ spring:
     allow-bean-definition-overriding: true
 
 clickhouse:
-  url: http://localhost:8123
+  url: jdbc:ch://localhost:8123/default
 
 management:
   endpoints:

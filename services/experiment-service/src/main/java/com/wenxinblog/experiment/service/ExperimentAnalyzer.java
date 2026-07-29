@@ -3,18 +3,15 @@ package com.wenxinblog.experiment.service;
 import com.wenxinblog.experiment.dto.ExperimentResult;
 import com.wenxinblog.experiment.dto.ExperimentResult.VariantMetrics;
 import com.wenxinblog.experiment.repository.ExperimentRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @Slf4j
@@ -24,11 +21,11 @@ public class ExperimentAnalyzer {
     private static final double SIGNIFICANCE = 0.05;
 
     private final ExperimentRepository experimentRepo;
-    private final WebClient clickHouse;
+    private final JdbcTemplate clickHouse;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public ExperimentAnalyzer(ExperimentRepository experimentRepo,
-                              @Qualifier("clickHouseClient") WebClient clickHouse) {
+                              @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouse) {
         this.experimentRepo = experimentRepo;
         this.clickHouse = clickHouse;
     }
@@ -47,34 +44,27 @@ public class ExperimentAnalyzer {
 
         String expId = experimentId.toString();
         Map<String, VariantMetrics> metricsMap = queryClickHouse(expId);
-
         for (VariantConfig vc : variants) {
             metricsMap.putIfAbsent(vc.name(), new VariantMetrics(0, 0, 0, 0.0, 0.0));
         }
         return buildResult(expId, variants, metricsMap);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, VariantMetrics> queryClickHouse(String expId) {
         String sql = "SELECT variant," +
                 " countIf(event_type = 'impression') AS impressions," +
                 " countIf(event_type = 'view_post') AS clicks," +
                 " countIf(event_type = 'like_post' OR event_type = 'comment_post') AS engagements" +
-                " FROM behavior_events WHERE experiment_id = '" + expId.replace("'", "") + "'" +
-                " GROUP BY variant FORMAT JSON";
-
+                " FROM behavior_events WHERE experiment_id = ? GROUP BY variant";
         Map<String, VariantMetrics> result = new LinkedHashMap<>();
         try {
-            String response = clickHouse.get()
-                    .uri(uri -> uri.path("/").queryParam("query", sql).build())
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-            JsonNode root = mapper.readTree(response);
-            for (JsonNode row : root.path("data")) {
-                String variant = row.path("variant").asText("");
-                long imp = row.path("impressions").asLong(0);
-                long clk = row.path("clicks").asLong(0);
-                long eng = row.path("engagements").asLong(0);
+            List<Map<String, Object>> rows = clickHouse.queryForList(sql, expId);
+            for (Map<String, Object> row : rows) {
+                String variant = String.valueOf(row.get("variant"));
+                long imp = ((Number) row.get("impressions")).longValue();
+                long clk = ((Number) row.get("clicks")).longValue();
+                long eng = ((Number) row.get("engagements")).longValue();
                 result.put(variant, new VariantMetrics(imp, clk, eng,
                     imp > 0 ? (double) clk / imp : 0.0, imp > 0 ? (double) eng / imp : 0.0));
             }

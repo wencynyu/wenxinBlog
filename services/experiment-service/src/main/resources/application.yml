@@ -34,4 +34,4 @@ management:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s
 
 clickhouse:
-  url: http://localhost:8123
+  url: jdbc:ch://localhost:8123/default
