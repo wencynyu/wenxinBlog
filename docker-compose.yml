@@ -299,7 +299,24 @@ services:
       - wenxinblog
 
   # =====================================================
-  # ClickHouse OLAP（事件存储 + A/B 分析）
+  # OpenTelemetry Collector（traces + logs + metrics 统一管道）
+  # =====================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: wenxinblog-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus exporter（metrics 暴露给 Prometheus scrape）
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    networks:
+      - wenxinblog
+    depends_on:
+      opensearch:
+        condition: service_started
   # =====================================================
   clickhouse:
     image: clickhouse/clickhouse-server:24.8-alpine

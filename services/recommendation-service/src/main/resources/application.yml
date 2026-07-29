@@ -34,7 +34,7 @@ recommendation:
     page-size: 20
     cache-ttl-minutes: 10
 
-# actuator：/health（start-dev 就绪探测 + 运维）、/metrics（micrometer 指标）
+# actuator + OTel tracing
 management:
   endpoints:
     web:
@@ -44,10 +44,15 @@ management:
   endpoint:
     health:
       show-details: always
-
   metrics:
     distribution:
       percentiles-histogram:
         http.server.requests: true
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
