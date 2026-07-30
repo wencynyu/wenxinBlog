@@ -31,3 +31,8 @@ search:
   highlight:
     pre-tags: ["<em>"]
     post-tags: ["</em>"]
+
+management:
+  endpoints:
+    web:
+      base-path: /

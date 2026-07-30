@@ -25,3 +25,8 @@ minio:
 file:
   upload:
     max-size: 50MB
+
+management:
+  endpoints:
+    web:
+      base-path: /
