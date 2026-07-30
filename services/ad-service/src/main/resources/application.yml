@@ -14,10 +14,6 @@ spring:
     user: postgres
     password: ${POSTGRES_PASSWORD:postgres}
     locations: classpath:db/migration
-  datasource:
-    url: jdbc:postgresql://localhost:5434/blog_db
-    username: postgres
-    password: ${POSTGRES_PASSWORD:postgres}
   data:
     redis:
       host: localhost

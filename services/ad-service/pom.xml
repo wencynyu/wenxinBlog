@@ -72,12 +72,8 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
-		<!-- Flyway 基于 JDBC；ad-service 运行时用 R2DBC，但 FlywayAutoConfiguration 需要 JDBC DataSource 才会触发迁移 -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-jdbc</artifactId>
-		</dependency>
-		<!-- PostgreSQL JDBC 驱动（Flyway/HikariCP 需要；r2dbc-postgresql 不能给 JDBC 用）-->
+		<!-- PostgreSQL JDBC 驱动：仅给 Flyway 启动期迁移用（运行时全 R2DBC，无 JDBC 连接池）。
+		     Flyway 基于 JDBC、r2dbc-postgresql 不能给它用；FlywayConfig 用 Flyway 自带 DriverDataSource，不需要 HikariCP/DataSource bean。-->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
