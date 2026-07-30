@@ -1,8 +1,46 @@
 apiVersion: 1
+
+# 先删除可能残留的旧版（auto-uid）OpenSearch 数据源，避免与新显式 uid 冲突
+deleteDatasources:
+  - name: OpenSearch-Traces
+    orgId: 1
+  - name: OpenSearch-Logs
+    orgId: 1
+
 datasources:
+  # Metrics（Prometheus）：抓 OTel Collector :8889 的 OTLP→Prometheus 端点
   - name: Prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
+    editable: true
+
+  # Traces → OpenSearch（otel-traces 索引）
+  # 注意：opensearch exporter 给 trace 的 @timestamp 是零值（0001-01-01），真正时间在 startTime，故 timeField 用 startTime。
+  - name: OpenSearch-Traces
+    uid: opensearch-traces
+    type: elasticsearch
+    access: proxy
+    url: http://opensearch:9200
+    database: "otel-traces"
+    jsonData:
+      esVersion: "2.11"
+      timeField: "startTime"
+      xpack: false
+    editable: true
+
+  # Logs → OpenSearch（otel-logs 索引，@timestamp 为真实时间）
+  - name: OpenSearch-Logs
+    uid: opensearch-logs
+    type: elasticsearch
+    access: proxy
+    url: http://opensearch:9200
+    database: "otel-logs"
+    jsonData:
+      esVersion: "2.11"
+      timeField: "@timestamp"
+      xpack: false
+      logMessageField: "body"
+      logLevelField: "severity.text"
     editable: true

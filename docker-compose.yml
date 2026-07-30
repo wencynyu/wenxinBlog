@@ -302,7 +302,7 @@ services:
   # OpenTelemetry Collector（traces + logs + metrics 统一管道）
   # =====================================================
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.157.0
     container_name: wenxinblog-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yaml"]

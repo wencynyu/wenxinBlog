@@ -9,6 +9,10 @@ x-java-defaults: &java-defaults
   restart: unless-stopped
   networks:
     - wenxinblog
+  # OTel 配置（infra/otel/otel.env）：Java agent / Go SDK 读取；web 忽略。
+  # OTEL_SERVICE_NAME 由各服务自身 environment 指定。
+  env_file:
+    - ./infra/otel/otel.env
 
 services:
   # =====================================================
@@ -53,6 +57,7 @@ services:
     ports:
       - "8003:8003"
     environment:
+      OTEL_SERVICE_NAME: blog-service
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-blog:5432/blog_db
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -73,6 +78,7 @@ services:
     ports:
       - "8005:8005"
     environment:
+      OTEL_SERVICE_NAME: search-service
       OPENSEARCH_URIS: http://opensearch:9200
       SPRING_DATA_REDIS_HOST: redis-cache
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -89,6 +95,7 @@ services:
     ports:
       - "8006:8006"
     environment:
+      OTEL_SERVICE_NAME: recommendation-service
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-blog:5432/blog_db
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -109,6 +116,7 @@ services:
     ports:
       - "8009:8009"
     environment:
+      OTEL_SERVICE_NAME: experiment-service
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-experiment:5432/experiment_db
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -127,6 +135,7 @@ services:
     ports:
       - "8010:8010"
     environment:
+      OTEL_SERVICE_NAME: analytics-service
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       CLICKHOUSE_URL: jdbc:ch://clickhouse:8123/default
     depends_on:
@@ -165,6 +174,7 @@ services:
     ports:
       - "8004:8004"
     environment:
+      OTEL_SERVICE_NAME: content-service
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-blog:5432/blog_db
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -187,6 +197,7 @@ services:
     ports:
       - "8007:8007"
     environment:
+      OTEL_SERVICE_NAME: ad-service
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres-blog:5432/blog_db
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -205,6 +216,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      OTEL_SERVICE_NAME: gateway
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       SPRING_DATA_REDIS_HOST: redis-cache
       # 服务在容器网络中用服务名通信（不用 localhost）

@@ -3,59 +3,14 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # blog-service（博文 CRUD + Kafka 事件）
-  - job_name: 'blog-service'
-    metrics_path: '/prometheus'
+  # =====================================================
+  # OTel Collector 的 Prometheus exporter（:8889）
+  # -----------------------------------------------------
+  # 所有服务（Java agent Micrometer 桥 / Go otelfiber / Python OTel）
+  # 的指标统一经 OTLP → Collector → 这里暴露。用 service_name 标签区分服务。
+  # 不再逐服务抓 /actuator/prometheus 或 /metrics。
+  # =====================================================
+  - job_name: 'otel-collector'
+    metrics_path: /metrics
     static_configs:
-      - targets: ['host.docker.internal:8003']
-        labels:
-          service: 'blog-service'
-
-  # recommendation-service（推荐 + Milvus + embedding）
-  - job_name: 'recommendation-service'
-    metrics_path: '/prometheus'
-    static_configs:
-      - targets: ['host.docker.internal:8006']
-        labels:
-          service: 'recommendation-service'
-
-  # gateway management 端口 8081（独立于路由端口 8080）
-  - job_name: 'gateway'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['host.docker.internal:8081']
-        labels:
-          service: 'gateway'
-
-  # analytics-service（事件 BI）
-  - job_name: 'analytics-service'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['host.docker.internal:8010']
-        labels:
-          service: 'analytics-service'
-
-
-  # experiment-service（A/B 测试平台）
-  - job_name: 'experiment-service'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['host.docker.internal:8009']
-        labels:
-          service: 'experiment-service'
-
-  # auth-service（Go + Fiber，/metrics 端点）
-  - job_name: 'auth-service'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['host.docker.internal:8001']
-        labels:
-          service: 'auth-service'
-
-  # user-service（Go + Fiber，/metrics 端点）
-  - job_name: 'user-service'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['host.docker.internal:8002']
-        labels:
-          service: 'user-service'
+      - targets: ['otel-collector:8889']
