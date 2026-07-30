@@ -49,7 +49,7 @@ class SearchControllerTest {
                 List.of(new BlogSearchResponse(
                         "1", "Test Blog", "Content", "Summary",
                         "author1", "Author", List.of("tag1"), "tech",
-                        100, 10, java.time.LocalDateTime.now().toString(), 1.0, List.of(), List.of())),
+                        100, 10, java.time.LocalDateTime.now(), 1.0, List.of(), List.of())),
                 1L, 0, 10, 1
         );
 

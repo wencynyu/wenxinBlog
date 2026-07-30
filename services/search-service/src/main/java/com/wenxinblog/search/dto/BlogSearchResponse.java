@@ -1,5 +1,6 @@
 package com.wenxinblog.search.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record BlogSearchResponse(
@@ -13,7 +14,7 @@ public record BlogSearchResponse(
         String category,
         int viewCount,
         int likeCount,
-        String publishedAt,
+        LocalDateTime publishedAt,
         double score,
         List<String> highlightTitle,
         List<String> highlightContent
