@@ -1,16 +1,18 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
 	"wenxinblog/user-service/internal/config"
 	"wenxinblog/user-service/internal/handler"
 	"wenxinblog/user-service/internal/middleware"
+	"wenxinblog/user-service/internal/observability"
 	"wenxinblog/user-service/internal/repository"
 	"wenxinblog/user-service/internal/service"
 
-	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -21,6 +23,10 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	// OTel：traces + metrics 经 OTLP gRPC → collector
+	shutdown := observability.Setup("user-service")
+	defer shutdown(context.Background())
 
 	// Connect PostgreSQL
 	db, err := sql.Open("postgres", cfg.Database.URL)
@@ -58,10 +64,9 @@ func main() {
 	app.Use(recover.New())
 	app.Use(cors.New())
 
-	// Prometheus metrics
-	promMetrics := fiberprometheus.New("user-service")
-	promMetrics.RegisterAt(app, "/metrics")
-	app.Use(promMetrics.Middleware)
+	// OTel HTTP 中间件：自动给每条请求创建 span + HTTP metrics（替代 fiberprometheus）。
+	// service.name 来自 otel.go 里配置的 TracerProvider resource。
+	app.Use(otelfiber.Middleware())
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {

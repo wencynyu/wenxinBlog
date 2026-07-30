@@ -10,6 +10,43 @@ JWT_SECRET="wenxinblog-mvp-jwt-secret-dev-only"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# --- OTel 配置（原生模式）---
+# Java 服务用 -javaagent 注入 OTel Java Agent；Go 用 OTel SDK；Python 用 opentelemetry-instrument。
+# 原生模式下 collector 暴露在宿主机 localhost:4317。
+OTEL_AGENT_VERSION="2.30.0"
+OTEL_JAR="$ROOT_DIR/infra/otel/opentelemetry-javaagent.jar"
+OTEL_COLLECTOR_ENDPOINT="http://localhost:4317"
+
+ensure_otel_agent() {
+  if [ ! -f "$OTEL_JAR" ]; then
+    echo "  downloading OTel Java Agent v${OTEL_AGENT_VERSION}..."
+    curl -fsSL -o "$OTEL_JAR" \
+      "https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/${OTEL_AGENT_VERSION}/opentelemetry-javaagent-${OTEL_AGENT_VERSION}.jar"
+  fi
+}
+
+otel_service_name() {
+  case "$1" in
+    blog) echo blog-service;; search) echo search-service;;
+    recommend) echo recommendation-service;; experiment) echo experiment-service;;
+    analytics) echo analytics-service;; content) echo content-service;;
+    ad) echo ad-service;; gateway) echo gateway;;
+    auth) echo auth-service;; user) echo user-service;;
+    embedding) echo embedding-service;;
+    *) echo "$1";;
+  esac
+}
+
+export_otel_env() {
+  export OTEL_SERVICE_NAME="$(otel_service_name "$1")"
+  export OTEL_EXPORTER_OTLP_ENDPOINT="$OTEL_COLLECTOR_ENDPOINT"
+  export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+  export OTEL_TRACES_EXPORTER=otlp
+  export OTEL_LOGS_EXPORTER=otlp
+  export OTEL_METRICS_EXPORTER=otlp
+  export OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true
+}
+
 # --- 服务定义：name:port:dir:java_heap ---
 SERVICES=(
   "auth:8001:services/auth-service::-"
@@ -32,27 +69,34 @@ start_service() {
     return
   fi
   cd "$ROOT_DIR/$dir"
-  local jvm_args=""
-  if [ "$heap" != "-" ] && [ -n "$heap" ]; then
-    jvm_args="-Dspring-boot.run.jvmArguments=-Xmx${heap}m"
-  fi
+  export_otel_env "$name"
 
   if [ -f "cmd/server/main.go" ]; then
-    # Go service
+    # Go service（OTel SDK 读 OTEL_* env）
     JWT_SECRET="$JWT_SECRET" DATABASE_URL="postgres://postgres:postgres@localhost:$(echo $name | grep -q auth && echo 5432 || echo 5433)/${name}_db?sslmode=disable" \
       nohup go run ./cmd/server > "/tmp/svc-$name.log" 2>&1 &
   elif [ -f "requirements.txt" ] || [ -f "app/main.py" ]; then
-    # Python service（本地原生跑，MPS 加速；首次自动建 venv + 装依赖，模型首次启动时下载）
-    if [ ! -d ".venv" ]; then
-      echo "  $name: creating venv + installing deps (首次较慢)..."
-      python3 -m venv .venv
+    # Python service（opentelemetry-instrument 自动注入；读 OTEL_* env）
+    # Python 用 http/protobuf（免 grpcio）→ collector :4318
+    export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+    if [ ! -d ".venv" ] || [ ! -x ".venv/bin/opentelemetry-instrument" ]; then
+      echo "  $name: creating/refreshing venv + installing deps (首次较慢)..."
+      python3 -m venv .venv 2>/dev/null || true
       .venv/bin/pip install -q --upgrade pip
       .venv/bin/pip install -q -r requirements.txt
+      .venv/bin/opentelemetry-bootstrap -a install 2>/dev/null || true
     fi
-    nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$port" > "/tmp/svc-$name.log" 2>&1 &
+    nohup .venv/bin/opentelemetry-instrument .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$port" > "/tmp/svc-$name.log" 2>&1 &
   else
-    # Java service
-    JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true $jvm_args spring-boot:run > "/tmp/svc-$name.log" 2>&1 &
+    # Java service（OTel Java Agent 经 -javaagent 注入）
+    ensure_otel_agent
+    local heap_flag=""
+    if [ "$heap" != "-" ] && [ -n "$heap" ]; then
+      heap_flag="-Xmx${heap}m"
+    fi
+    local jvm_args="-Dspring-boot.run.jvmArguments=${heap_flag}${heap_flag:+ }-javaagent:${OTEL_JAR}"
+    JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true "$jvm_args" spring-boot:run > "/tmp/svc-$name.log" 2>&1 &
   fi
   cd "$ROOT_DIR"
   echo "  $name($port) starting..."
@@ -182,10 +226,11 @@ case "${1:-start}" in
           # 杀残留进程
           pkill -9 -f "spring-boot:run.*gateway" 2>/dev/null || true
           sleep 2
-          # 重启
+          # 重启（含 OTel agent + env）
           cd "$ROOT_DIR/services/gateway"
+          export_otel_env "gateway"
           JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true \
-            -Dspring-boot.run.jvmArguments="-Xmx256m" spring-boot:run > /tmp/svc-gateway.log 2>&1 &
+            -Dspring-boot.run.jvmArguments="-Xmx256m -javaagent:${OTEL_JAR}" spring-boot:run > /tmp/svc-gateway.log 2>&1 &
           cd "$ROOT_DIR"
           # 等待恢复
           if wait_for_port 8080 30 2>/dev/null; then

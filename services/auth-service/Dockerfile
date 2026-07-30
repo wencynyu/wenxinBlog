@@ -2,7 +2,7 @@
 # auth-service (Go + Fiber)
 # 配置通过环境变量注入（见仓库根目录 .env.example）：
 #   PORT, DATABASE_URL, REDIS_URL, JWT_SECRET (必填), GOOGLE/GITHUB/WECHAT_*
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

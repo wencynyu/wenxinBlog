@@ -34,7 +34,7 @@ recommendation:
     page-size: 20
     cache-ttl-minutes: 10
 
-# actuator + OTel tracing
+# actuator + Micrometer metrics（tracing/logs 由 OTel Java Agent 接管，无需此处配置）
 management:
   endpoints:
     web:
@@ -50,9 +50,3 @@ management:
         http.server.requests: true
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s
-  tracing:
-    sampling:
-      probability: 1.0
-  otlp:
-    tracing:
-      endpoint: http://localhost:4318/v1/traces

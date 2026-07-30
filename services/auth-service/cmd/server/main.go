@@ -1,15 +1,17 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 
 	"wenxinblog/auth-service/internal/config"
 	"wenxinblog/auth-service/internal/handler"
+	"wenxinblog/auth-service/internal/observability"
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
 
-	"github.com/ansrivas/fiberprometheus/v2"
+	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -19,6 +21,10 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	// OTel：traces + metrics 经 OTLP gRPC → collector
+	shutdown := observability.Setup("auth-service")
+	defer shutdown(context.Background())
 
 	// Fail fast: JWT secret must be provided via JWT_SECRET env.
 	if cfg.JWT.Secret == "" {
@@ -51,10 +57,9 @@ func main() {
 	app.Use(recover.New())
 	app.Use(cors.New())
 
-	// Prometheus metrics（每路由自动采集 QPS + 延迟直方图）
-	promMetrics := fiberprometheus.New("auth-service")
-	promMetrics.RegisterAt(app, "/metrics")
-	app.Use(promMetrics.Middleware)
+	// OTel HTTP 中间件：自动给每条请求创建 span + HTTP metrics（替代 fiberprometheus）。
+	// service.name 来自 otel.go 里配置的 TracerProvider resource。
+	app.Use(otelfiber.Middleware())
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {

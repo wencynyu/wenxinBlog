@@ -73,14 +73,9 @@
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-tracing-bridge-otel</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>io.opentelemetry</groupId>
-			<artifactId>opentelemetry-exporter-otlp</artifactId>
-		</dependency>
+		<!-- Tracing/Logs/Metrics 经 OTel Java Agent（-javaagent）统一 OTLP 导出，
+		     不再用 micrometer-tracing-bridge-otel + management.otlp.*（Spring Boot 4 不认）。
+		     Micrometer 指标由 agent 的 Micrometer 桥（OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true）转发。 -->
 	</dependencies>
 
 	<build>

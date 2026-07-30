@@ -8,7 +8,9 @@ COPY src ./src
 RUN mvn -B -ntp package -DskipTests
 
 FROM eclipse-temurin:25-jre-alpine
+ARG OTEL_AGENT_VERSION=2.30.0
+ADD https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/${OTEL_AGENT_VERSION}/opentelemetry-javaagent-${OTEL_AGENT_VERSION}.jar /otel/opentelemetry-javaagent.jar
 WORKDIR /app
 COPY --from=builder /build/target/*.jar /app/app.jar
 EXPOSE 8007
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-javaagent:/otel/opentelemetry-javaagent.jar", "-jar", "/app/app.jar"]
