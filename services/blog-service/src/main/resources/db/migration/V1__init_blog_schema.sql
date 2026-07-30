@@ -1,5 +1,5 @@
 -- Posts
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     author_id UUID NOT NULL,
     title VARCHAR(200) NOT NULL,
@@ -19,7 +19,7 @@ CREATE INDEX idx_posts_status ON posts(status);
 CREATE INDEX idx_posts_published ON posts(published_at DESC);
 
 -- Tags
-CREATE TABLE tags (
+CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     slug VARCHAR(60) UNIQUE NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE tags (
 );
 
 -- Post Tags
-CREATE TABLE post_tags (
+CREATE TABLE IF NOT EXISTS post_tags (
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (post_id, tag_id)
@@ -36,7 +36,7 @@ CREATE TABLE post_tags (
 CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
 
 -- Comments
-CREATE TABLE comments (
+CREATE TABLE IF NOT EXISTS comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     author_id UUID NOT NULL,
@@ -50,7 +50,7 @@ CREATE INDEX idx_comments_post ON comments(post_id);
 CREATE INDEX idx_comments_author ON comments(author_id);
 
 -- Post Likes
-CREATE TABLE post_likes (
+CREATE TABLE IF NOT EXISTS post_likes (
     user_id UUID NOT NULL,
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -58,7 +58,7 @@ CREATE TABLE post_likes (
 );
 
 -- Post Favorites
-CREATE TABLE post_favorites (
+CREATE TABLE IF NOT EXISTS post_favorites (
     user_id UUID NOT NULL,
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

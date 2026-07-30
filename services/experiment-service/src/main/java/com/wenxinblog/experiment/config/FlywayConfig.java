@@ -1,4 +1,4 @@
-package com.wenxinblog.ad.config;
+package com.wenxinblog.experiment.config;
 
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Value;
@@ -6,15 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 显式 Flyway 配置。
- *
- * ad-service 运行时用 R2DBC，但 Flyway 基于 JDBC。Spring Boot 4.0.4 在 R2DBC + JDBC 共存时
- * FlywayAutoConfiguration 不自动触发，故显式声明 Flyway bean：用 spring.flyway.* 的 JDBC 连接
- * 自行 migrate（@Bean initMethod=migrate，启动时执行），不依赖 DataSource bean。
+ * 显式 Flyway 配置（experiment 独占 experiment_db）。
+ * baselineVersion=1：dev 表已手动建 → baseline 跳过 V1；新环境 schema 空 → 直接跑 V1 建表。
  */
 @Configuration
 public class FlywayConfig {
-
     @Bean(initMethod = "migrate")
     public Flyway flyway(@Value("${spring.flyway.url}") String url,
                          @Value("${spring.flyway.user}") String user,
@@ -22,7 +18,7 @@ public class FlywayConfig {
         return Flyway.configure()
                 .dataSource(url, user, password)
                 .locations("classpath:db/migration")
-                .table("flyway_schema_history_ad")
+                .table("flyway_schema_history_experiment")
                 .baselineOnMigrate(true)
                 .baselineVersion("1")
                 .load();

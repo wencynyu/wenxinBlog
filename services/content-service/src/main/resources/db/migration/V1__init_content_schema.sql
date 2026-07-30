@@ -1,4 +1,4 @@
-CREATE TABLE media_assets (
+CREATE TABLE IF NOT EXISTS media_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     post_id UUID,
@@ -23,7 +23,7 @@ CREATE INDEX idx_media_user ON media_assets(user_id);
 CREATE INDEX idx_media_post ON media_assets(post_id);
 CREATE INDEX idx_media_status ON media_assets(status);
 
-CREATE TABLE media_variants (
+CREATE TABLE IF NOT EXISTS media_variants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     asset_id UUID NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
     variant_type VARCHAR(20) NOT NULL,
