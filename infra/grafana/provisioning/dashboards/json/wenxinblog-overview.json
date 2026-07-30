@@ -47,11 +47,11 @@
       "targets": [
         {
           "expr": "sum(jvm_memory_used_bytes{area=\"heap\", service_name=~\"$service\"}) by (service_name)",
-          "legendFormat": "{{service}} used"
+          "legendFormat": "{{service_name}} used"
         },
         {
           "expr": "sum(jvm_memory_max_bytes{area=\"heap\", service_name=~\"$service\"}) by (service_name)",
-          "legendFormat": "{{service}} max"
+          "legendFormat": "{{service_name}} max"
         }
       ]
     },
@@ -74,7 +74,7 @@
       "targets": [
         {
           "expr": "sum(jvm_memory_used_bytes{area=\"nonheap\", service_name=~\"$service\"}) by (service_name)",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service_name}}"
         }
       ]
     },
@@ -97,7 +97,7 @@
       "targets": [
         {
           "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name) or sum(rate(http_requests_total{service_name=~\"$service\"}[1m])) by (service_name)",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service_name}}"
         }
       ]
     },
@@ -120,7 +120,7 @@
       "targets": [
         {
           "expr": "rate(http_server_requests_seconds_sum{service_name=~\"$service\"}[1m]) / rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m]) * 1000",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service_name}}"
         }
       ]
     },
@@ -143,7 +143,7 @@
       "targets": [
         {
           "expr": "rate(jvm_gc_pause_seconds_sum{service_name=~\"$service\"}[1m]) * 1000",
-          "legendFormat": "{{service}} {{action}} {{cause}}"
+          "legendFormat": "{{service_name}} {{action}} {{cause}}"
         }
       ]
     },
@@ -161,11 +161,11 @@
       "targets": [
         {
           "expr": "jvm_threads_live_threads{service_name=~\"$service\"}",
-          "legendFormat": "{{service}} live"
+          "legendFormat": "{{service_name}} live"
         },
         {
           "expr": "jvm_threads_states_threads{service_name=~\"$service\"}",
-          "legendFormat": "{{service}} {{state}}"
+          "legendFormat": "{{service_name}} {{state}}"
         }
       ]
     },
@@ -206,7 +206,7 @@
       "targets": [
         {
           "expr": "process_cpu_usage{service_name=~\"$service\"} * 100",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service_name}}"
         }
       ]
     },
@@ -243,7 +243,7 @@
       "targets": [
         {
           "expr": "up{service_name=~\"$service\"}",
-          "legendFormat": "{{service}}"
+          "legendFormat": "{{service_name}}"
         }
       ]
     }
