@@ -67,6 +67,16 @@
 			<artifactId>reactor-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- Actuator: 提供 /health 端点 + Micrometer MeterRegistry（OTel agent 橋据此导出 JVM/HTTP 业务指标）-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<!-- Flyway 基于 JDBC；ad-service 运行时用 R2DBC，但 FlywayAutoConfiguration 需要 JDBC DataSource 才会触发迁移 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

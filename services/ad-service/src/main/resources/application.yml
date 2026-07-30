@@ -14,10 +14,15 @@ spring:
     user: postgres
     password: ${POSTGRES_PASSWORD:postgres}
     locations: classpath:db/migration
+  datasource:
+    url: jdbc:postgresql://localhost:5434/blog_db
+    username: postgres
+    password: ${POSTGRES_PASSWORD:postgres}
   data:
     redis:
       host: localhost
       port: 6379
+      password: ${REDIS_PASSWORD:redis}
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -32,3 +37,9 @@ spring:
 kafka:
   topics:
     ad-events: ad-events
+
+management:
+  endpoints:
+    web:
+      base-path: /
+
