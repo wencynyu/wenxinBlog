@@ -5,17 +5,25 @@
   "schemaVersion": 39,
   "version": 1,
   "refresh": "15s",
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "templating": {
     "list": [
       {
         "name": "service",
         "type": "query",
         "datasource": "Prometheus",
-        "query": "label_values(up, service)",
+        "query": "label_values(http_server_requests_seconds, service_name)",
         "refresh": 1,
         "includeAll": true,
-        "current": { "text": "All", "value": "$__all" }
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "allValue": ".*",
+        "multi": true
       }
     ]
   },
@@ -24,17 +32,25 @@
       "id": 1,
       "title": "QPS（按端点）",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
-          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          }
         }
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[1m])) by (service, uri) or sum(rate(http_requests_total{service=~\"$service\"}[1m])) by (service, path)",
+          "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name, uri) or sum(rate(http_requests_total{service_name=~\"$service\"}[1m])) by (service_name, path)",
           "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
@@ -43,17 +59,25 @@
       "id": 2,
       "title": "P90 延迟（按端点）",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          }
         }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri)) or histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, path))",
+          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, path))",
           "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
@@ -62,17 +86,25 @@
       "id": 3,
       "title": "P99 延迟（按端点）",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          }
         }
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, uri)) or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~\"$service\"}[5m])) by (le, service, path))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, path))",
           "legendFormat": "{{service}} {{uri}}{{path}}"
         }
       ]
@@ -81,9 +113,18 @@
       "id": 4,
       "title": "Embedding 延迟 P95",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
       "datasource": "Prometheus",
-      "fieldConfig": { "defaults": { "unit": "s" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(embedding_request_seconds_bucket[5m])) by (le, type))",
@@ -95,7 +136,12 @@
       "id": 5,
       "title": "Embedding 成功率",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 16
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
@@ -103,9 +149,18 @@
           "decimals": 1,
           "thresholds": {
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.9 },
-              { "color": "green", "value": 0.99 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.9
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
             ]
           }
         }
@@ -121,7 +176,12 @@
       "id": 6,
       "title": "Embedding 熔断状态",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
@@ -129,8 +189,14 @@
             {
               "type": "value",
               "options": {
-                "0": { "text": "CLOSED", "color": "green" },
-                "1": { "text": "OPEN", "color": "red" }
+                "0": {
+                  "text": "CLOSED",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "OPEN",
+                  "color": "red"
+                }
               }
             }
           ]
@@ -146,9 +212,18 @@
       "id": 7,
       "title": "Milvus 搜索延迟 P95",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
       "datasource": "Prometheus",
-      "fieldConfig": { "defaults": { "unit": "s" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(milvus_search_seconds_bucket[5m])) by (le))",
@@ -160,9 +235,18 @@
       "id": 8,
       "title": "Milvus Upsert 延迟 P95",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
       "datasource": "Prometheus",
-      "fieldConfig": { "defaults": { "unit": "s" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(milvus_upsert_seconds_bucket[5m])) by (le, op))",
@@ -174,9 +258,18 @@
       "id": 9,
       "title": "推荐来源分布",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
       "datasource": "Prometheus",
-      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      },
       "targets": [
         {
           "expr": "sum(rate(recommendation_source_total[5m])) by (source)",
@@ -188,7 +281,12 @@
       "id": 10,
       "title": "缓存命中率",
       "type": "gauge",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
@@ -197,9 +295,18 @@
           "min": 0,
           "thresholds": {
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "green", "value": 0.8 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              }
             ]
           }
         }
@@ -215,9 +322,18 @@
       "id": 11,
       "title": "用户向量更新速率",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
       "datasource": "Prometheus",
-      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      },
       "targets": [
         {
           "expr": "rate(user_vector_update_total[5m])",
@@ -229,7 +345,12 @@
       "id": 12,
       "title": "服务健康状态",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
@@ -237,8 +358,14 @@
             {
               "type": "value",
               "options": {
-                "1": { "text": "UP", "color": "green" },
-                "0": { "text": "DOWN", "color": "red" }
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
               }
             }
           ]
@@ -250,7 +377,12 @@
           "legendFormat": "{{job}}"
         }
       ],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal" }
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "orientation": "horizontal"
+      }
     }
   ]
 }

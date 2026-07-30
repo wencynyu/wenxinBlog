@@ -1,0 +1,286 @@
+{
+  "uid": "wenxinblog-traces",
+  "title": "WenxinBlog Traces",
+  "tags": ["otel"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Span 吞吐趋势（按服务）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "opensearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "opensearch-traces"
+          },
+          "query": "*",
+          "timeField": "startTime",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "resource.service.name.keyword",
+              "settings": {
+                "size": "10",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            },
+            {
+              "id": "3",
+              "type": "date_histogram",
+              "field": "startTime",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["sum"]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "最近 Span（traceId / name / service / kind / time）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "opensearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "opensearch-traces"
+          },
+          "query": "*",
+          "timeField": "startTime",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "raw_data",
+              "settings": {
+                "size": "200"
+              }
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "droppedAttributesCount": true,
+              "droppedEventsCount": true,
+              "droppedLinksCount": true,
+              "traceState": true,
+              "status": true,
+              "instrumentationScope": true,
+              "@timestamp": true,
+              "attributes": true,
+              "resource": true,
+              "endTime": true
+            },
+            "renameByName": {
+              "traceId": "traceId",
+              "name": "operation",
+              "kind": "kind",
+              "startTime": "time"
+            },
+            "indexByName": {
+              "startTime": 0,
+              "traceId": 1,
+              "name": 2,
+              "kind": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Span 按服务分布",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "opensearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "opensearch-traces"
+          },
+          "query": "*",
+          "timeField": "startTime",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "resource.service.name.keyword",
+              "settings": {
+                "size": "10",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": false,
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
+      }
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Span 按类型分布（SERVER / CLIENT / INTERNAL）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "opensearch-traces"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "opensearch-traces"
+          },
+          "query": "*",
+          "timeField": "startTime",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "kind.keyword",
+              "settings": {
+                "size": "10",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": false,
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
+      }
+    }
+  ]
+}
