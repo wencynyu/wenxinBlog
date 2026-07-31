@@ -230,7 +230,7 @@ case "${1:-start}" in
           cd "$ROOT_DIR/services/gateway"
           export_otel_env "gateway"
           JWT_SECRET="$JWT_SECRET" nohup mvn -q -ntp -Dmaven.test.skip=true \
-            -Dspring-boot.run.jvmArguments="-Xmx256m -javaagent:${OTEL_JAR}" spring-boot:run > /tmp/svc-gateway.log 2>&1 &
+            -Dspring-boot.run.jvmArguments="-Xmx512m -javaagent:${OTEL_JAR}" spring-boot:run > /tmp/svc-gateway.log 2>&1 &
           cd "$ROOT_DIR"
           # 等待恢复
           if wait_for_port 8080 30 2>/dev/null; then
