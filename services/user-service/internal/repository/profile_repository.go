@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,10 @@ type ProfileRepositoryInterface interface {
 	Search(query string, limit, offset int) ([]model.UserProfile, int64, error)
 	IncrementViewCount(userID uuid.UUID) error
 }
+
+// ErrUserNotFound 用户不存在。懒创建 profile 前先用它确认 user 存在，
+// 避免对不存在的 user 插入 user_profiles 触发外键违约。
+var ErrUserNotFound = errors.New("user not found")
 
 type ProfileRepository struct {
 	db *sql.DB
@@ -51,7 +56,7 @@ func (r *ProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
 	var username string
 	err := r.db.QueryRow(`SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", ErrUserNotFound
 	}
 	return username, err
 }

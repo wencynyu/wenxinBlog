@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
 
 	"wenxinblog/user-service/internal/config"
 	"wenxinblog/user-service/internal/dto"
 	"wenxinblog/user-service/internal/middleware"
+	"wenxinblog/user-service/internal/repository"
 	"wenxinblog/user-service/internal/service"
 
 	"github.com/gofiber/fiber/v2"
@@ -49,6 +51,9 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 
 	profile, err := h.svc.GetProfile(id)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return c.Status(404).JSON(dto.Error("user not found"))
+		}
 		return c.Status(500).JSON(dto.Error(err.Error()))
 	}
 	if profile == nil {
