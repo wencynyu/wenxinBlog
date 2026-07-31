@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"errors"
+	"strings"
+
 	"wenxinblog/auth-service/internal/dto"
 	"wenxinblog/auth-service/internal/service"
 
@@ -20,6 +23,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: "invalid request body"})
 	}
+	if err := validateRegisterRequest(&req); err != nil {
+		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: err.Error()})
+	}
 	user, err := h.authService.Register(c.Context(), req.Email, req.Username, req.Password)
 	if err != nil {
 		if err == service.ErrUserExists {
@@ -36,6 +42,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req dto.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: "invalid request body"})
+	}
+	if err := validateLoginRequest(&req); err != nil {
+		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: err.Error()})
 	}
 	tokens, user, err := h.authService.Login(c.Context(), req.Email, req.Password)
 	if err != nil {
@@ -97,6 +106,38 @@ func (h *AuthHandler) ValidateToken(c *fiber.Ctx) error {
 		"email":  "",
 		"roles":  claims.Roles,
 	})
+}
+
+// validateRegisterRequest 校验注册请求：email 非空且含 @、username 非空、password 长度 >= 8。
+func validateRegisterRequest(req *dto.RegisterRequest) error {
+	if err := validateEmail(req.Email); err != nil {
+		return err
+	}
+	if strings.TrimSpace(req.Username) == "" {
+		return errors.New("username is required")
+	}
+	if len(req.Password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
+}
+
+// validateLoginRequest 校验登录请求：email 非空且含 @、password 非空。
+func validateLoginRequest(req *dto.LoginRequest) error {
+	if err := validateEmail(req.Email); err != nil {
+		return err
+	}
+	if req.Password == "" {
+		return errors.New("password is required")
+	}
+	return nil
+}
+
+func validateEmail(email string) error {
+	if strings.TrimSpace(email) == "" || !strings.Contains(email, "@") {
+		return errors.New("invalid email")
+	}
+	return nil
 }
 
 func RegisterRoutes(api fiber.Router, authService service.AuthServicer) {

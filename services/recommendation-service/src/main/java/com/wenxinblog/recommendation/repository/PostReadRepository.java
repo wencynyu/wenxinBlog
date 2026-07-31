@@ -43,7 +43,7 @@ public class PostReadRepository {
                 WHERE p.status = 'published' AND p.published_at IS NOT NULL
                 ORDER BY (COALESCE(p.like_count,0) * %d + COALESCE(p.view_count,0) * %d
                           + COALESCE(p.comment_count,0) * %d)
-                         * POWER(EXTRACT(EPOCH FROM (NOW() - p.published_at)), %f) DESC
+                         * POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - p.published_at)), 0), %f) DESC
                 LIMIT :limit
                 """.formatted(LIKE_W, VIEW_W, COMMENT_W, -DECAY);
         return db.sql(sql).bind("limit", limit).map((row, meta) -> mapPostWithAuthor(row)).all();

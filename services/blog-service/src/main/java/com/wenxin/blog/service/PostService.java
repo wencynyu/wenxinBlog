@@ -34,7 +34,7 @@ public class PostService {
         post.setContent(req.getContent());
         post.setSummary(req.getSummary());
         post.setCoverImage(req.getCoverImage());
-        post.setStatus(req.getStatus() != null ? req.getStatus() : "draft");
+        post.setStatus(req.getStatus() != null ? req.getStatus().toLowerCase() : "draft");
         if ("published".equalsIgnoreCase(post.getStatus())) {
             post.setPublishedAt(LocalDateTime.now());
         }
@@ -66,7 +66,7 @@ public class PostService {
             if (req.getSummary() != null) post.setSummary(req.getSummary());
             if (req.getCoverImage() != null) post.setCoverImage(req.getCoverImage());
             if (req.getStatus() != null) {
-                post.setStatus(req.getStatus());
+                post.setStatus(req.getStatus().toLowerCase());
                 if ("published".equalsIgnoreCase(req.getStatus()) && post.getPublishedAt() == null) {
                     post.setPublishedAt(LocalDateTime.now());
                 }

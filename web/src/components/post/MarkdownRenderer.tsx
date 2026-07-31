@@ -74,19 +74,23 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const [DOMPurify, setDOMPurify] = useState<any>(null);
 
   useEffect(() => {
-    import('dompurify').then((mod) => {
-      setDOMPurify(() => mod.default || mod);
-    });
+    let cancelled = false;
+    import('dompurify')
+      .then((mod) => {
+        if (!cancelled) setDOMPurify(() => mod.default || mod);
+      })
+      .catch(() => {
+        // DOMPurify 加载失败：保持空占位（fail-safe），绝不输出未净化 HTML。
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // DOMPurify 就绪前返回空占位；保证任何时刻 __html 都经过净化，首帧不含未净化 HTML。
   const html = useMemo(() => {
-    if (!content) return '';
-
-    const rawHtml = marked.parse(content) as string;
-    if (DOMPurify) {
-      return DOMPurify.sanitize(rawHtml);
-    }
-    return rawHtml;
+    if (!content || !DOMPurify) return '';
+    return DOMPurify.sanitize(marked.parse(content) as string);
   }, [content, DOMPurify]);
 
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;

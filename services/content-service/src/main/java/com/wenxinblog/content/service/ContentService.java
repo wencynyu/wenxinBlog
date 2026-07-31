@@ -4,10 +4,12 @@ import com.wenxinblog.content.entity.MediaAsset;
 import com.wenxinblog.content.repository.MediaAssetRepository;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.util.unit.DataSize;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
@@ -35,6 +37,9 @@ public class ContentService {
     @Value("${minio.endpoint:http://localhost:9000}")
     private String endpoint;
 
+    @Value("${file.upload.max-size:50MB}")
+    private DataSize maxFileSize;
+
     /**
      * 上传文件到 MinIO + 保存 metadata 到 PG。
      * FilePart → byte[]（reactive read）→ MinIO putObject（boundedElastic，blocking offload）。
@@ -50,6 +55,10 @@ public class ContentService {
                 .map(this::toByteArray)
                 .publishOn(Schedulers.boundedElastic())
                 .flatMap(bytes -> {
+                    if (bytes.length > maxFileSize.toBytes()) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "File size " + bytes.length + " exceeds limit " + maxFileSize));
+                    }
                     // Upload to MinIO
                     try {
                         minioClient.putObject(PutObjectArgs.builder()
@@ -91,8 +100,26 @@ public class ContentService {
                     if (!asset.getUserId().equals(userId)) {
                         return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner"));
                     }
-                    return mediaRepo.deleteById(id);
+                    return removeMinioObject(asset.getObjectKey())
+                            .then(mediaRepo.deleteById(id));
                 });
+    }
+
+    /** 删除 MinIO 对象（best-effort：失败仅记日志，不阻断 DB 行删除）。 */
+    private Mono<Void> removeMinioObject(String objectKey) {
+        return Mono.fromRunnable(() -> {
+                    try {
+                        minioClient.removeObject(RemoveObjectArgs.builder()
+                                .bucket(bucket)
+                                .object(objectKey)
+                                .build());
+                        log.info("Removed MinIO object {}:{}", bucket, objectKey);
+                    } catch (Exception e) {
+                        log.error("MinIO removeObject failed for {}:{}: {}", bucket, objectKey, e.getMessage());
+                    }
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .then();
     }
 
     public Flux<MediaAsset> getFilesByPost(UUID postId) {

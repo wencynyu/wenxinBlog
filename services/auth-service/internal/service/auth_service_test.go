@@ -13,12 +13,12 @@ import (
 
 // MockUserRepository is a mock implementation of UserRepository
 type MockUserRepository struct {
-	CreateFunc           func(ctx context.Context, user *model.User) error
-	FindByIDFunc         func(ctx context.Context, id string) (*model.User, error)
-	FindByEmailFunc      func(ctx context.Context, email string) (*model.User, error)
-	FindByUsernameFunc   func(ctx context.Context, username string) (*model.User, error)
-	UpdatePasswordFunc   func(ctx context.Context, id, hash string) error
-	UpdateStatusFunc     func(ctx context.Context, id, status string) error
+	CreateFunc         func(ctx context.Context, user *model.User) error
+	FindByIDFunc       func(ctx context.Context, id string) (*model.User, error)
+	FindByEmailFunc    func(ctx context.Context, email string) (*model.User, error)
+	FindByUsernameFunc func(ctx context.Context, username string) (*model.User, error)
+	UpdatePasswordFunc func(ctx context.Context, id, hash string) error
+	UpdateStatusFunc   func(ctx context.Context, id, status string) error
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -251,6 +251,17 @@ func TestRefreshToken_Success(t *testing.T) {
 	// Tokens are deterministic with same secret+claims+timestamp, just verify both are valid
 	assert.NotEmpty(t, newTokens.AccessToken)
 	assert.NotEmpty(t, newTokens.RefreshToken)
+}
+
+func TestRefreshToken_RejectsAccessToken(t *testing.T) {
+	jwtService := NewJWTService("test-secret")
+	authService := NewAuthService(nil, jwtService)
+
+	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	require.NoError(t, err)
+
+	_, err = authService.RefreshToken(tokens.AccessToken)
+	assert.Error(t, err)
 }
 
 func TestRefreshToken_Expired(t *testing.T) {

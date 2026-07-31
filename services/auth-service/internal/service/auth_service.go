@@ -98,6 +98,10 @@ func (s *AuthService) RefreshToken(token string) (*TokenPair, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 仅 refresh token 可用于刷新，access token 直接拒绝
+	if claims.TokenType != "refresh" {
+		return nil, errors.New("invalid refresh token")
+	}
 	return s.jwtService.GenerateTokenPair(claims.UserID, claims.Roles)
 }
 

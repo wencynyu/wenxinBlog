@@ -17,11 +17,11 @@ import (
 )
 
 type mockAuthService struct {
-	registerFunc     func(ctx context.Context, email, username, password string) (*model.User, error)
-	loginFunc        func(ctx context.Context, email, password string) (*service.TokenPair, *model.User, error)
+	registerFunc      func(ctx context.Context, email, username, password string) (*model.User, error)
+	loginFunc         func(ctx context.Context, email, password string) (*service.TokenPair, *model.User, error)
 	validateTokenFunc func(token string) (*service.Claims, error)
-	refreshTokenFunc func(token string) (*service.TokenPair, error)
-	getUserByIDFunc  func(ctx context.Context, id string) (*model.User, error)
+	refreshTokenFunc  func(token string) (*service.TokenPair, error)
+	getUserByIDFunc   func(ctx context.Context, id string) (*model.User, error)
 }
 
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string) (*model.User, error) {
@@ -92,7 +92,7 @@ func TestRegister_Success(t *testing.T) {
 	}
 	app := setupApp(svc)
 
-	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "123456"})
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "12345678"})
 	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req, -1)
@@ -108,7 +108,7 @@ func TestRegister_UserExists(t *testing.T) {
 	}
 	app := setupApp(svc)
 
-	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "123456"})
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "12345678"})
 	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req, -1)
@@ -124,12 +124,48 @@ func TestRegister_InternalError(t *testing.T) {
 	}
 	app := setupApp(svc)
 
-	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "123456"})
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "12345678"})
 	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, 500, resp.StatusCode)
+}
+
+func TestRegister_WeakPassword(t *testing.T) {
+	svc := &mockAuthService{}
+	app := setupApp(svc)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "test", "password": "123"})
+	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+}
+
+func TestRegister_InvalidEmail(t *testing.T) {
+	svc := &mockAuthService{}
+	app := setupApp(svc)
+
+	body, _ := json.Marshal(map[string]string{"email": "not-an-email", "username": "test", "password": "12345678"})
+	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+}
+
+func TestRegister_EmptyUsername(t *testing.T) {
+	svc := &mockAuthService{}
+	app := setupApp(svc)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "username": "", "password": "12345678"})
+	req := httptest.NewRequest("POST", "/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 func TestLogin_InvalidBody(t *testing.T) {
@@ -175,6 +211,18 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, 401, resp.StatusCode)
+}
+
+func TestLogin_InvalidEmail(t *testing.T) {
+	svc := &mockAuthService{}
+	app := setupApp(svc)
+
+	body, _ := json.Marshal(map[string]string{"email": "not-an-email", "password": "12345678"})
+	req := httptest.NewRequest("POST", "/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
 }
 
 func TestRefreshToken_Success(t *testing.T) {

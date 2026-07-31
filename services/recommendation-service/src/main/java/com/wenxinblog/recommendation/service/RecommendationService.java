@@ -49,7 +49,7 @@ public class RecommendationService {
         if (userId == null || userId.isBlank()) {
             return trendingAsFeed(size); // 匿名（无 X-User-Id）→ trending 兜底
         }
-        String cacheKey = String.format("recommend:feed:%s:%d", userId, page);
+        String cacheKey = String.format("recommend:feed:%s:%d:%d", userId, page, size);
         return cacheGetRaw(cacheKey)
                 .flatMap(json -> readJson(json, new TypeReference<List<FeedRecommendation>>() {}))
                 .switchIfEmpty(Mono.defer(() -> computeFeed(userId, size)
@@ -347,9 +347,11 @@ public class RecommendationService {
     }
 
     private void sortByHybrid(List<FeedRecommendation> items, double[] w) {
-        double maxPop = items.stream()
-                .mapToDouble(x -> x.likeCount() + x.commentCount() * 2.0)
-                .max().orElse(1.0);
+        double maxPop = Math.max(
+                items.stream()
+                        .mapToDouble(x -> x.likeCount() + x.commentCount() * 2.0)
+                        .max().orElse(0.0),
+                1.0);
         long nowMs = System.currentTimeMillis();
         items.sort(Comparator.comparingDouble((FeedRecommendation x) -> {
             double sim = x.score();

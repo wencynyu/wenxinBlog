@@ -31,7 +31,11 @@ public class SearchController {
 
         return searchService.searchBlogs(request)
                 .map(Result::success)
-                .doOnSuccess(r -> searchService.recordSearch(q).subscribe());
+                .doOnSuccess(r -> {
+                    if (page == 0 && q != null && !q.isBlank()) {
+                        searchService.recordSearch(q).subscribe();
+                    }
+                });
     }
 
     @GetMapping("/users")
@@ -42,7 +46,11 @@ public class SearchController {
 
         return searchService.searchUsers(q, page, size)
                 .map(Result::success)
-                .doOnSuccess(r -> searchService.recordSearch(q).subscribe());
+                .doOnSuccess(r -> {
+                    if (page == 0 && q != null && !q.isBlank()) {
+                        searchService.recordSearch(q).subscribe();
+                    }
+                });
     }
 
     @GetMapping("/suggest")

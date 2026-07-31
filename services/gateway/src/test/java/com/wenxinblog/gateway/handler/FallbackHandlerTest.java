@@ -11,6 +11,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.util.concurrent.TimeoutException;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class FallbackHandlerTest {
@@ -27,7 +29,7 @@ class FallbackHandlerTest {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/recommend/posts").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        RuntimeException ex = new RuntimeException("Service unavailable");
+        TimeoutException ex = new TimeoutException("Request timed out");
 
         Mono<Void> result = handler.handle(exchange, ex);
 
@@ -42,7 +44,7 @@ class FallbackHandlerTest {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/search?q=test").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        RuntimeException ex = new RuntimeException("Service unavailable");
+        TimeoutException ex = new TimeoutException("Request timed out");
 
         handler.handle(exchange, ex).block();
 
@@ -54,7 +56,7 @@ class FallbackHandlerTest {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/posts/123").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        RuntimeException ex = new RuntimeException("Service unavailable");
+        TimeoutException ex = new TimeoutException("Request timed out");
 
         handler.handle(exchange, ex).block();
 
@@ -66,7 +68,7 @@ class FallbackHandlerTest {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/unknown").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        RuntimeException ex = new RuntimeException("Service unavailable");
+        TimeoutException ex = new TimeoutException("Request timed out");
 
         handler.handle(exchange, ex).block();
 
@@ -74,7 +76,7 @@ class FallbackHandlerTest {
     }
 
     @Test
-    void testHandlesResponseStatusException() {
+    void testHandles5xxResponseStatusException() {
         MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/posts").build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
 
@@ -84,5 +86,31 @@ class FallbackHandlerTest {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
         assertEquals(MediaType.APPLICATION_JSON, exchange.getResponse().getHeaders().getContentType());
+    }
+
+    @Test
+    void testNonFallbackExceptionDelegates() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/posts").build();
+        ServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        RuntimeException ex = new RuntimeException("generic error");
+
+        // 非降级类异常应原样抛出，交由 GlobalExceptionHandler 处理
+        StepVerifier.create(handler.handle(exchange, ex))
+            .expectError(RuntimeException.class)
+            .verify();
+    }
+
+    @Test
+    void test4xxResponseStatusExceptionDelegates() {
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/v1/posts").build();
+        ServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        ResponseStatusException ex = new ResponseStatusException(HttpStatus.NOT_FOUND, "not found");
+
+        // 4xx 客户端错误不走降级路径，交由 GlobalExceptionHandler 处理
+        StepVerifier.create(handler.handle(exchange, ex))
+            .expectError(ResponseStatusException.class)
+            .verify();
     }
 }

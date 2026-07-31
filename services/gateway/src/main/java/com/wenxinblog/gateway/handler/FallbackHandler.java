@@ -13,16 +13,17 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * 熔断降级处理器
- * 处理服务不可用、超时等异常情况
+ * 处理服务不可用、超时、限流等降级场景，返回缓存兜底响应。
+ * 优先级高于 GlobalExceptionHandler：仅拦截降级类异常，
+ * 其余异常通过 Mono.error 交由 GlobalExceptionHandler 统一处理。
  */
 @Slf4j
-@Order(-1)  // 最高优先级
+@Order(-2)  // 最高优先级，先于 GlobalExceptionHandler 执行
 @Component
 public class FallbackHandler implements WebExceptionHandler {
 
@@ -30,12 +31,15 @@ public class FallbackHandler implements WebExceptionHandler {
 
     @Override
     public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
+        // 非降级类异常不拦截，交给 GlobalExceptionHandler 处理
+        if (!isFallbackException(ex)) {
+            return Mono.error(ex);
+        }
+
         ServerHttpResponse response = exchange.getResponse();
 
         if (ex instanceof ResponseStatusException) {
             response.setStatusCode(((ResponseStatusException) ex).getStatusCode());
-        } else if (ex instanceof org.springframework.web.server.ResponseStatusException) {
-            response.setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
         }
 
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
@@ -59,6 +63,19 @@ public class FallbackHandler implements WebExceptionHandler {
             log.error("Failed to write fallback response", e);
             return Mono.error(e);
         }
+    }
+
+    /**
+     * 判断是否为降级类异常（超时、熔断、限流、下游 5xx）
+     */
+    private boolean isFallbackException(Throwable ex) {
+        if (ex instanceof ResponseStatusException) {
+            return ((ResponseStatusException) ex).getStatusCode().is5xxServerError();
+        }
+        return switch (ex.getClass().getSimpleName()) {
+            case "TimeoutException", "CircuitBreakerOpenException", "RateLimitExceededException" -> true;
+            default -> false;
+        };
     }
 
     /**

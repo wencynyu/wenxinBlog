@@ -22,7 +22,7 @@ import java.util.Map;
  * 统一处理所有异常，返回标准错误格式
  */
 @Slf4j
-@Order(-2)  // 优先级低于 FallbackHandler
+@Order(-1)  // 优先级低于 FallbackHandler：降级类异常由 FallbackHandler 优先处理
 @Component
 public class GlobalExceptionHandler implements WebExceptionHandler {
 
