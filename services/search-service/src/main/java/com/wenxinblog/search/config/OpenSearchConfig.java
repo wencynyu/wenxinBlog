@@ -1,5 +1,8 @@
 package com.wenxinblog.search.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
@@ -45,7 +48,12 @@ public class OpenSearchConfig {
 
     @Bean
     public OpenSearchTransport openSearchTransport(RestClient restClient) {
-        return new RestClientTransport(restClient, new JacksonJsonpMapper());
+        // 注册 JavaTimeModule：BlogDocument 的 published_at/created_at 是 LocalDateTime，
+        // opensearch-java 默认 JacksonJsonpMapper 不认 JSR-310，date 字段反序列化会失败。
+        ObjectMapper objectMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new RestClientTransport(restClient, new JacksonJsonpMapper(objectMapper));
     }
 
     @Bean
