@@ -127,8 +127,11 @@ case "${1:-start}" in
     echo "=== Starting WenxinBlog dev environment ==="
 
     # 1. Docker 基建
+    # 只用主 compose（-f docker-compose.yml）：应用服务在 override 里是 build 定义，
+    # 但项目服务原生跑（start_service），不需要 build；直接只起基建避免 buildkit 卡住
     echo "[1/3] Docker infrastructure..."
-    docker compose up -d --pull never 2>/dev/null || docker compose up -d 2>/dev/null
+    docker compose -f docker-compose.yml up -d --pull never 2>/dev/null \
+      || docker compose -f docker-compose.yml up -d 2>/dev/null
     echo "  Docker containers up"
 
     # 2. 应用服务
