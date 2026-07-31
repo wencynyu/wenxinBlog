@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>25</java.version>
-        <opensearch.version>2.11.0</opensearch.version>
+        <elasticsearch.version>9.3.8</elasticsearch.version>
     </properties>
 
     <dependencies>
@@ -39,21 +39,15 @@
         </dependency>
 
         <dependency>
-            <groupId>org.opensearch.client</groupId>
-            <artifactId>opensearch-java</artifactId>
-            <version>2.6.0</version>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+            <version>${elasticsearch.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>org.opensearch.client</groupId>
-            <artifactId>opensearch-rest-client</artifactId>
-            <version>${opensearch.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.opensearch.client</groupId>
-            <artifactId>opensearch-rest-client-sniffer</artifactId>
-            <version>${opensearch.version}</version>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>${elasticsearch.version}</version>
         </dependency>
 
         <dependency>
@@ -95,7 +89,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!-- Jackson JSR-310：opensearch-java 的 JacksonJsonpMapper 需要它才能反序列化 LocalDateTime（published_at/created_at）-->
+        <!-- Jackson JSR-310：elasticsearch-java 的 JacksonJsonpMapper 需要它才能反序列化 LocalDateTime（published_at/created_at）-->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>

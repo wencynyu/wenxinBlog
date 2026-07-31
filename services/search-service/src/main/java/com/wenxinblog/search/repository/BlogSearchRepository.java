@@ -4,13 +4,15 @@ import com.wenxinblog.search.dto.SearchRequest;
 import com.wenxinblog.search.model.BlogDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.opensearch.client.opensearch.OpenSearchClient;
-import org.opensearch.client.opensearch._types.FieldSort;
-import org.opensearch.client.opensearch._types.SortOptions;
-import org.opensearch.client.opensearch._types.SortOrder;
-import org.opensearch.client.opensearch._types.query_dsl.*;
-import org.opensearch.client.opensearch.core.SearchResponse;
-import org.opensearch.client.opensearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldSort;
+import co.elastic.clients.elasticsearch._types.SortOptions;
+import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.*;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.core.search.HighlightField;
+import co.elastic.clients.util.NamedValue;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
@@ -22,9 +24,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class BlogSearchRepository {
 
-    private final OpenSearchClient client;
+    private final ElasticsearchClient client;
 
-    @Value("${opensearch.index.blog:wenxinblog-blog}")
+    @Value("${elasticsearch.index.blog:wenxinblog-blog}")
     private String blogIndex;
 
     public void indexBlog(BlogDocument doc) {
@@ -80,8 +82,10 @@ public class BlogSearchRepository {
                     .query(Query.of(q -> q.bool(boolBuilder.build())))
                     .sort(sortOption)
                     .highlight(h -> h
-                            .fields("title", hf -> hf.preTags("<em>").postTags("</em>"))
-                            .fields("content", hf -> hf.preTags("<em>").postTags("</em>").fragmentSize(200))
+                            .fields(
+                                    NamedValue.of("title", HighlightField.of(hf -> hf.preTags("<em>").postTags("</em>"))),
+                                    NamedValue.of("content", HighlightField.of(hf -> hf.preTags("<em>").postTags("</em>").fragmentSize(200)))
+                            )
                             .preTags("<em>")
                             .postTags("</em>")),
                     BlogDocument.class);
@@ -97,7 +101,7 @@ public class BlogSearchRepository {
                     .size(size)
                     .query(q -> q.match(m -> m
                             .field("title")
-                            .query(org.opensearch.client.opensearch._types.FieldValue.of(query))
+                            .query(co.elastic.clients.elasticsearch._types.FieldValue.of(query))
                             .fuzziness("AUTO"))),
                     BlogDocument.class);
 

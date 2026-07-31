@@ -3,10 +3,10 @@ package com.wenxinblog.search.repository;
 import com.wenxinblog.search.model.UserDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.opensearch.client.opensearch.OpenSearchClient;
-import org.opensearch.client.opensearch._types.FieldValue;
-import org.opensearch.client.opensearch.core.SearchResponse;
-import org.opensearch.client.opensearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
@@ -18,9 +18,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class UserSearchRepository {
 
-    private final OpenSearchClient client;
+    private final ElasticsearchClient client;
 
-    @Value("${opensearch.index.user:wenxinblog-user}")
+    @Value("${elasticsearch.index.user:wenxinblog-user}")
     private String userIndex;
 
     public void indexUser(UserDocument doc) {
