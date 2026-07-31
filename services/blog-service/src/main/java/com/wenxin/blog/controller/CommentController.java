@@ -30,7 +30,8 @@ public class CommentController {
     }
 
     @DeleteMapping("/comments/{id}")
-    public Mono<Result<Void>> deleteComment(@PathVariable UUID id) {
-        return commentService.deleteComment(id).thenReturn(Result.success("deleted", null));
+    public Mono<Result<Void>> deleteComment(@RequestHeader("X-User-Id") UUID userId,
+                                            @PathVariable UUID id) {
+        return commentService.deleteComment(userId, id).thenReturn(Result.success("deleted", null));
     }
 }

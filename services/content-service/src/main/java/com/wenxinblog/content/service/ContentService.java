@@ -9,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -82,8 +84,15 @@ public class ContentService {
         return mediaRepo.findById(id);
     }
 
-    public Mono<Void> deleteFile(UUID id) {
-        return mediaRepo.deleteById(id);
+    public Mono<Void> deleteFile(UUID userId, UUID id) {
+        return mediaRepo.findById(id)
+                .switchIfEmpty(Mono.empty())
+                .flatMap(asset -> {
+                    if (!asset.getUserId().equals(userId)) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner"));
+                    }
+                    return mediaRepo.deleteById(id);
+                });
     }
 
     public Flux<MediaAsset> getFilesByPost(UUID postId) {

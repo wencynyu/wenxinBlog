@@ -68,6 +68,12 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		return c.Status(400).JSON(dto.Error("invalid user id"))
 	}
 
+	// IDOR 防护：只允许更新本人资料（X-User-Id 由网关注入到 Locals("userID")）
+	callerID, ok := c.Locals("userID").(string)
+	if !ok || callerID != c.Params("id") {
+		return c.Status(403).JSON(dto.Error("forbidden: cannot modify other user's profile"))
+	}
+
 	var req dto.UpdateProfileRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(dto.Error("invalid request body"))

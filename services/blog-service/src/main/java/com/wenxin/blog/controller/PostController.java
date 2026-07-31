@@ -30,14 +30,16 @@ public class PostController {
     }
 
     @PutMapping("/{id}")
-    public Mono<Result<Post>> updatePost(@PathVariable UUID id, @RequestBody PostRequest req) {
-        return postService.updatePost(id, req).map(post -> Result.success(post))
+    public Mono<Result<Post>> updatePost(@RequestHeader("X-User-Id") UUID userId,
+                                         @PathVariable UUID id, @RequestBody PostRequest req) {
+        return postService.updatePost(userId, id, req).map(post -> Result.success(post))
             .switchIfEmpty(Mono.just(Result.error(404, "Post not found")));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<Result<Void>> deletePost(@PathVariable UUID id) {
-        return postService.deletePost(id).thenReturn(Result.success("deleted", null));
+    public Mono<Result<Void>> deletePost(@RequestHeader("X-User-Id") UUID userId,
+                                         @PathVariable UUID id) {
+        return postService.deletePost(userId, id).thenReturn(Result.success("deleted", null));
     }
 
     @GetMapping
@@ -62,7 +64,8 @@ public class PostController {
     }
 
     @PostMapping("/{id}/publish")
-    public Mono<Result<Post>> publishPost(@PathVariable UUID id) {
-        return postService.publishPost(id).then(postService.getPost(id)).map(Result::success);
+    public Mono<Result<Post>> publishPost(@RequestHeader("X-User-Id") UUID userId,
+                                          @PathVariable UUID id) {
+        return postService.publishPost(userId, id).then(postService.getPost(id)).map(Result::success);
     }
 }

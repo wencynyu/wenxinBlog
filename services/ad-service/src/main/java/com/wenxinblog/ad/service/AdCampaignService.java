@@ -7,7 +7,9 @@ import com.wenxinblog.ad.repository.AdCampaignRepository;
 import com.wenxinblog.ad.repository.AdEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -44,8 +46,10 @@ public class AdCampaignService {
         return campaignRepo.save(campaign);
     }
 
-    public Mono<AdCampaign> updateCampaign(Long id, CampaignRequest req) {
+    public Mono<AdCampaign> updateCampaign(String advertiserId, Long id, CampaignRequest req) {
         return campaignRepo.findById(id)
+                .filter(c -> advertiserId != null && c.getAdvertiserId().equals(advertiserId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner")))
                 .flatMap(campaign -> {
                     if (req.name() != null) campaign.setName(req.name());
                     if (req.description() != null) campaign.setDescription(req.description());
@@ -61,8 +65,10 @@ public class AdCampaignService {
                 });
     }
 
-    public Mono<AdCampaign> getCampaign(Long id) {
-        return campaignRepo.findById(id);
+    public Mono<AdCampaign> getCampaign(String advertiserId, Long id) {
+        return campaignRepo.findById(id)
+                .filter(c -> advertiserId != null && c.getAdvertiserId().equals(advertiserId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner")));
     }
 
     public Flux<AdCampaign> listCampaigns(String advertiserId, String status) {
@@ -74,8 +80,10 @@ public class AdCampaignService {
         return campaignRepo.findAll();
     }
 
-    public Mono<AdCampaign> pauseCampaign(Long id) {
+    public Mono<AdCampaign> pauseCampaign(String advertiserId, Long id) {
         return campaignRepo.findById(id)
+                .filter(c -> advertiserId != null && c.getAdvertiserId().equals(advertiserId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner")))
                 .flatMap(campaign -> {
                     campaign.setStatus("PAUSED");
                     campaign.setUpdatedAt(LocalDateTime.now());
@@ -83,8 +91,10 @@ public class AdCampaignService {
                 });
     }
 
-    public Mono<AdCampaign> activateCampaign(Long id) {
+    public Mono<AdCampaign> activateCampaign(String advertiserId, Long id) {
         return campaignRepo.findById(id)
+                .filter(c -> advertiserId != null && c.getAdvertiserId().equals(advertiserId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner")))
                 .flatMap(campaign -> {
                     if (campaign.getBudget().compareTo(BigDecimal.ZERO) <= 0) {
                         return Mono.error(new IllegalArgumentException("Insufficient budget"));
@@ -96,8 +106,10 @@ public class AdCampaignService {
                 });
     }
 
-    public Mono<CampaignStats> getCampaignStats(Long id) {
+    public Mono<CampaignStats> getCampaignStats(String advertiserId, Long id) {
         return campaignRepo.findById(id)
+                .filter(c -> advertiserId != null && c.getAdvertiserId().equals(advertiserId))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the owner")))
                 .flatMap(campaign -> eventRepo.getMetrics(id)
                         .map(metrics -> new CampaignStats(
                                 metrics.getImpressions(),

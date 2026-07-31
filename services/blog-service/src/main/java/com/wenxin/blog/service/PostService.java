@@ -11,6 +11,8 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,8 +55,12 @@ public class PostService {
                 });
     }
 
-    public Mono<Post> updatePost(UUID id, PostRequest req) {
+    public Mono<Post> updatePost(UUID userId, UUID id, PostRequest req) {
         return postRepository.findById(id).flatMap(post -> {
+            if (!post.getAuthorId().equals(userId)) {
+                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+            }
+
             if (req.getTitle() != null) post.setTitle(req.getTitle());
             if (req.getContent() != null) post.setContent(req.getContent());
             if (req.getSummary() != null) post.setSummary(req.getSummary());
@@ -90,9 +96,15 @@ public class PostService {
                 .flatMap(this::fillAuthorAndTags);
     }
 
-    public Mono<Void> deletePost(UUID id) {
-        return postRepository.deleteById(id)
-                .doOnSuccess(v -> blogEventPublisher.publishDelete(id.toString()));
+    public Mono<Void> deletePost(UUID userId, UUID id) {
+        return postRepository.findById(id)
+                .flatMap(post -> {
+                    if (!post.getAuthorId().equals(userId)) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+                    }
+                    return postRepository.deleteById(id)
+                            .doOnSuccess(v -> blogEventPublisher.publishDelete(id.toString()));
+                });
     }
 
     /**
@@ -228,8 +240,11 @@ public class PostService {
                 .flatMapSequential(this::fillAuthorAndTags);
     }
 
-    public Mono<Void> publishPost(UUID id) {
+    public Mono<Void> publishPost(UUID userId, UUID id) {
         return postRepository.findById(id).flatMap(post -> {
+            if (!post.getAuthorId().equals(userId)) {
+                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+            }
             post.setStatus("published");
             post.setPublishedAt(LocalDateTime.now());
             post.setUpdatedAt(LocalDateTime.now());

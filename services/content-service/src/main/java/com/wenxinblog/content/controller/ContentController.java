@@ -37,8 +37,9 @@ public class ContentController {
     }
 
     @DeleteMapping("/{id}")
-    public Mono<Result<Void>> deleteFile(@PathVariable UUID id) {
-        return contentService.deleteFile(id).thenReturn(Result.success(null));
+    public Mono<Result<Void>> deleteFile(@RequestHeader("X-User-Id") UUID userId,
+                                         @PathVariable UUID id) {
+        return contentService.deleteFile(userId, id).thenReturn(Result.success(null));
     }
 
     @GetMapping("/post/{postId}")

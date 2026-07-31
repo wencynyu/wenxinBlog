@@ -5,7 +5,9 @@ import com.wenxin.blog.entity.Comment;
 import com.wenxin.blog.repository.CommentRepository;
 import com.wenxin.blog.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
@@ -42,9 +44,12 @@ public class CommentService {
         return commentRepository.findByParentIdOrderByCreatedAtAsc(parentId);
     }
 
-    public Mono<Void> deleteComment(UUID id) {
-        return commentRepository.findById(id).flatMap(comment ->
-            commentRepository.delete(comment).then()
-        );
+    public Mono<Void> deleteComment(UUID userId, UUID id) {
+        return commentRepository.findById(id).flatMap(comment -> {
+            if (!comment.getAuthorId().equals(userId)) {
+                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+            }
+            return commentRepository.delete(comment).then();
+        });
     }
 }
