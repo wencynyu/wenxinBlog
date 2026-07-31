@@ -12,11 +12,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
-import co.elastic.clients.elasticsearch.core.search.TotalHits;
-import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchPage;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ReactiveZSetOperations;
 import reactor.core.publisher.Flux;
@@ -68,14 +65,13 @@ class SearchServiceTest {
                 .publishedAt(LocalDateTime.parse("2024-01-01T12:00:00"))
                 .build();
 
-        Hit<BlogDocument> hit = createMockHit(doc, 2.5, Map.of(
+        SearchHit<BlogDocument> hit = createMockHit(doc, 2.5f, Map.of(
                 "title", List.of("<em>Test</em> Blog"),
                 "content", List.of("Test content with <em>query</em>")
         ));
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(hit), 1L);
 
-        SearchResponse<BlogDocument> response = createMockSearchResponse(List.of(hit), 1L);
-
-        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(response);
+        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(page));
 
         StepVerifier.create(searchService.searchBlogs(request))
                 .expectNextMatches(result ->
@@ -92,9 +88,8 @@ class SearchServiceTest {
     void searchBlogs_EmptyResult_ShouldReturnEmptyPageResult() {
         SearchRequest request = new SearchRequest("no results", 0, 10, "relevance", null, null, null);
 
-        SearchResponse<BlogDocument> response = createMockSearchResponse(List.of(), 0L);
-
-        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(response);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(page));
 
         StepVerifier.create(searchService.searchBlogs(request))
                 .expectNextMatches(result ->
@@ -114,14 +109,13 @@ class SearchServiceTest {
                 .authorName("Author")
                 .build();
 
-        Hit<BlogDocument> hit = createMockHit(doc, 1.0, Map.of(
+        SearchHit<BlogDocument> hit = createMockHit(doc, 1.0f, Map.of(
                 "title", List.of("<em>Highlighted</em> Title"),
                 "content", List.of("Content with <em>highlighted</em> text")
         ));
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(hit), 1L);
 
-        SearchResponse<BlogDocument> response = createMockSearchResponse(List.of(hit), 1L);
-
-        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(response);
+        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(page));
 
         StepVerifier.create(searchService.searchBlogs(request))
                 .expectNextMatches(result ->
@@ -143,11 +137,10 @@ class SearchServiceTest {
                 .postCount(50)
                 .build();
 
-        Hit<UserDocument> hit = createMockHit(doc, 1.5);
+        SearchHit<UserDocument> hit = createMockHit(doc, 1.5f, null);
+        SearchPage<UserDocument> page = createMockSearchPage(List.of(hit), 1L);
 
-        SearchResponse<UserDocument> response = createMockSearchResponse(List.of(hit), 1L);
-
-        when(userRepo.searchUsers(eq("test"), eq(0), eq(10))).thenReturn(response);
+        when(userRepo.searchUsers(eq("test"), eq(0), eq(10))).thenReturn(Mono.just(page));
 
         StepVerifier.create(searchService.searchUsers("test", 0, 10))
                 .expectNextMatches(result ->
@@ -161,7 +154,8 @@ class SearchServiceTest {
 
     @Test
     void suggest_WithBlogType_ShouldReturnBlogSuggestions() {
-        when(blogRepo.suggestBlog(eq("test"), eq(10))).thenReturn(List.of("Test Blog 1", "Test Blog 2"));
+        when(blogRepo.suggestBlog(eq("test"), eq(10)))
+                .thenReturn(Flux.just("Test Blog 1", "Test Blog 2"));
 
         StepVerifier.create(searchService.suggest("test", "blog"))
                 .expectNextMatches(suggestions ->
@@ -177,7 +171,8 @@ class SearchServiceTest {
 
     @Test
     void suggest_WithUserType_ShouldReturnUserSuggestions() {
-        when(userRepo.suggestUsers(eq("test"), eq(10))).thenReturn(List.of("User One", "User Two"));
+        when(userRepo.suggestUsers(eq("test"), eq(10)))
+                .thenReturn(Flux.just("User One", "User Two"));
 
         StepVerifier.create(searchService.suggest("test", "user"))
                 .expectNextMatches(suggestions ->
@@ -240,34 +235,6 @@ class SearchServiceTest {
     }
 
     @Test
-    void searchBlogs_WithNullDocument_ShouldSkipNullDocuments() {
-        SearchRequest request = new SearchRequest("test", 0, 10, "relevance", null, null, null);
-
-        Hit<BlogDocument> nullHit = mock(Hit.class);
-        when(nullHit.source()).thenReturn(null);
-
-        BlogDocument validDoc = BlogDocument.builder()
-                .id("2")
-                .title("Valid Doc")
-                .authorId("author1")
-                .authorName("Author")
-                .build();
-
-        Hit<BlogDocument> validHit = createMockHit(validDoc, 1.0, Map.of());
-
-        SearchResponse<BlogDocument> response = createMockSearchResponse(List.of(nullHit, validHit), 2L);
-
-        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(response);
-
-        StepVerifier.create(searchService.searchBlogs(request))
-                .expectNextMatches(result ->
-                        result.total() == 2 &&
-                                result.items().size() == 1 &&
-                                result.items().get(0).id().equals("2"))
-                .verifyComplete();
-    }
-
-    @Test
     void searchBlogs_WithoutHighlights_ShouldReturnEmptyHighlightLists() {
         SearchRequest request = new SearchRequest("test", 0, 10, "relevance", null, null, null);
 
@@ -278,11 +245,10 @@ class SearchServiceTest {
                 .authorName("Author")
                 .build();
 
-        Hit<BlogDocument> hit = createMockHit(doc, 1.0, null);
+        SearchHit<BlogDocument> hit = createMockHit(doc, 1.0f, null);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(hit), 1L);
 
-        SearchResponse<BlogDocument> response = createMockSearchResponse(List.of(hit), 1L);
-
-        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(response);
+        when(blogRepo.searchBlogs(any(SearchRequest.class))).thenReturn(Mono.just(page));
 
         StepVerifier.create(searchService.searchBlogs(request))
                 .expectNextMatches(result ->
@@ -304,39 +270,21 @@ class SearchServiceTest {
                 .verifyComplete();
     }
 
-    private <T> Hit<T> createMockHit(T source, double score) {
-        return createMockHit(source, score, null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> Hit<T> createMockHit(T source, double score, Map<String, List<String>> highlights) {
-        Hit<T> hit = mock(Hit.class);
-        when(hit.source()).thenReturn(source);
-        when(hit.score()).thenReturn(score);
-
-        if (highlights != null) {
-            when(hit.highlight()).thenReturn(highlights);
-        } else {
-            when(hit.highlight()).thenReturn(null);
-        }
-
+    private <T> SearchHit<T> createMockHit(T source, float score, Map<String, List<String>> highlights) {
+        @SuppressWarnings("unchecked")
+        SearchHit<T> hit = mock(SearchHit.class);
+        when(hit.getContent()).thenReturn(source);
+        when(hit.getScore()).thenReturn(score);
+        when(hit.getHighlightFields()).thenReturn(highlights != null ? highlights : Map.of());
         return hit;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> SearchResponse<T> createMockSearchResponse(List<Hit<T>> hits, long total) {
-        SearchResponse<T> response = mock(SearchResponse.class);
-        HitsMetadata<T> hitsMetadata = mock(HitsMetadata.class);
-
-        when(hitsMetadata.hits()).thenReturn(hits);
-
-        TotalHits totalHits = mock(TotalHits.class);
-        when(totalHits.value()).thenReturn(total);
-        when(totalHits.relation()).thenReturn(TotalHitsRelation.Eq);
-
-        when(hitsMetadata.total()).thenReturn(totalHits);
-        when(response.hits()).thenReturn(hitsMetadata);
-
-        return response;
+    private <T> SearchPage<T> createMockSearchPage(List<SearchHit<T>> hits, long total) {
+        @SuppressWarnings("unchecked")
+        SearchPage<T> page = mock(SearchPage.class);
+        when(page.getContent()).thenReturn(hits);
+        when(page.getTotalElements()).thenReturn(total);
+        when(page.getTotalPages()).thenReturn(hits.isEmpty() ? 0 : 1);
+        return page;
     }
 }

@@ -1,10 +1,14 @@
 package com.wenxinblog.search.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,26 +17,34 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Document(indexName = "wenxinblog-blog")
 public class BlogDocument {
+    @Id
     private String id;
+    @Field(type = FieldType.Text)
     private String title;
+    @Field(type = FieldType.Text)
     private String content;
+    @Field(type = FieldType.Text)
     private String summary;
-    @JsonProperty("author_id")
+    @Field(name = "author_id", type = FieldType.Keyword)
     private String authorId;
-    @JsonProperty("author_name")
+    @Field(name = "author_name", type = FieldType.Keyword)
     private String authorName;
+    @Field(type = FieldType.Keyword)
     private List<String> tags;
+    @Field(type = FieldType.Keyword)
     private String category;
+    @Field(type = FieldType.Keyword)
     private String status;
-    @JsonProperty("view_count")
+    @Field(name = "view_count", type = FieldType.Integer)
     private int viewCount;
-    @JsonProperty("like_count")
+    @Field(name = "like_count", type = FieldType.Integer)
     private int likeCount;
-    @JsonProperty("comment_count")
+    @Field(name = "comment_count", type = FieldType.Integer)
     private int commentCount;
-    @JsonProperty("published_at")
+    @Field(name = "published_at", type = FieldType.Date, format = DateFormat.date_hour_minute_second)
     private LocalDateTime publishedAt;
-    @JsonProperty("created_at")
+    @Field(name = "created_at", type = FieldType.Date, format = DateFormat.date_hour_minute_second)
     private LocalDateTime createdAt;
 }

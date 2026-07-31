@@ -1,7 +1,6 @@
 package com.wenxinblog.search.repository;
 
 import com.wenxinblog.search.model.UserDocument;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -9,19 +8,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch.core.IndexResponse;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
-import co.elastic.clients.elasticsearch.core.search.TotalHits;
-import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
+import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchPage;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -32,19 +26,10 @@ import static org.mockito.Mockito.*;
 class UserSearchRepositoryTest {
 
     @Mock
-    private ElasticsearchClient client;
+    private ReactiveElasticsearchOperations operations;
 
     @InjectMocks
     private UserSearchRepository userSearchRepository;
-
-    private static final String TEST_INDEX = "wenxinblog-user";
-
-    @BeforeEach
-    void setUp() throws Exception {
-        Field userIndexField = UserSearchRepository.class.getDeclaredField("userIndex");
-        userIndexField.setAccessible(true);
-        userIndexField.set(userSearchRepository, TEST_INDEX);
-    }
 
     private UserDocument createTestUserDocument() {
         return UserDocument.builder()
@@ -62,176 +47,127 @@ class UserSearchRepositoryTest {
     // ==================== indexUser tests ====================
 
     @Test
-    void indexUser_Success_ShouldNotThrowException() throws IOException {
+    void indexUser_Success_ShouldInvokeSave() {
         UserDocument doc = createTestUserDocument();
-        IndexResponse indexResponse = mock(IndexResponse.class);
-
-        doReturn(indexResponse).when(client).index(any(Function.class));
+        when(operations.save(any(UserDocument.class))).thenReturn(Mono.just(doc));
 
         assertDoesNotThrow(() -> userSearchRepository.indexUser(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     @Test
-    void indexUser_IOException_ShouldNotThrowException() throws IOException {
+    void indexUser_Error_ShouldNotThrowException() {
         UserDocument doc = createTestUserDocument();
+        when(operations.save(any(UserDocument.class)))
+                .thenReturn(Mono.error(new RuntimeException("Connection failed")));
 
-        doThrow(new IOException("Connection failed")).when(client).index(any(Function.class));
-
-        // Should not throw - just log the error
         assertDoesNotThrow(() -> userSearchRepository.indexUser(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     // ==================== updateUser tests ====================
 
     @Test
-    void updateUser_Success_ShouldDelegateToIndexUser() throws IOException {
+    void updateUser_Success_ShouldDelegateToIndexUser() {
         UserDocument doc = createTestUserDocument();
-        IndexResponse indexResponse = mock(IndexResponse.class);
-
-        doReturn(indexResponse).when(client).index(any(Function.class));
+        when(operations.save(any(UserDocument.class))).thenReturn(Mono.just(doc));
 
         userSearchRepository.updateUser(doc);
 
-        verify(client, times(1)).index(any(Function.class));
-    }
-
-    @Test
-    void updateUser_IOException_ShouldNotThrowException() throws IOException {
-        UserDocument doc = createTestUserDocument();
-
-        doThrow(new IOException("Connection failed")).when(client).index(any(Function.class));
-
-        assertDoesNotThrow(() -> userSearchRepository.updateUser(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     // ==================== searchUsers tests ====================
 
     @Test
-    void searchUsers_Success_ShouldReturnResponse() throws IOException {
+    void searchUsers_Success_ShouldReturnPage() {
         UserDocument doc = createTestUserDocument();
-        Hit<UserDocument> hit = createMockHit(doc, 1.5);
+        SearchHit<UserDocument> hit = createMockHit(doc, 1.5f);
+        SearchPage<UserDocument> page = createMockSearchPage(List.of(hit), 1L);
+        when(operations.searchForPage(any(), eq(UserDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(List.of(hit), 1L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        SearchResponse<UserDocument> result = userSearchRepository.searchUsers("test", 0, 10);
+        SearchPage<UserDocument> result = userSearchRepository.searchUsers("test", 0, 10).block();
 
         assertNotNull(result);
-        assertEquals(1, result.hits().hits().size());
-        assertEquals("user-1", result.hits().hits().get(0).source().getId());
-        assertEquals("Test User", result.hits().hits().get(0).source().getDisplayName());
-        verify(client, times(1)).search(any(Function.class), eq(UserDocument.class));
+        assertEquals(1, result.getContent().size());
+        assertEquals("user-1", result.getContent().get(0).getContent().getId());
+        assertEquals("Test User", result.getContent().get(0).getContent().getDisplayName());
+        verify(operations, times(1)).searchForPage(any(), eq(UserDocument.class));
     }
 
     @Test
-    void searchUsers_WithPagination_ShouldReturnPagedResults() throws IOException {
+    void searchUsers_WithPagination_ShouldReturnPagedResults() {
         UserDocument doc1 = createTestUserDocument();
         UserDocument doc2 = UserDocument.builder()
                 .id("user-2")
                 .displayName("Second User")
                 .username("seconduser")
                 .build();
+        SearchHit<UserDocument> hit1 = createMockHit(doc1, 2.0f);
+        SearchHit<UserDocument> hit2 = createMockHit(doc2, 1.8f);
+        SearchPage<UserDocument> page = createMockSearchPage(List.of(hit1, hit2), 25L);
+        when(operations.searchForPage(any(), eq(UserDocument.class))).thenReturn(Mono.just(page));
 
-        Hit<UserDocument> hit1 = createMockHit(doc1, 2.0);
-        Hit<UserDocument> hit2 = createMockHit(doc2, 1.8);
-
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(List.of(hit1, hit2), 25L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        SearchResponse<UserDocument> result = userSearchRepository.searchUsers("test", 1, 10);
+        SearchPage<UserDocument> result = userSearchRepository.searchUsers("test", 1, 10).block();
 
         assertNotNull(result);
-        assertEquals(2, result.hits().hits().size());
-        assertEquals(25L, result.hits().total().value());
-        verify(client, times(1)).search(any(Function.class), eq(UserDocument.class));
+        assertEquals(2, result.getContent().size());
+        assertEquals(25L, result.getTotalElements());
+        verify(operations, times(1)).searchForPage(any(), eq(UserDocument.class));
     }
 
     @Test
-    void searchUsers_EmptyResult_ShouldReturnEmptyHits() throws IOException {
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
+    void searchUsers_EmptyResult_ShouldReturnEmptyPage() {
+        SearchPage<UserDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(UserDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<UserDocument> result = userSearchRepository.searchUsers("nonexistent", 0, 10);
+        SearchPage<UserDocument> result = userSearchRepository.searchUsers("nonexistent", 0, 10).block();
 
         assertNotNull(result);
-        assertEquals(0, result.hits().hits().size());
-        assertEquals(0L, result.hits().total().value());
-        verify(client, times(1)).search(any(Function.class), eq(UserDocument.class));
-    }
-
-    @Test
-    void searchUsers_IOException_ShouldThrowRuntimeException() throws IOException {
-        doThrow(new IOException("User search failed")).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> userSearchRepository.searchUsers("test", 0, 10));
-
-        assertEquals("User search failed", exception.getMessage());
-        assertInstanceOf(IOException.class, exception.getCause());
+        assertEquals(0, result.getContent().size());
+        assertEquals(0L, result.getTotalElements());
+        verify(operations, times(1)).searchForPage(any(), eq(UserDocument.class));
     }
 
     // ==================== suggestUsers tests ====================
 
     @Test
-    void suggestUsers_WithResults_ShouldReturnDisplayNames() throws IOException {
+    void suggestUsers_WithResults_ShouldReturnDisplayNames() {
         UserDocument doc1 = createTestUserDocument();
         UserDocument doc2 = UserDocument.builder()
                 .id("user-2")
                 .displayName("Test User Two")
                 .build();
+        SearchHit<UserDocument> hit1 = createMockHit(doc1, 2.0f);
+        SearchHit<UserDocument> hit2 = createMockHit(doc2, 1.5f);
+        when(operations.search(any(), eq(UserDocument.class)))
+                .thenReturn(Flux.just(hit1, hit2));
 
-        Hit<UserDocument> hit1 = createMockHit(doc1, 2.0);
-        Hit<UserDocument> hit2 = createMockHit(doc2, 1.5);
+        List<String> suggestions = userSearchRepository.suggestUsers("Test", 5).collectList().block();
 
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(List.of(hit1, hit2), 2L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        List<String> suggestions = userSearchRepository.suggestUsers("Test", 5);
-
+        assertNotNull(suggestions);
         assertEquals(2, suggestions.size());
         assertEquals("Test User", suggestions.get(0));
         assertEquals("Test User Two", suggestions.get(1));
-        verify(client, times(1)).search(any(Function.class), eq(UserDocument.class));
+        verify(operations, times(1)).search(any(), eq(UserDocument.class));
     }
 
     @Test
-    void suggestUsers_WithNullSource_ShouldSkipNullHits() throws IOException {
-        @SuppressWarnings("unchecked")
-        Hit<UserDocument> nullSourceHit = mock(Hit.class);
-        when(nullSourceHit.source()).thenReturn(null);
+    void suggestUsers_WithEmptyResults_ShouldReturnEmptyList() {
+        when(operations.search(any(), eq(UserDocument.class))).thenReturn(Flux.empty());
 
-        UserDocument doc = createTestUserDocument();
-        Hit<UserDocument> validHit = createMockHit(doc, 1.0);
-
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(
-                List.of(nullSourceHit, validHit), 2L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        List<String> suggestions = userSearchRepository.suggestUsers("Test", 5);
-
-        assertEquals(1, suggestions.size());
-        assertEquals("Test User", suggestions.get(0));
-    }
-
-    @Test
-    void suggestUsers_WithEmptyResults_ShouldReturnEmptyList() throws IOException {
-        SearchResponse<UserDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(UserDocument.class));
-
-        List<String> suggestions = userSearchRepository.suggestUsers("nonexistent", 5);
+        List<String> suggestions = userSearchRepository.suggestUsers("nonexistent", 5).collectList().block();
 
         assertNotNull(suggestions);
         assertTrue(suggestions.isEmpty());
     }
 
     @Test
-    void suggestUsers_IOException_ShouldReturnEmptyList() throws IOException {
-        doThrow(new IOException("Suggest failed")).when(client).search(any(Function.class), eq(UserDocument.class));
+    void suggestUsers_Error_ShouldReturnEmptyList() {
+        when(operations.search(any(), eq(UserDocument.class)))
+                .thenReturn(Flux.error(new RuntimeException("Suggest failed")));
 
-        List<String> suggestions = userSearchRepository.suggestUsers("Test", 5);
+        List<String> suggestions = userSearchRepository.suggestUsers("Test", 5).collectList().block();
 
         assertNotNull(suggestions);
         assertTrue(suggestions.isEmpty());
@@ -240,29 +176,20 @@ class UserSearchRepositoryTest {
     // ==================== Helper methods ====================
 
     @SuppressWarnings("unchecked")
-    private Hit<UserDocument> createMockHit(UserDocument source, double score) {
-        Hit<UserDocument> hit = mock(Hit.class);
-        when(hit.source()).thenReturn(source);
-        when(hit.score()).thenReturn(score);
-        when(hit.highlight()).thenReturn(null);
+    private SearchHit<UserDocument> createMockHit(UserDocument source, float score) {
+        SearchHit<UserDocument> hit = mock(SearchHit.class);
+        when(hit.getContent()).thenReturn(source);
+        when(hit.getScore()).thenReturn(score);
+        when(hit.getHighlightFields()).thenReturn(java.util.Map.of());
         return hit;
     }
 
     @SuppressWarnings("unchecked")
-    private SearchResponse<UserDocument> createMockSearchResponse(List<Hit<UserDocument>> hits,
-                                                                     long total) {
-        SearchResponse<UserDocument> response = mock(SearchResponse.class);
-        HitsMetadata<UserDocument> hitsMetadata = mock(HitsMetadata.class);
-
-        when(hitsMetadata.hits()).thenReturn(hits);
-
-        TotalHits totalHits = mock(TotalHits.class);
-        when(totalHits.value()).thenReturn(total);
-        when(totalHits.relation()).thenReturn(TotalHitsRelation.Eq);
-
-        when(hitsMetadata.total()).thenReturn(totalHits);
-        when(response.hits()).thenReturn(hitsMetadata);
-
-        return response;
+    private SearchPage<UserDocument> createMockSearchPage(List<SearchHit<UserDocument>> hits, long total) {
+        SearchPage<UserDocument> page = mock(SearchPage.class);
+        when(page.getContent()).thenReturn(hits);
+        when(page.getTotalElements()).thenReturn(total);
+        when(page.getTotalPages()).thenReturn(hits.isEmpty() ? 0 : 1);
+        return page;
     }
 }

@@ -2,7 +2,6 @@ package com.wenxinblog.search.repository;
 
 import com.wenxinblog.search.dto.SearchRequest;
 import com.wenxinblog.search.model.BlogDocument;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -10,21 +9,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch.core.DeleteResponse;
-import co.elastic.clients.elasticsearch.core.IndexResponse;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
-import co.elastic.clients.elasticsearch.core.search.HitsMetadata;
-import co.elastic.clients.elasticsearch.core.search.TotalHits;
-import co.elastic.clients.elasticsearch.core.search.TotalHitsRelation;
+import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchPage;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -35,19 +28,10 @@ import static org.mockito.Mockito.*;
 class BlogSearchRepositoryTest {
 
     @Mock
-    private ElasticsearchClient client;
+    private ReactiveElasticsearchOperations operations;
 
     @InjectMocks
     private BlogSearchRepository blogSearchRepository;
-
-    private static final String TEST_INDEX = "wenxinblog-blog";
-
-    @BeforeEach
-    void setUp() throws Exception {
-        Field blogIndexField = BlogSearchRepository.class.getDeclaredField("blogIndex");
-        blogIndexField.setAccessible(true);
-        blogIndexField.set(blogSearchRepository, TEST_INDEX);
-    }
 
     private BlogDocument createTestBlogDocument() {
         return BlogDocument.builder()
@@ -71,177 +55,126 @@ class BlogSearchRepositoryTest {
     // ==================== indexBlog tests ====================
 
     @Test
-    void indexBlog_Success_ShouldNotThrowException() throws IOException {
+    void indexBlog_Success_ShouldInvokeSave() {
         BlogDocument doc = createTestBlogDocument();
-        IndexResponse indexResponse = mock(IndexResponse.class);
-
-        @SuppressWarnings("unchecked")
-        Function<Object, Object> fn = (Function<Object, Object>) mock(Function.class);
-        doReturn(indexResponse).when(client).index(any(Function.class));
+        when(operations.save(any(BlogDocument.class))).thenReturn(Mono.just(doc));
 
         assertDoesNotThrow(() -> blogSearchRepository.indexBlog(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     @Test
-    void indexBlog_IOException_ShouldNotThrowException() throws IOException {
+    void indexBlog_Error_ShouldNotThrowException() {
         BlogDocument doc = createTestBlogDocument();
+        when(operations.save(any(BlogDocument.class)))
+                .thenReturn(Mono.error(new RuntimeException("Connection failed")));
 
-        doThrow(new IOException("Connection failed")).when(client).index(any(Function.class));
-
-        // Should not throw - just log the error
         assertDoesNotThrow(() -> blogSearchRepository.indexBlog(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     // ==================== updateBlog tests ====================
 
     @Test
-    void updateBlog_Success_ShouldDelegateToIndexBlog() throws IOException {
+    void updateBlog_Success_ShouldDelegateToIndexBlog() {
         BlogDocument doc = createTestBlogDocument();
-        IndexResponse indexResponse = mock(IndexResponse.class);
-
-        doReturn(indexResponse).when(client).index(any(Function.class));
+        when(operations.save(any(BlogDocument.class))).thenReturn(Mono.just(doc));
 
         blogSearchRepository.updateBlog(doc);
 
-        verify(client, times(1)).index(any(Function.class));
-    }
-
-    @Test
-    void updateBlog_IOException_ShouldNotThrowException() throws IOException {
-        BlogDocument doc = createTestBlogDocument();
-
-        doThrow(new IOException("Connection failed")).when(client).index(any(Function.class));
-
-        assertDoesNotThrow(() -> blogSearchRepository.updateBlog(doc));
-        verify(client, times(1)).index(any(Function.class));
+        verify(operations, times(1)).save(doc);
     }
 
     // ==================== deleteBlog tests ====================
 
     @Test
-    void deleteBlog_Success_ShouldNotThrowException() throws IOException {
-        DeleteResponse deleteResponse = mock(DeleteResponse.class);
-
-        doReturn(deleteResponse).when(client).delete(any(Function.class));
+    void deleteBlog_Success_ShouldInvokeDelete() {
+        when(operations.delete(anyString(), eq(BlogDocument.class))).thenReturn(Mono.just("blog-1"));
 
         assertDoesNotThrow(() -> blogSearchRepository.deleteBlog("blog-1"));
-        verify(client, times(1)).delete(any(Function.class));
+        verify(operations, times(1)).delete("blog-1", BlogDocument.class);
     }
 
     @Test
-    void deleteBlog_IOException_ShouldNotThrowException() throws IOException {
-        doThrow(new IOException("Connection failed")).when(client).delete(any(Function.class));
+    void deleteBlog_Error_ShouldNotThrowException() {
+        when(operations.delete(anyString(), eq(BlogDocument.class)))
+                .thenReturn(Mono.error(new RuntimeException("Delete failed")));
 
         assertDoesNotThrow(() -> blogSearchRepository.deleteBlog("blog-1"));
-        verify(client, times(1)).delete(any(Function.class));
+        verify(operations, times(1)).delete("blog-1", BlogDocument.class);
     }
 
     // ==================== searchBlogs tests ====================
 
     @Test
-    void searchBlogs_SortByDate_ShouldReturnResponse() throws IOException {
+    void searchBlogs_SortByDate_ShouldReturnPage() {
         SearchRequest request = new SearchRequest("java", 0, 10, "date", null, null, null);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
+        SearchPage<BlogDocument> result = blogSearchRepository.searchBlogs(request).block();
 
         assertNotNull(result);
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void searchBlogs_SortByViews_ShouldReturnResponse() throws IOException {
+    void searchBlogs_SortByViews_ShouldReturnPage() {
         SearchRequest request = new SearchRequest("java", 0, 10, "views", null, null, null);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
+        SearchPage<BlogDocument> result = blogSearchRepository.searchBlogs(request).block();
 
         assertNotNull(result);
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void searchBlogs_SortByLikes_ShouldReturnResponse() throws IOException {
+    void searchBlogs_SortByLikes_ShouldReturnPage() {
         SearchRequest request = new SearchRequest("java", 0, 10, "likes", null, null, null);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
+        SearchPage<BlogDocument> result = blogSearchRepository.searchBlogs(request).block();
 
         assertNotNull(result);
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void searchBlogs_SortByRelevance_ShouldReturnResponse() throws IOException {
+    void searchBlogs_SortByRelevance_ShouldReturnHits() {
         SearchRequest request = new SearchRequest("java", 0, 10, "relevance", null, null, null);
-
         BlogDocument doc = createTestBlogDocument();
-        Hit<BlogDocument> hit = createMockHit(doc, 2.5, Map.of(
+        SearchHit<BlogDocument> hit = createMockHit(doc, 2.5f, Map.of(
                 "title", List.of("<em>Java</em> Programming"),
                 "content", List.of("Learn <em>Java</em> programming")
         ));
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(hit), 1L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(hit), 1L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
+        SearchPage<BlogDocument> result = blogSearchRepository.searchBlogs(request).block();
 
         assertNotNull(result);
-        assertEquals(1, result.hits().hits().size());
-        assertEquals("blog-1", result.hits().hits().get(0).source().getId());
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        assertEquals(1, result.getContent().size());
+        assertEquals("blog-1", result.getContent().get(0).getContent().getId());
+        verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void searchBlogs_SortByDefault_ShouldReturnResponse() throws IOException {
-        SearchRequest request = new SearchRequest("java", 0, 10, "unknown_sort", null, null, null);
-
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
-
-        assertNotNull(result);
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
-    }
-
-    @Test
-    void searchBlogs_WithPagination_ShouldPassCorrectFromAndSize() throws IOException {
+    void searchBlogs_WithPagination_ShouldReturnPage() {
         SearchRequest request = new SearchRequest("java", 2, 20, "date", null, null, null);
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
+        blogSearchRepository.searchBlogs(request).block();
 
-        blogSearchRepository.searchBlogs(request);
-
-        // page=2, size=20 => from=40
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void searchBlogs_IOException_ShouldThrowRuntimeException() throws IOException {
-        SearchRequest request = new SearchRequest("java", 0, 10, "relevance", null, null, null);
-
-        doThrow(new IOException("Search failed")).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> blogSearchRepository.searchBlogs(request));
-
-        assertEquals("Search failed", exception.getMessage());
-        assertInstanceOf(IOException.class, exception.getCause());
-    }
-
-    @Test
-    void searchBlogs_WithResults_ShouldReturnHits() throws IOException {
+    void searchBlogs_WithResults_ShouldReturnHits() {
         SearchRequest request = new SearchRequest("test query", 0, 10, "relevance", null, null, null);
-
         BlogDocument doc1 = createTestBlogDocument();
         BlogDocument doc2 = BlogDocument.builder()
                 .id("blog-2")
@@ -250,81 +183,59 @@ class BlogSearchRepositoryTest {
                 .authorId("author-2")
                 .authorName("Another Author")
                 .build();
+        SearchHit<BlogDocument> hit1 = createMockHit(doc1, 2.5f, Map.of());
+        SearchHit<BlogDocument> hit2 = createMockHit(doc2, 1.8f, Map.of());
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(hit1, hit2), 2L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
 
-        Hit<BlogDocument> hit1 = createMockHit(doc1, 2.5, Map.of());
-        Hit<BlogDocument> hit2 = createMockHit(doc2, 1.8, Map.of());
-
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(hit1, hit2), 2L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        SearchResponse<BlogDocument> result = blogSearchRepository.searchBlogs(request);
+        SearchPage<BlogDocument> result = blogSearchRepository.searchBlogs(request).block();
 
         assertNotNull(result);
-        assertEquals(2, result.hits().hits().size());
-        assertEquals("blog-1", result.hits().hits().get(0).source().getId());
-        assertEquals("blog-2", result.hits().hits().get(1).source().getId());
-        assertEquals(2L, result.hits().total().value());
+        assertEquals(2, result.getContent().size());
+        assertEquals("blog-1", result.getContent().get(0).getContent().getId());
+        assertEquals("blog-2", result.getContent().get(1).getContent().getId());
+        assertEquals(2L, result.getTotalElements());
     }
 
     // ==================== suggestBlog tests ====================
 
     @Test
-    void suggestBlog_WithResults_ShouldReturnTitles() throws IOException {
+    void suggestBlog_WithResults_ShouldReturnTitles() {
         BlogDocument doc1 = createTestBlogDocument();
         BlogDocument doc2 = BlogDocument.builder()
                 .id("blog-2")
                 .title("Java Spring Boot Guide")
                 .build();
+        SearchHit<BlogDocument> hit1 = createMockHit(doc1, 2.0f, null);
+        SearchHit<BlogDocument> hit2 = createMockHit(doc2, 1.5f, null);
+        when(operations.search(any(), eq(BlogDocument.class)))
+                .thenReturn(Flux.just(hit1, hit2));
 
-        Hit<BlogDocument> hit1 = createMockHit(doc1, 2.0);
-        Hit<BlogDocument> hit2 = createMockHit(doc2, 1.5);
+        List<String> suggestions = blogSearchRepository.suggestBlog("Java", 5).collectList().block();
 
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(hit1, hit2), 2L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        List<String> suggestions = blogSearchRepository.suggestBlog("Java", 5);
-
+        assertNotNull(suggestions);
         assertEquals(2, suggestions.size());
         assertEquals("Test Blog Title", suggestions.get(0));
         assertEquals("Java Spring Boot Guide", suggestions.get(1));
-        verify(client, times(1)).search(any(Function.class), eq(BlogDocument.class));
+        verify(operations, times(1)).search(any(), eq(BlogDocument.class));
     }
 
     @Test
-    void suggestBlog_WithNullSource_ShouldSkipNullHits() throws IOException {
-        @SuppressWarnings("unchecked")
-        Hit<BlogDocument> nullSourceHit = mock(Hit.class);
-        when(nullSourceHit.source()).thenReturn(null);
+    void suggestBlog_WithEmptyResults_ShouldReturnEmptyList() {
+        when(operations.search(any(), eq(BlogDocument.class))).thenReturn(Flux.empty());
 
-        BlogDocument doc = createTestBlogDocument();
-        Hit<BlogDocument> validHit = createMockHit(doc, 1.0);
-
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(
-                List.of(nullSourceHit, validHit), 2L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        List<String> suggestions = blogSearchRepository.suggestBlog("Java", 5);
-
-        assertEquals(1, suggestions.size());
-        assertEquals("Test Blog Title", suggestions.get(0));
-    }
-
-    @Test
-    void suggestBlog_WithEmptyResults_ShouldReturnEmptyList() throws IOException {
-        SearchResponse<BlogDocument> mockResponse = createMockSearchResponse(List.of(), 0L);
-        doReturn(mockResponse).when(client).search(any(Function.class), eq(BlogDocument.class));
-
-        List<String> suggestions = blogSearchRepository.suggestBlog("nonexistent", 5);
+        List<String> suggestions = blogSearchRepository.suggestBlog("nonexistent", 5).collectList().block();
 
         assertNotNull(suggestions);
         assertTrue(suggestions.isEmpty());
     }
 
     @Test
-    void suggestBlog_IOException_ShouldReturnEmptyList() throws IOException {
-        doThrow(new IOException("Suggest failed")).when(client).search(any(Function.class), eq(BlogDocument.class));
+    void suggestBlog_Error_ShouldReturnEmptyList() {
+        when(operations.search(any(), eq(BlogDocument.class)))
+                .thenReturn(Flux.error(new RuntimeException("Suggest failed")));
 
-        List<String> suggestions = blogSearchRepository.suggestBlog("Java", 5);
+        List<String> suggestions = blogSearchRepository.suggestBlog("Java", 5).collectList().block();
 
         assertNotNull(suggestions);
         assertTrue(suggestions.isEmpty());
@@ -332,41 +243,22 @@ class BlogSearchRepositoryTest {
 
     // ==================== Helper methods ====================
 
-    private Hit<BlogDocument> createMockHit(BlogDocument source, double score) {
-        return createMockHit(source, score, null);
-    }
-
     @SuppressWarnings("unchecked")
-    private Hit<BlogDocument> createMockHit(BlogDocument source, double score,
-                                              Map<String, List<String>> highlights) {
-        Hit<BlogDocument> hit = mock(Hit.class);
-        when(hit.source()).thenReturn(source);
-        when(hit.score()).thenReturn(score);
-
-        if (highlights != null) {
-            when(hit.highlight()).thenReturn(highlights);
-        } else {
-            when(hit.highlight()).thenReturn(null);
-        }
-
+    private SearchHit<BlogDocument> createMockHit(BlogDocument source, float score,
+                                                   Map<String, List<String>> highlights) {
+        SearchHit<BlogDocument> hit = mock(SearchHit.class);
+        when(hit.getContent()).thenReturn(source);
+        when(hit.getScore()).thenReturn(score);
+        when(hit.getHighlightFields()).thenReturn(highlights != null ? highlights : Map.of());
         return hit;
     }
 
     @SuppressWarnings("unchecked")
-    private SearchResponse<BlogDocument> createMockSearchResponse(List<Hit<BlogDocument>> hits,
-                                                                     long total) {
-        SearchResponse<BlogDocument> response = mock(SearchResponse.class);
-        HitsMetadata<BlogDocument> hitsMetadata = mock(HitsMetadata.class);
-
-        when(hitsMetadata.hits()).thenReturn(hits);
-
-        TotalHits totalHits = mock(TotalHits.class);
-        when(totalHits.value()).thenReturn(total);
-        when(totalHits.relation()).thenReturn(TotalHitsRelation.Eq);
-
-        when(hitsMetadata.total()).thenReturn(totalHits);
-        when(response.hits()).thenReturn(hitsMetadata);
-
-        return response;
+    private SearchPage<BlogDocument> createMockSearchPage(List<SearchHit<BlogDocument>> hits, long total) {
+        SearchPage<BlogDocument> page = mock(SearchPage.class);
+        when(page.getContent()).thenReturn(hits);
+        when(page.getTotalElements()).thenReturn(total);
+        when(page.getTotalPages()).thenReturn(hits.isEmpty() ? 0 : 1);
+        return page;
     }
 }

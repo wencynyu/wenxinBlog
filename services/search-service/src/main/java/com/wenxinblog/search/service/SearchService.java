@@ -7,13 +7,12 @@ import com.wenxinblog.search.repository.BlogSearchRepository;
 import com.wenxinblog.search.repository.UserSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
-import co.elastic.clients.elasticsearch.core.search.Hit;
 import org.springframework.data.domain.Range;
+import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -28,63 +27,53 @@ public class SearchService {
     private final ReactiveStringRedisTemplate redis;
 
     public Mono<PageResult<BlogSearchResponse>> searchBlogs(SearchRequest request) {
-        return Mono.fromCallable(() -> {
-            SearchResponse<BlogDocument> response = blogRepo.searchBlogs(request);
+        return blogRepo.searchBlogs(request).map(page -> {
             List<BlogSearchResponse> items = new ArrayList<>();
-            long total = response.hits().total().value();
-
-            for (Hit<BlogDocument> hit : response.hits().hits()) {
-                BlogDocument doc = hit.source();
-                if (doc == null) continue;
-
-                List<String> hlTitle = hit.highlight() != null && hit.highlight().get("title") != null
-                        ? hit.highlight().get("title") : List.of();
-                List<String> hlContent = hit.highlight() != null && hit.highlight().get("content") != null
-                        ? hit.highlight().get("content") : List.of();
-
+            for (SearchHit<BlogDocument> hit : page.getContent()) {
+                BlogDocument doc = hit.getContent();
+                Map<String, List<String>> hl = hit.getHighlightFields();
+                List<String> hlTitle = hl != null && hl.get("title") != null ? hl.get("title") : List.of();
+                List<String> hlContent = hl != null && hl.get("content") != null ? hl.get("content") : List.of();
                 items.add(new BlogSearchResponse(
                         doc.getId(), doc.getTitle(), doc.getContent(), doc.getSummary(),
                         doc.getAuthorId(), doc.getAuthorName(), doc.getTags(),
                         doc.getCategory(), doc.getViewCount(), doc.getLikeCount(),
-                        doc.getPublishedAt(), hit.score() != null ? hit.score() : 0.0,
+                        doc.getPublishedAt(), hit.getScore(),
                         hlTitle, hlContent
                 ));
             }
+            long total = page.getTotalElements();
             int totalPages = request.size() > 0 ? (int) Math.ceil((double) total / request.size()) : 0;
-            return new PageResult<>(items, total, request.page(), request.size(), totalPages);
-        }).subscribeOn(Schedulers.boundedElastic());
+            return new PageResult<BlogSearchResponse>(items, total, request.page(), request.size(), totalPages);
+        });
     }
 
     public Mono<PageResult<UserSearchResponse>> searchUsers(String query, int page, int size) {
-        return Mono.fromCallable(() -> {
-            SearchResponse<UserDocument> response = userRepo.searchUsers(query, page, size);
+        return userRepo.searchUsers(query, page, size).map(pg -> {
             List<UserSearchResponse> items = new ArrayList<>();
-            long total = response.hits().total().value();
-
-            for (Hit<UserDocument> hit : response.hits().hits()) {
-                UserDocument doc = hit.source();
-                if (doc == null) continue;
+            for (SearchHit<UserDocument> hit : pg.getContent()) {
+                UserDocument doc = hit.getContent();
                 items.add(new UserSearchResponse(
                         doc.getId(), doc.getDisplayName(), doc.getUsername(),
                         doc.getBio(), doc.getAvatarUrl(), doc.getFollowerCount(),
-                        doc.getPostCount(), hit.score() != null ? hit.score() : 0.0
+                        doc.getPostCount(), hit.getScore()
                 ));
             }
-            int totalPages2 = size > 0 ? (int) Math.ceil((double) total / size) : 0;
-            return new PageResult<>(items, total, page, size, totalPages2);
-        }).subscribeOn(Schedulers.boundedElastic());
+            long total = pg.getTotalElements();
+            int totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;
+            return new PageResult<UserSearchResponse>(items, total, page, size, totalPages);
+        });
     }
 
     public Mono<List<SuggestResponse>> suggest(String query, String type) {
-        return Mono.fromCallable(() -> {
-            List<String> results = switch (type) {
-                case "user" -> userRepo.suggestUsers(query, 10);
-                default -> blogRepo.suggestBlog(query, 10);
-            };
-            return results.stream()
-                    .map(text -> new SuggestResponse(text, type))
-                    .collect(Collectors.toList());
-        }).subscribeOn(Schedulers.boundedElastic());
+        Flux<String> results = switch (type) {
+            case "user" -> userRepo.suggestUsers(query, 10);
+            default -> blogRepo.suggestBlog(query, 10);
+        };
+        return results.collectList()
+                .map(list -> list.stream()
+                        .map(text -> new SuggestResponse(text, type))
+                        .collect(Collectors.toList()));
     }
 
     public Mono<List<String>> getTrendingSearches(int limit) {
