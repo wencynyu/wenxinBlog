@@ -127,10 +127,12 @@ class ContentControllerTest {
     @Test
     void testDeleteFile() {
         UUID assetId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
 
-        when(contentService.deleteFile(assetId)).thenReturn(Mono.empty());
+        when(contentService.deleteFile(userId, assetId)).thenReturn(Mono.empty());
 
         client.delete().uri("/api/v1/content/" + assetId)
+            .header("X-User-Id", userId.toString())
             .exchange()
             .expectStatus().isOk()
             .expectBody(Result.class)

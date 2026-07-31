@@ -138,10 +138,13 @@ class ContentServiceTest {
 
     @Test
     void testDeleteFile() {
-        UUID assetId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        MediaAsset asset = createMockAsset(userId, "IMAGE");
+        UUID assetId = asset.getId();
+        when(mediaRepo.findById(assetId)).thenReturn(Mono.just(asset));
         when(mediaRepo.deleteById(assetId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(contentService.deleteFile(assetId))
+        StepVerifier.create(contentService.deleteFile(userId, assetId))
             .verifyComplete();
     }
 
