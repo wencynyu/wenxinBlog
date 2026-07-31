@@ -46,4 +46,8 @@ datasources:
       xpack: false
       logMessageField: "body.text"
       logLevelField: "severity_text"
+      derivedFields:
+        - name: "logger"
+          field: "scope.name"
+          type: "field"
     editable: true
