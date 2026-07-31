@@ -64,6 +64,9 @@ class AdDecisionServiceTest {
         when(eventRepo.save(any())).thenReturn(Mono.just(AdEvent.builder().build()));
         // Default mock for creativeRepo.findByCampaignIdAndIsActiveTrue() to avoid NPE
         when(creativeRepo.findByCampaignIdAndIsActiveTrue(any())).thenReturn(Flux.empty());
+        // Default mocks for budget billing path: campaign exists and debit succeeds
+        when(campaignRepo.findById(any(Long.class))).thenReturn(Mono.just(createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"))));
+        when(campaignRepo.debitSpend(any(), any())).thenReturn(Mono.just(1));
 
         adDecisionService = new AdDecisionService(campaignRepo, creativeRepo, eventRepo,
                 positionRepo, redis, kafka, objectMapper);
@@ -289,6 +292,27 @@ class AdDecisionServiceTest {
                 e.getUserId().equals("user123") &&
                 e.getIpAddress().equals("127.0.0.1") &&
                 e.getUserAgent().equals("Mozilla")));
+    }
+
+    @Test
+    void decide_WhenDebitFails_ShouldServeWithoutRecordingImpression() {
+        AdDecisionRequest request = new AdDecisionRequest("banner", "user123", "127.0.0.1", "Mozilla", null, 1);
+
+        AdCampaign campaign = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        AdCreative creative = createCreative(1L, 1L);
+
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(campaign));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L)).thenReturn(Flux.just(creative));
+        mockRedisFrequencyCap(1);
+        // 预算已被耗尽：条件更新 0 行 → 不计费、不记 impression 事件
+        when(campaignRepo.findById(1L)).thenReturn(Mono.just(campaign));
+        when(campaignRepo.debitSpend(eq(1L), any())).thenReturn(Mono.just(0));
+
+        StepVerifier.create(adDecisionService.decide(request))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        verify(eventRepo, never()).save(any());
     }
 
     @Test

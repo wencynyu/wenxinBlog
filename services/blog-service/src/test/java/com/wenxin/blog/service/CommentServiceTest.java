@@ -2,7 +2,6 @@ package com.wenxin.blog.service;
 
 import com.wenxin.blog.dto.CommentRequest;
 import com.wenxin.blog.entity.Comment;
-import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.repository.CommentRepository;
 import com.wenxin.blog.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,17 +56,8 @@ class CommentServiceTest {
         savedComment.setParentId(null);
         savedComment.setCreatedAt(LocalDateTime.now());
 
-        Post post = new Post();
-        post.setId(postId);
-        post.setCommentCount(0);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setCommentCount(1);
-
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
                 .expectNextMatches(comment -> {
@@ -79,8 +69,7 @@ class CommentServiceTest {
                 .verifyComplete();
 
         verify(commentRepository, times(1)).save(any(Comment.class));
-        verify(postRepository, times(1)).findById(postId);
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, times(1)).incrementCommentCount(postId);
     }
 
     @Test
@@ -96,17 +85,8 @@ class CommentServiceTest {
         savedComment.setParentId(parentId);
         savedComment.setCreatedAt(LocalDateTime.now());
 
-        Post post = new Post();
-        post.setId(postId);
-        post.setCommentCount(0);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setCommentCount(1);
-
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
                 .expectNextMatches(comment -> {
@@ -115,6 +95,7 @@ class CommentServiceTest {
                 .verifyComplete();
 
         verify(commentRepository, times(1)).save(any(Comment.class));
+        verify(postRepository, times(1)).incrementCommentCount(postId);
     }
 
     @Test
@@ -124,23 +105,14 @@ class CommentServiceTest {
         savedComment.setPostId(postId);
         savedComment.setCreatedAt(LocalDateTime.now());
 
-        Post post = new Post();
-        post.setId(postId);
-        post.setCommentCount(5);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setCommentCount(6);
-
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, times(1)).incrementCommentCount(postId);
     }
 
     @Test
@@ -193,16 +165,18 @@ class CommentServiceTest {
 
         Comment comment = new Comment();
         comment.setId(commentId);
+        comment.setPostId(postId);
+        comment.setAuthorId(authorId);
         comment.setContent("Test comment");
 
         when(commentRepository.findById(commentId)).thenReturn(Mono.just(comment));
-        when(commentRepository.delete(any(Comment.class))).thenReturn(Mono.empty());
+        when(commentRepository.deleteCommentSubtreeAndDecrementCount(commentId, postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.deleteComment(commentId))
+        StepVerifier.create(commentService.deleteComment(authorId, commentId))
                 .verifyComplete();
 
         verify(commentRepository, times(1)).findById(commentId);
-        verify(commentRepository, times(1)).delete(any(Comment.class));
+        verify(commentRepository, times(1)).deleteCommentSubtreeAndDecrementCount(commentId, postId);
     }
 
     @Test
@@ -211,10 +185,10 @@ class CommentServiceTest {
 
         when(commentRepository.findById(commentId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.deleteComment(commentId))
+        StepVerifier.create(commentService.deleteComment(authorId, commentId))
                 .verifyComplete();
 
         verify(commentRepository, times(1)).findById(commentId);
-        verify(commentRepository, never()).delete(any(Comment.class));
+        verify(commentRepository, never()).deleteCommentSubtreeAndDecrementCount(any(), any());
     }
 }

@@ -97,11 +97,12 @@ class AdCampaignControllerTest {
                 null
         );
 
-        when(campaignService.updateCampaign(eq(1L), any(CampaignRequest.class)))
+        when(campaignService.updateCampaign(eq("advertiser123"), eq(1L), any(CampaignRequest.class)))
                 .thenReturn(Mono.just(testCampaign));
 
         webTestClient.put()
                 .uri("/api/v1/campaigns/1")
+                .header("X-User-Id", "advertiser123")
                 .bodyValue(campaignRequest)
                 .exchange()
                 .expectStatus().isOk()
@@ -117,10 +118,11 @@ class AdCampaignControllerTest {
                 .name("Test Campaign")
                 .build();
 
-        when(campaignService.getCampaign(1L)).thenReturn(Mono.just(testCampaign));
+        when(campaignService.getCampaign(eq("advertiser123"), eq(1L))).thenReturn(Mono.just(testCampaign));
 
         webTestClient.get()
                 .uri("/api/v1/campaigns/1")
+                .header("X-User-Id", "advertiser123")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -139,6 +141,7 @@ class AdCampaignControllerTest {
 
         webTestClient.get()
                 .uri("/api/v1/campaigns?advertiserId=adv1&status=ACTIVE")
+                .header("X-User-Id", "adv1")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -151,11 +154,12 @@ class AdCampaignControllerTest {
     void list_NoFilters_ShouldReturnAllCampaigns() {
         AdCampaign testCampaign = AdCampaign.builder().id(1L).build();
 
-        when(campaignService.listCampaigns(null, null))
+        when(campaignService.listCampaigns("adv1", null))
                 .thenReturn(Flux.just(testCampaign));
 
         webTestClient.get()
                 .uri("/api/v1/campaigns")
+                .header("X-User-Id", "adv1")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -171,10 +175,11 @@ class AdCampaignControllerTest {
                 .status("PAUSED")
                 .build();
 
-        when(campaignService.pauseCampaign(1L)).thenReturn(Mono.just(pausedCampaign));
+        when(campaignService.pauseCampaign(eq("advertiser123"), eq(1L))).thenReturn(Mono.just(pausedCampaign));
 
         webTestClient.put()
                 .uri("/api/v1/campaigns/1/pause")
+                .header("X-User-Id", "advertiser123")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -189,10 +194,11 @@ class AdCampaignControllerTest {
                 .status("ACTIVE")
                 .build();
 
-        when(campaignService.activateCampaign(1L)).thenReturn(Mono.just(activeCampaign));
+        when(campaignService.activateCampaign(eq("advertiser123"), eq(1L))).thenReturn(Mono.just(activeCampaign));
 
         webTestClient.put()
                 .uri("/api/v1/campaigns/1/activate")
+                .header("X-User-Id", "advertiser123")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -205,10 +211,11 @@ class AdCampaignControllerTest {
         CampaignStats stats = new CampaignStats(1000, 50, 5, 5.0,
                 new BigDecimal("100"), new BigDecimal("900"));
 
-        when(campaignService.getCampaignStats(1L)).thenReturn(Mono.just(stats));
+        when(campaignService.getCampaignStats(eq("advertiser123"), eq(1L))).thenReturn(Mono.just(stats));
 
         webTestClient.get()
                 .uri("/api/v1/campaigns/1/stats")
+                .header("X-User-Id", "advertiser123")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()

@@ -42,18 +42,9 @@ class LikeServiceTest {
 
     @Test
     void testToggleLike_NotLiked_ToLiked() {
-        Post post = new Post();
-        post.setId(postId);
-        post.setLikeCount(5);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setLikeCount(6);
-
         when(likeRepository.existsByUserIdAndPostId(userId, postId)).thenReturn(Mono.just(0L));
-        when(likeRepository.addLike(userId, postId)).thenReturn(Mono.empty());
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(likeRepository.addLike(userId, postId)).thenReturn(Mono.just(1));
+        when(postRepository.incrementLikeCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(likeService.toggleLike(userId, postId))
                 .expectNext(true)
@@ -61,24 +52,15 @@ class LikeServiceTest {
 
         verify(likeRepository, times(1)).existsByUserIdAndPostId(userId, postId);
         verify(likeRepository, times(1)).addLike(userId, postId);
-        verify(postRepository, times(1)).findById(postId);
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, times(1)).incrementLikeCount(postId);
+        verify(postRepository, never()).save(any(Post.class));
     }
 
     @Test
     void testToggleLike_Liked_ToUnliked() {
-        Post post = new Post();
-        post.setId(postId);
-        post.setLikeCount(5);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setLikeCount(4);
-
         when(likeRepository.existsByUserIdAndPostId(userId, postId)).thenReturn(Mono.just(1L));
         when(likeRepository.deleteByUserIdAndPostId(userId, postId)).thenReturn(Mono.empty());
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(postRepository.decrementLikeCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(likeService.toggleLike(userId, postId))
                 .expectNext(false)
@@ -86,30 +68,22 @@ class LikeServiceTest {
 
         verify(likeRepository, times(1)).existsByUserIdAndPostId(userId, postId);
         verify(likeRepository, times(1)).deleteByUserIdAndPostId(userId, postId);
-        verify(postRepository, times(1)).findById(postId);
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, times(1)).decrementLikeCount(postId);
+        verify(postRepository, never()).save(any(Post.class));
     }
 
     @Test
     void testToggleLike_LikeCountNeverNegative() {
-        Post post = new Post();
-        post.setId(postId);
-        post.setLikeCount(0);
-
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setLikeCount(0);
-
         when(likeRepository.existsByUserIdAndPostId(userId, postId)).thenReturn(Mono.just(1L));
         when(likeRepository.deleteByUserIdAndPostId(userId, postId)).thenReturn(Mono.empty());
-        when(postRepository.findById(postId)).thenReturn(Mono.just(post));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
+        when(postRepository.decrementLikeCount(postId)).thenReturn(Mono.empty());
 
         StepVerifier.create(likeService.toggleLike(userId, postId))
                 .expectNext(false)
                 .verifyComplete();
 
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, times(1)).decrementLikeCount(postId);
+        verify(postRepository, never()).save(any(Post.class));
     }
 
     @Test

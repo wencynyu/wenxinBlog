@@ -121,10 +121,11 @@ class CommentControllerTest {
 
     @Test
     void testDeleteComment() {
-        when(commentService.deleteComment(commentId)).thenReturn(Mono.empty());
+        when(commentService.deleteComment(userId, commentId)).thenReturn(Mono.empty());
 
         client.delete()
                 .uri("/api/v1/comments/{id}", commentId)
+                .header("X-User-Id", userId.toString())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()

@@ -129,8 +129,8 @@ func TestStatsRepository_IncrementFollowerCount(t *testing.T) {
 	repo := NewStatsRepository(db, rdb)
 	userID := uuid.New()
 
-	mock.ExpectExec("UPDATE user_stats SET follower_count = follower_count \\+ 1, updated_at = \\$1 WHERE user_id = \\$2").
-		WithArgs(sqlmock.AnyArg(), userID).
+	mock.ExpectExec("INSERT INTO user_stats").
+		WithArgs(userID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.IncrementFollowerCount(userID)
@@ -173,8 +173,8 @@ func TestStatsRepository_IncrementFollowingCount(t *testing.T) {
 	repo := NewStatsRepository(db, rdb)
 	userID := uuid.New()
 
-	mock.ExpectExec("UPDATE user_stats SET following_count = following_count \\+ 1, updated_at = \\$1 WHERE user_id = \\$2").
-		WithArgs(sqlmock.AnyArg(), userID).
+	mock.ExpectExec("INSERT INTO user_stats").
+		WithArgs(userID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.IncrementFollowingCount(userID)
@@ -221,7 +221,7 @@ func TestStatsRepository_CacheInvalidation(t *testing.T) {
 	ctx := context.Background()
 	key := "user:" + userID.String() + ":stats"
 	rdb.HSet(ctx, key, map[string]interface{}{
-		"post_count": "10",
+		"post_count":     "10",
 		"follower_count": "100",
 	})
 	rdb.Expire(ctx, key, 5*time.Minute)

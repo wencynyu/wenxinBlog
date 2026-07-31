@@ -12,6 +12,6 @@ public interface PostLikeRepository extends ReactiveCrudRepository<PostLike, UUI
 
     Mono<Void> deleteByUserIdAndPostId(UUID userId, UUID postId);
 
-    @Query("INSERT INTO post_likes (user_id, post_id) VALUES (:userId, :postId)")
-    Mono<Void> addLike(UUID userId, UUID postId);
+    @Query("INSERT INTO post_likes (user_id, post_id) VALUES (:userId, :postId) ON CONFLICT (user_id, post_id) DO NOTHING")
+    Mono<Integer> addLike(UUID userId, UUID postId);
 }

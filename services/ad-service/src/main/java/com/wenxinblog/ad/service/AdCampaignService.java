@@ -8,6 +8,7 @@ import com.wenxinblog.ad.repository.AdEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
@@ -121,5 +122,14 @@ public class AdCampaignService {
                                 campaign.getSpent(),
                                 campaign.getBudget().subtract(campaign.getSpent())
                         )));
+    }
+
+    /** 每日 00:05 重置所有 ACTIVE 活动的 daily_spent，开启新一轮每日预算计费。 */
+    @Scheduled(cron = "0 5 0 * * *")
+    public void scheduledResetDailySpent() {
+        campaignRepo.resetDailySpent()
+                .doOnNext(count -> log.info("Reset daily_spent to 0 for {} active campaign(s)", count))
+                .doOnError(e -> log.error("Failed to reset daily_spent for active campaigns", e))
+                .subscribe();
     }
 }

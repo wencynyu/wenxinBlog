@@ -65,26 +65,26 @@ func (m *MockProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
 
 // MockFollowRepository
 type MockFollowRepository struct {
-	FollowFunc          func(followerID, followingID uuid.UUID) error
-	UnfollowFunc        func(followerID, followingID uuid.UUID) error
+	FollowFunc          func(followerID, followingID uuid.UUID) (bool, error)
+	UnfollowFunc        func(followerID, followingID uuid.UUID) (bool, error)
 	IsFollowingFunc     func(followerID, followingID uuid.UUID) (bool, error)
 	GetFollowersFunc    func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
 	GetFollowingFunc    func(userID uuid.UUID, limit, offset int) ([]model.UserProfile, int64, error)
 	GetFollowingIDsFunc func(userID uuid.UUID) ([]uuid.UUID, error)
 }
 
-func (m *MockFollowRepository) Follow(followerID, followingID uuid.UUID) error {
+func (m *MockFollowRepository) Follow(followerID, followingID uuid.UUID) (bool, error) {
 	if m.FollowFunc != nil {
 		return m.FollowFunc(followerID, followingID)
 	}
-	return nil
+	return true, nil
 }
 
-func (m *MockFollowRepository) Unfollow(followerID, followingID uuid.UUID) error {
+func (m *MockFollowRepository) Unfollow(followerID, followingID uuid.UUID) (bool, error) {
 	if m.UnfollowFunc != nil {
 		return m.UnfollowFunc(followerID, followingID)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *MockFollowRepository) IsFollowing(followerID, followingID uuid.UUID) (bool, error) {
@@ -313,8 +313,8 @@ func TestUserService_FollowUser_Success(t *testing.T) {
 	followingID := uuid.New()
 
 	mockFollow := &MockFollowRepository{
-		FollowFunc: func(fid, tid uuid.UUID) error {
-			return nil
+		FollowFunc: func(fid, tid uuid.UUID) (bool, error) {
+			return true, nil
 		},
 	}
 
@@ -327,6 +327,31 @@ func TestUserService_FollowUser_Success(t *testing.T) {
 	err := svc.FollowUser(followerID, followingID)
 
 	require.NoError(t, err)
+}
+
+func TestUserService_FollowUser_AlreadyFollowing_NoStatUpdate(t *testing.T) {
+	followerID := uuid.New()
+	followingID := uuid.New()
+
+	mockFollow := &MockFollowRepository{
+		FollowFunc: func(fid, tid uuid.UUID) (bool, error) {
+			return false, nil // 重复 follow，未真正插入
+		},
+	}
+
+	followerIncremented := false
+	followingIncremented := false
+	mockStats := &MockStatsRepository{
+		IncrementFollowerCountFunc:  func(id uuid.UUID) error { followerIncremented = true; return nil },
+		IncrementFollowingCountFunc: func(id uuid.UUID) error { followingIncremented = true; return nil },
+	}
+
+	svc := NewUserService(nil, mockFollow, mockStats)
+	err := svc.FollowUser(followerID, followingID)
+
+	require.NoError(t, err)
+	assert.False(t, followerIncremented)
+	assert.False(t, followingIncremented)
 }
 
 func TestUserService_FollowUser_SelfFollow(t *testing.T) {
@@ -345,8 +370,8 @@ func TestUserService_FollowUser_Error(t *testing.T) {
 	followingID := uuid.New()
 
 	mockFollow := &MockFollowRepository{
-		FollowFunc: func(fid, tid uuid.UUID) error {
-			return errors.New("follow failed")
+		FollowFunc: func(fid, tid uuid.UUID) (bool, error) {
+			return false, errors.New("follow failed")
 		},
 	}
 
@@ -361,8 +386,8 @@ func TestUserService_UnfollowUser_Success(t *testing.T) {
 	followingID := uuid.New()
 
 	mockFollow := &MockFollowRepository{
-		UnfollowFunc: func(fid, tid uuid.UUID) error {
-			return nil
+		UnfollowFunc: func(fid, tid uuid.UUID) (bool, error) {
+			return true, nil
 		},
 	}
 
@@ -375,6 +400,31 @@ func TestUserService_UnfollowUser_Success(t *testing.T) {
 	err := svc.UnfollowUser(followerID, followingID)
 
 	require.NoError(t, err)
+}
+
+func TestUserService_UnfollowUser_NotFollowing_NoStatUpdate(t *testing.T) {
+	followerID := uuid.New()
+	followingID := uuid.New()
+
+	mockFollow := &MockFollowRepository{
+		UnfollowFunc: func(fid, tid uuid.UUID) (bool, error) {
+			return false, nil // 未关注，未真正删除
+		},
+	}
+
+	followerDecremented := false
+	followingDecremented := false
+	mockStats := &MockStatsRepository{
+		DecrementFollowerCountFunc:  func(id uuid.UUID) error { followerDecremented = true; return nil },
+		DecrementFollowingCountFunc: func(id uuid.UUID) error { followingDecremented = true; return nil },
+	}
+
+	svc := NewUserService(nil, mockFollow, mockStats)
+	err := svc.UnfollowUser(followerID, followingID)
+
+	require.NoError(t, err)
+	assert.False(t, followerDecremented)
+	assert.False(t, followingDecremented)
 }
 
 func TestUserService_GetFollowers_Success(t *testing.T) {

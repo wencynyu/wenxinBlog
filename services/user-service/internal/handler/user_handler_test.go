@@ -210,7 +210,10 @@ func TestHandler_UpdateProfile_Success(t *testing.T) {
 
 	handler := NewUserHandler(mockSvc)
 	app := fiber.New()
-	app.Put("/:id", handler.UpdateProfile)
+	app.Put("/:id", func(c *fiber.Ctx) error {
+		c.Locals("userID", userID.String())
+		return handler.UpdateProfile(c)
+	})
 
 	displayName := "Updated"
 	body, _ := json.Marshal(map[string]*string{
@@ -247,7 +250,10 @@ func TestHandler_UpdateProfile_InvalidBody(t *testing.T) {
 	mockSvc := &MockUserService{}
 	handler := NewUserHandler(mockSvc)
 	app := fiber.New()
-	app.Put("/:id", handler.UpdateProfile)
+	app.Put("/:id", func(c *fiber.Ctx) error {
+		c.Locals("userID", userID.String())
+		return handler.UpdateProfile(c)
+	})
 
 	req := httptest.NewRequest("PUT", "/"+userID.String(), bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -268,7 +274,10 @@ func TestHandler_UpdateProfile_ServiceError(t *testing.T) {
 
 	handler := NewUserHandler(mockSvc)
 	app := fiber.New()
-	app.Put("/:id", handler.UpdateProfile)
+	app.Put("/:id", func(c *fiber.Ctx) error {
+		c.Locals("userID", userID.String())
+		return handler.UpdateProfile(c)
+	})
 
 	displayName := "Updated"
 	body, _ := json.Marshal(map[string]*string{
@@ -298,7 +307,10 @@ func TestHandler_UpdateProfile_WithBirthday(t *testing.T) {
 
 	handler := NewUserHandler(mockSvc)
 	app := fiber.New()
-	app.Put("/:id", handler.UpdateProfile)
+	app.Put("/:id", func(c *fiber.Ctx) error {
+		c.Locals("userID", userID.String())
+		return handler.UpdateProfile(c)
+	})
 
 	birthday := "1990-01-01"
 	body, _ := json.Marshal(map[string]*string{
@@ -888,7 +900,10 @@ func TestHandler_Integration_CompleteFlow(t *testing.T) {
 
 	handler := NewUserHandler(mockSvc)
 	app := fiber.New()
-	app.Put("/:id", handler.UpdateProfile)
+	app.Put("/:id", func(c *fiber.Ctx) error {
+		c.Locals("userID", userID.String())
+		return handler.UpdateProfile(c)
+	})
 	app.Get("/:id", handler.GetProfile)
 	app.Get("/:id/stats", handler.GetStats)
 

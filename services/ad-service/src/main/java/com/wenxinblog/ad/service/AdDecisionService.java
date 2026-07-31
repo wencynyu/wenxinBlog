@@ -19,6 +19,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -90,16 +91,39 @@ public class AdDecisionService {
     }
 
     private Mono<Void> recordImpression(AdDecisionRequest request, AdDecisionResponse response) {
-        AdEvent event = AdEvent.builder()
-                .campaignId(response.campaignId())
-                .creativeId(response.creativeId())
-                .userId(request.userId())
-                .eventType("IMPRESSION")
-                .ipAddress(request.ipAddress())
-                .userAgent(request.userAgent())
-                .createdAt(LocalDateTime.now())
-                .build();
-        return eventRepo.save(event).then();
+        return campaignRepo.findById(response.campaignId())
+                .flatMap(campaign -> {
+                    BigDecimal cost = costPerImpression(campaign);
+                    return campaignRepo.debitSpend(campaign.getId(), cost)
+                            .flatMap(rows -> {
+                                if (rows == 0) {
+                                    // 预算不足，条件更新未生效：不计费、不记 impression 事件
+                                    log.warn("Impression not billed, budget exhausted: campaignId={}, cost={}",
+                                            campaign.getId(), cost);
+                                    return Mono.empty();
+                                }
+                                AdEvent event = AdEvent.builder()
+                                        .campaignId(response.campaignId())
+                                        .creativeId(response.creativeId())
+                                        .userId(request.userId())
+                                        .eventType("IMPRESSION")
+                                        .ipAddress(request.ipAddress())
+                                        .userAgent(request.userAgent())
+                                        .createdAt(LocalDateTime.now())
+                                        .build();
+                                return eventRepo.save(event).then();
+                            });
+                });
+    }
+
+    private BigDecimal costPerImpression(AdCampaign campaign) {
+        BigDecimal bid = campaign.getBidAmount();
+        if (bid == null) return BigDecimal.ZERO;
+        // CPM 按千次曝光计费，单次 impression 成本 = bid_amount / 1000
+        if ("CPM".equalsIgnoreCase(campaign.getBidStrategy())) {
+            return bid.divide(BigDecimal.valueOf(1000), 4, RoundingMode.HALF_UP);
+        }
+        return bid;
     }
 
     private AdDecisionResponse toDecisionResponse(AdCreative creative, AdCampaign campaign) {

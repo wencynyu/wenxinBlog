@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -113,7 +114,7 @@ class AdCampaignServiceTest {
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(existingCampaign));
         when(campaignRepo.save(any(AdCampaign.class))).thenReturn(Mono.just(existingCampaign));
 
-        StepVerifier.create(campaignService.updateCampaign(campaignId, request))
+        StepVerifier.create(campaignService.updateCampaign("advertiser123", campaignId, request))
                 .expectNextMatches(campaign ->
                         campaign.getName().equals("Updated Campaign") &&
                         campaign.getDescription().equals("Updated Description") &&
@@ -145,6 +146,7 @@ class AdCampaignServiceTest {
 
         AdCampaign existingCampaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .name("Old Name")
                 .description("Old Description")
                 .budget(new BigDecimal("1000"))
@@ -153,7 +155,7 @@ class AdCampaignServiceTest {
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(existingCampaign));
         when(campaignRepo.save(any(AdCampaign.class))).thenReturn(Mono.just(existingCampaign));
 
-        StepVerifier.create(campaignService.updateCampaign(campaignId, request))
+        StepVerifier.create(campaignService.updateCampaign("advertiser-1", campaignId, request))
                 .expectNextMatches(campaign ->
                         campaign.getName().equals("Updated Name Only") &&
                         campaign.getDescription().equals("Old Description"))
@@ -164,7 +166,7 @@ class AdCampaignServiceTest {
     }
 
     @Test
-    void updateCampaign_NotFound_ShouldReturnEmpty() {
+    void updateCampaign_NotFound_ShouldReturnForbidden() {
         Long campaignId = 999L;
         CampaignRequest request = new CampaignRequest(
                 "Updated Name",
@@ -180,8 +182,9 @@ class AdCampaignServiceTest {
 
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(campaignService.updateCampaign(campaignId, request))
-                .verifyComplete();
+        StepVerifier.create(campaignService.updateCampaign("advertiser-1", campaignId, request))
+                .expectError(ResponseStatusException.class)
+                .verify();
 
         verify(campaignRepo).findById(campaignId);
         verify(campaignRepo, never()).save(any());
@@ -192,12 +195,13 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .name("Test Campaign")
                 .build();
 
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
 
-        StepVerifier.create(campaignService.getCampaign(campaignId))
+        StepVerifier.create(campaignService.getCampaign("advertiser-1", campaignId))
                 .expectNext(campaign)
                 .verifyComplete();
 
@@ -260,13 +264,14 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .status("ACTIVE")
                 .build();
 
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
         when(campaignRepo.save(any(AdCampaign.class))).thenReturn(Mono.just(campaign));
 
-        StepVerifier.create(campaignService.pauseCampaign(campaignId))
+        StepVerifier.create(campaignService.pauseCampaign("advertiser-1", campaignId))
                 .expectNextMatches(c -> c.getStatus().equals("PAUSED"))
                 .verifyComplete();
 
@@ -279,6 +284,7 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .status("PAUSED")
                 .budget(new BigDecimal("1000"))
                 .dailySpent(new BigDecimal("50"))
@@ -287,7 +293,7 @@ class AdCampaignServiceTest {
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
         when(campaignRepo.save(any(AdCampaign.class))).thenReturn(Mono.just(campaign));
 
-        StepVerifier.create(campaignService.activateCampaign(campaignId))
+        StepVerifier.create(campaignService.activateCampaign("advertiser-1", campaignId))
                 .expectNextMatches(c ->
                         c.getStatus().equals("ACTIVE") &&
                         c.getDailySpent().compareTo(BigDecimal.ZERO) == 0)
@@ -302,13 +308,14 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .status("PAUSED")
                 .budget(BigDecimal.ZERO)
                 .build();
 
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
 
-        StepVerifier.create(campaignService.activateCampaign(campaignId))
+        StepVerifier.create(campaignService.activateCampaign("advertiser-1", campaignId))
                 .expectErrorMatches(e -> e instanceof IllegalArgumentException &&
                         e.getMessage().equals("Insufficient budget"))
                 .verify();
@@ -322,6 +329,7 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .spent(new BigDecimal("100"))
                 .budget(new BigDecimal("1000"))
                 .build();
@@ -338,7 +346,7 @@ class AdCampaignServiceTest {
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
         when(eventRepo.getMetrics(campaignId)).thenReturn(Mono.just(metrics));
 
-        StepVerifier.create(campaignService.getCampaignStats(campaignId))
+        StepVerifier.create(campaignService.getCampaignStats("advertiser-1", campaignId))
                 .expectNextMatches(stats ->
                         stats.impressions() == 1000 &&
                         stats.clicks() == 50 &&
@@ -357,6 +365,7 @@ class AdCampaignServiceTest {
         Long campaignId = 1L;
         AdCampaign campaign = AdCampaign.builder()
                 .id(campaignId)
+                .advertiserId("advertiser-1")
                 .spent(BigDecimal.ZERO)
                 .budget(new BigDecimal("1000"))
                 .build();
@@ -373,7 +382,7 @@ class AdCampaignServiceTest {
         when(campaignRepo.findById(campaignId)).thenReturn(Mono.just(campaign));
         when(eventRepo.getMetrics(campaignId)).thenReturn(Mono.just(metrics));
 
-        StepVerifier.create(campaignService.getCampaignStats(campaignId))
+        StepVerifier.create(campaignService.getCampaignStats("advertiser-1", campaignId))
                 .expectNextMatches(stats -> stats.ctr() == 0.0)
                 .verifyComplete();
     }

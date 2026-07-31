@@ -132,8 +132,13 @@ func (s *UserService) FollowUser(followerID, followingID uuid.UUID) error {
 		return nil
 	}
 
-	if err := s.followRepo.Follow(followerID, followingID); err != nil {
+	inserted, err := s.followRepo.Follow(followerID, followingID)
+	if err != nil {
 		return err
+	}
+	if !inserted {
+		// 重复 follow：未真正插入，计数不变
+		return nil
 	}
 
 	// Update stats async
@@ -145,8 +150,13 @@ func (s *UserService) FollowUser(followerID, followingID uuid.UUID) error {
 }
 
 func (s *UserService) UnfollowUser(followerID, followingID uuid.UUID) error {
-	if err := s.followRepo.Unfollow(followerID, followingID); err != nil {
+	deleted, err := s.followRepo.Unfollow(followerID, followingID)
+	if err != nil {
 		return err
+	}
+	if !deleted {
+		// 未关注：未真正删除，计数不变
+		return nil
 	}
 
 	go func() {

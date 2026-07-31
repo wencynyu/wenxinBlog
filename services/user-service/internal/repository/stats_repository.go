@@ -83,7 +83,12 @@ func (r *StatsRepository) UpsertStats(userID uuid.UUID, postCount, followerCount
 }
 
 func (r *StatsRepository) IncrementFollowerCount(userID uuid.UUID) error {
-	_, err := r.db.Exec(`UPDATE user_stats SET follower_count = follower_count + 1, updated_at = $1 WHERE user_id = $2`, time.Now(), userID)
+	query := `INSERT INTO user_stats (user_id, follower_count, updated_at)
+		VALUES ($1, 1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET
+			follower_count = user_stats.follower_count + 1,
+			updated_at = $2`
+	_, err := r.db.Exec(query, userID, time.Now())
 	if err == nil {
 		go r.invalidateCache(userID)
 	}
@@ -99,7 +104,12 @@ func (r *StatsRepository) DecrementFollowerCount(userID uuid.UUID) error {
 }
 
 func (r *StatsRepository) IncrementFollowingCount(userID uuid.UUID) error {
-	_, err := r.db.Exec(`UPDATE user_stats SET following_count = following_count + 1, updated_at = $1 WHERE user_id = $2`, time.Now(), userID)
+	query := `INSERT INTO user_stats (user_id, following_count, updated_at)
+		VALUES ($1, 1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET
+			following_count = user_stats.following_count + 1,
+			updated_at = $2`
+	_, err := r.db.Exec(query, userID, time.Now())
 	if err == nil {
 		go r.invalidateCache(userID)
 	}

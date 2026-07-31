@@ -143,6 +143,7 @@ class PostServiceTest {
 
         Post existingPost = new Post();
         existingPost.setId(postId);
+        existingPost.setAuthorId(authorId);
         existingPost.setTitle("Old Title");
         existingPost.setContent("Old Content");
         existingPost.setSummary("Old Summary");
@@ -161,7 +162,7 @@ class PostServiceTest {
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
         when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
 
-        StepVerifier.create(postService.updatePost(postId, postRequest))
+        StepVerifier.create(postService.updatePost(authorId, postId, postRequest))
                 .expectNextMatches(post -> {
                     return "Updated Title".equals(post.getTitle()) &&
                             "Updated Content".equals(post.getContent()) &&
@@ -181,6 +182,7 @@ class PostServiceTest {
 
         Post existingPost = new Post();
         existingPost.setId(postId);
+        existingPost.setAuthorId(authorId);
         existingPost.setTitle("Old Title");
         existingPost.setContent("Old Content");
         existingPost.setSummary("Old Summary");
@@ -198,7 +200,7 @@ class PostServiceTest {
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
         when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
 
-        StepVerifier.create(postService.updatePost(postId, postRequest))
+        StepVerifier.create(postService.updatePost(authorId, postId, postRequest))
                 .expectNextMatches(post -> {
                     return "Updated Title Only".equals(post.getTitle()) &&
                             "Old Content".equals(post.getContent());
@@ -215,6 +217,7 @@ class PostServiceTest {
 
         Post existingPost = new Post();
         existingPost.setId(postId);
+        existingPost.setAuthorId(authorId);
         existingPost.setStatus("DRAFT");
         existingPost.setPublishedAt(null);
         existingPost.setCreatedAt(LocalDateTime.now());
@@ -228,7 +231,7 @@ class PostServiceTest {
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
         when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
 
-        StepVerifier.create(postService.updatePost(postId, postRequest))
+        StepVerifier.create(postService.updatePost(authorId, postId, postRequest))
                 .expectNextMatches(post -> {
                     return "PUBLISHED".equals(post.getStatus()) &&
                             post.getPublishedAt() != null;
@@ -244,29 +247,31 @@ class PostServiceTest {
         existingPost.setTitle("Test Title");
         existingPost.setViewCount(5);
 
-        Post updatedPost = new Post();
-        updatedPost.setId(postId);
-        updatedPost.setTitle("Test Title");
-        updatedPost.setViewCount(6);
-
+        when(postRepository.incrementViewCount(postId)).thenReturn(Mono.empty());
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
-        when(postRepository.save(any(Post.class))).thenReturn(Mono.just(updatedPost));
 
         StepVerifier.create(postService.getPost(postId))
-                .expectNextMatches(post -> post.getViewCount() == 6)
+                .expectNextMatches(post -> post.getViewCount() == 5)
                 .verifyComplete();
 
+        verify(postRepository, times(1)).incrementViewCount(postId);
         verify(postRepository, times(1)).findById(postId);
-        verify(postRepository, times(1)).save(any(Post.class));
+        verify(postRepository, never()).save(any(Post.class));
     }
 
     @Test
     void testDeletePost() {
+        Post existingPost = new Post();
+        existingPost.setId(postId);
+        existingPost.setAuthorId(authorId);
+
+        when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
         when(postRepository.deleteById(postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(postService.deletePost(postId))
+        StepVerifier.create(postService.deletePost(authorId, postId))
                 .verifyComplete();
 
+        verify(postRepository, times(1)).findById(postId);
         verify(postRepository, times(1)).deleteById(postId);
     }
 
@@ -307,6 +312,7 @@ class PostServiceTest {
     void testPublishPost() {
         Post existingPost = new Post();
         existingPost.setId(postId);
+        existingPost.setAuthorId(authorId);
         existingPost.setStatus("DRAFT");
         existingPost.setPublishedAt(null);
 
@@ -319,7 +325,7 @@ class PostServiceTest {
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
         when(postRepository.save(any(Post.class))).thenReturn(Mono.just(publishedPost));
 
-        StepVerifier.create(postService.publishPost(postId))
+        StepVerifier.create(postService.publishPost(authorId, postId))
                 .verifyComplete();
 
         verify(postRepository, times(1)).findById(postId);
@@ -330,7 +336,7 @@ class PostServiceTest {
     void testUpdatePost_PostNotFound() {
         when(postRepository.findById(postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(postService.updatePost(postId, postRequest))
+        StepVerifier.create(postService.updatePost(authorId, postId, postRequest))
                 .verifyComplete();
 
         verify(postRepository, times(1)).findById(postId);

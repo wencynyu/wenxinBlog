@@ -107,11 +107,12 @@ class PostControllerTest {
         PostRequest request = new PostRequest();
         request.setTitle("Updated Post");
 
-        when(postService.updatePost(eq(postId), any(PostRequest.class)))
+        when(postService.updatePost(eq(userId), eq(postId), any(PostRequest.class)))
                 .thenReturn(Mono.just(post));
 
         client.put()
                 .uri("/api/v1/posts/{id}", postId)
+                .header("X-User-Id", userId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -123,10 +124,11 @@ class PostControllerTest {
 
     @Test
     void testDeletePost() {
-        when(postService.deletePost(postId)).thenReturn(Mono.empty());
+        when(postService.deletePost(userId, postId)).thenReturn(Mono.empty());
 
         client.delete()
                 .uri("/api/v1/posts/{id}", postId)
+                .header("X-User-Id", userId.toString())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -179,11 +181,12 @@ class PostControllerTest {
 
     @Test
     void testPublishPost() {
-        when(postService.publishPost(postId)).thenReturn(Mono.empty());
+        when(postService.publishPost(userId, postId)).thenReturn(Mono.empty());
         when(postService.getPost(postId)).thenReturn(Mono.just(post));
 
         client.post()
                 .uri("/api/v1/posts/{id}/publish", postId)
+                .header("X-User-Id", userId.toString())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()

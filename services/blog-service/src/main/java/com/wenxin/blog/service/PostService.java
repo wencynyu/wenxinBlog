@@ -88,11 +88,8 @@ public class PostService {
     }
 
     public Mono<Post> getPost(UUID id) {
-        return postRepository.findById(id)
-                .flatMap(post -> {
-                    post.setViewCount(post.getViewCount() + 1);
-                    return postRepository.save(post).thenReturn(post);
-                })
+        return postRepository.incrementViewCount(id)
+                .then(postRepository.findById(id))
                 .flatMap(this::fillAuthorAndTags);
     }
 

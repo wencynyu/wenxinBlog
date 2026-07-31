@@ -18,16 +18,12 @@ public class LikeService {
         return likeRepository.existsByUserIdAndPostId(userId, postId).flatMap(exists -> {
             if (exists > 0) {
                 return likeRepository.deleteByUserIdAndPostId(userId, postId)
-                    .then(postRepository.findById(postId).flatMap(post -> {
-                        post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
-                        return postRepository.save(post).thenReturn(false);
-                    }));
+                    .then(postRepository.decrementLikeCount(postId).thenReturn(false));
             } else {
                 return likeRepository.addLike(userId, postId)
-                    .then(postRepository.findById(postId).flatMap(post -> {
-                        post.setLikeCount(post.getLikeCount() + 1);
-                        return postRepository.save(post).thenReturn(true);
-                    }));
+                    .flatMap(inserted -> inserted > 0
+                        ? postRepository.incrementLikeCount(postId).thenReturn(true)
+                        : Mono.just(true));
             }
         });
     }

@@ -28,12 +28,8 @@ public class CommentService {
         comment.setContent(req.getContent());
         comment.setCreatedAt(LocalDateTime.now());
         comment.setUpdatedAt(LocalDateTime.now());
-        return commentRepository.save(comment).flatMap(saved ->
-            postRepository.findById(postId).flatMap(post -> {
-                post.setCommentCount(post.getCommentCount() + 1);
-                return postRepository.save(post).thenReturn(saved);
-            })
-        );
+        return commentRepository.save(comment)
+                .flatMap(saved -> postRepository.incrementCommentCount(postId).thenReturn(saved));
     }
 
     public Flux<Comment> listComments(UUID postId) {
@@ -49,7 +45,7 @@ public class CommentService {
             if (!comment.getAuthorId().equals(userId)) {
                 return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
             }
-            return commentRepository.delete(comment).then();
+            return commentRepository.deleteCommentSubtreeAndDecrementCount(id, comment.getPostId());
         });
     }
 }

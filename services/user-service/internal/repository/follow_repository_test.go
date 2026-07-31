@@ -24,8 +24,29 @@ func TestFollowRepository_Follow_Success(t *testing.T) {
 		WithArgs(followerID, followingID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err = repo.Follow(followerID, followingID)
+	inserted, err := repo.Follow(followerID, followingID)
 	require.NoError(t, err)
+	assert.True(t, inserted)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFollowRepository_Follow_AlreadyFollowing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewFollowRepository(db)
+	followerID := uuid.New()
+	followingID := uuid.New()
+
+	// ON CONFLICT DO NOTHING 未插入 → RowsAffected = 0
+	mock.ExpectExec("INSERT INTO follows").
+		WithArgs(followerID, followingID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	inserted, err := repo.Follow(followerID, followingID)
+	require.NoError(t, err)
+	assert.False(t, inserted)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -42,8 +63,29 @@ func TestFollowRepository_Unfollow_Success(t *testing.T) {
 		WithArgs(followerID, followingID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err = repo.Unfollow(followerID, followingID)
+	deleted, err := repo.Unfollow(followerID, followingID)
 	require.NoError(t, err)
+	assert.True(t, deleted)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFollowRepository_Unfollow_NotFollowing(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewFollowRepository(db)
+	followerID := uuid.New()
+	followingID := uuid.New()
+
+	// 未关注 → DELETE 影响 0 行
+	mock.ExpectExec("DELETE FROM follows WHERE follower_id = \\$1 AND following_id = \\$2").
+		WithArgs(followerID, followingID).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	deleted, err := repo.Unfollow(followerID, followingID)
+	require.NoError(t, err)
+	assert.False(t, deleted)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -110,8 +152,7 @@ func TestFollowRepository_GetFollowers_Success(t *testing.T) {
 
 	profiles, total, err := repo.GetFollowers(userID, 10, 0)
 	require.NoError(t, err)
-	// queryProfiles returns total=0 (source code limitation), not the count from QueryRow
-	assert.Equal(t, int64(0), total)
+	assert.Equal(t, int64(5), total)
 	assert.Equal(t, 1, len(profiles))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -141,8 +182,7 @@ func TestFollowRepository_GetFollowing_Success(t *testing.T) {
 
 	profiles, total, err := repo.GetFollowing(userID, 10, 0)
 	require.NoError(t, err)
-	// queryProfiles returns total=0 (source code limitation), not the count from QueryRow
-	assert.Equal(t, int64(0), total)
+	assert.Equal(t, int64(3), total)
 	assert.Equal(t, 1, len(profiles))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
