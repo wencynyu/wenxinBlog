@@ -51,7 +51,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
+          "query": "service.name:$service AND severity_text:$severity",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -93,7 +93,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
+          "query": "service.name:$service AND severity_text:$severity",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -128,7 +128,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
+          "query": "service.name:$service AND severity_text:$severity",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -163,7 +163,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
+          "query": "service.name:$service AND severity_text:$severity",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": []
@@ -181,7 +181,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
+          "query": "service.name:$service AND severity_text:$severity",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "logs" }],
           "bucketAggs": []
