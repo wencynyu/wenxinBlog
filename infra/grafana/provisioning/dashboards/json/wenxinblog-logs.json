@@ -4,12 +4,9 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "10s",
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  },
+  "time": { "from": "now-1h", "to": "now" },
   "templating": {
     "list": [
       {
@@ -33,6 +30,13 @@
         "multi": true,
         "allValue": "*",
         "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "search",
+        "type": "textbox",
+        "query": "*",
+        "current": { "text": "*", "value": "*" },
+        "label": "内容搜索"
       }
     ]
   },
@@ -47,7 +51,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity",
+          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -89,7 +93,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity",
+          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -124,7 +128,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity",
+          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": [
@@ -159,7 +163,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity",
+          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "count" }],
           "bucketAggs": []
@@ -177,7 +181,7 @@
         {
           "refId": "A",
           "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:$severity",
+          "query": "service.name:$service AND severity_text:$severity AND body.text:*$search*",
           "timeField": "@timestamp",
           "metrics": [{ "id": "1", "type": "logs" }],
           "bucketAggs": []
@@ -192,7 +196,7 @@
         "enableLogDetails": true,
         "dedupStrategy": "none",
         "sortOrder": "Descending",
-        "labels": ["service.name", "severity_text"]
+        "labels": ["service.name", "severity_text", "scope.name"]
       }
     }
   ]
