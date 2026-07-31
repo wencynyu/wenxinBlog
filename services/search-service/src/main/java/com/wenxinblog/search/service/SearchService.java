@@ -13,6 +13,7 @@ import org.springframework.data.domain.Range;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -51,7 +52,7 @@ public class SearchService {
             }
             int totalPages = request.size() > 0 ? (int) Math.ceil((double) total / request.size()) : 0;
             return new PageResult<>(items, total, request.page(), request.size(), totalPages);
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<PageResult<UserSearchResponse>> searchUsers(String query, int page, int size) {
@@ -71,7 +72,7 @@ public class SearchService {
             }
             int totalPages2 = size > 0 ? (int) Math.ceil((double) total / size) : 0;
             return new PageResult<>(items, total, page, size, totalPages2);
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<List<SuggestResponse>> suggest(String query, String type) {
@@ -83,7 +84,7 @@ public class SearchService {
             return results.stream()
                     .map(text -> new SuggestResponse(text, type))
                     .collect(Collectors.toList());
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<List<String>> getTrendingSearches(int limit) {
