@@ -52,14 +52,14 @@ SERVICES=(
   "auth:8001:services/auth-service::-"
   "user:8002:services/user-service::-"
   "blog:8003:services/blog-service:512"
-  "search:8005:services/search-service:384"
-  "recommend:8006:services/recommendation-service:384"
-  "experiment:8009:services/experiment-service:384"
-  "analytics:8010:services/analytics-service:384"
-  "content:8004:services/content-service:384"
-  "ad:8007:services/ad-service:384"
+  "search:8005:services/search-service:512"
+  "recommend:8006:services/recommendation-service:512"
+  "experiment:8009:services/experiment-service:512"
+  "analytics:8010:services/analytics-service:512"
+  "content:8004:services/content-service:512"
+  "ad:8007:services/ad-service:512"
   "embedding:8008:../embedding-service:-"
-  "gateway:8080:services/gateway:256"
+  "gateway:8080:services/gateway:512"
 )
 
 start_service() {
