@@ -90,7 +90,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "resource.service.name.keyword",
+              "field": "service.name",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",
@@ -161,7 +161,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "resource.service.name.keyword",
+              "field": "service.name",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",
@@ -219,7 +219,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "severity.text.keyword",
+              "field": "severity_text",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",

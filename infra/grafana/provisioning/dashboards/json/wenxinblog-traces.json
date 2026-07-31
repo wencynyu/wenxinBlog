@@ -36,7 +36,7 @@
             "uid": "opensearch-traces"
           },
           "query": "*",
-          "timeField": "startTime",
+          "timeField": "@timestamp",
           "metrics": [
             {
               "id": "1",
@@ -47,7 +47,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "resource.service.name.keyword",
+              "field": "service.name",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",
@@ -58,7 +58,7 @@
             {
               "id": "3",
               "type": "date_histogram",
-              "field": "startTime",
+              "field": "@timestamp",
               "settings": {
                 "interval": "auto",
                 "min_doc_count": "0"
@@ -111,7 +111,7 @@
             "uid": "opensearch-traces"
           },
           "query": "*",
-          "timeField": "startTime",
+          "timeField": "@timestamp",
           "metrics": [
             {
               "id": "1",
@@ -151,14 +151,14 @@
               "endTime": true
             },
             "renameByName": {
-              "traceId": "traceId",
+              "trace_id": "trace_id",
               "name": "operation",
               "kind": "kind",
-              "startTime": "time"
+              "@timestamp": "time"
             },
             "indexByName": {
-              "startTime": 0,
-              "traceId": 1,
+              "@timestamp": 0,
+              "trace_id": 1,
               "name": 2,
               "kind": 3
             }
@@ -188,7 +188,7 @@
             "uid": "opensearch-traces"
           },
           "query": "*",
-          "timeField": "startTime",
+          "timeField": "@timestamp",
           "metrics": [
             {
               "id": "1",
@@ -199,7 +199,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "resource.service.name.keyword",
+              "field": "service.name",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",
@@ -246,7 +246,7 @@
             "uid": "opensearch-traces"
           },
           "query": "*",
-          "timeField": "startTime",
+          "timeField": "@timestamp",
           "metrics": [
             {
               "id": "1",
@@ -257,7 +257,7 @@
             {
               "id": "2",
               "type": "terms",
-              "field": "kind.keyword",
+              "field": "kind",
               "settings": {
                 "size": "10",
                 "min_doc_count": "0",
