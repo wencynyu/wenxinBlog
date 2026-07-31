@@ -13,11 +13,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Elasticsearch 客户端配置（从 OpenSearch 迁移；类名保留避免改动扫描）。
- * ES 关闭了 security，故无需认证配置。
+ * Elasticsearch 客户端配置。ES 关闭了 security，故无需认证配置。
  */
 @Configuration
-public class OpenSearchConfig {
+public class ElasticsearchConfig {
 
     @Value("${elasticsearch.uris}")
     private String uris;
