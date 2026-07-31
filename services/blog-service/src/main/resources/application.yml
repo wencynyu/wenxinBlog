@@ -20,11 +20,6 @@ spring:
       port: 6379
       password: ${REDIS_PASSWORD:redis}
 
-opensearch:
-  uris: http://localhost:9200
-  index:
-    blog: wenxinblog-blog
-
 # actuator + prometheus 指标（Grafana 采集）
 management:
   endpoints:

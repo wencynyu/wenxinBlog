@@ -51,16 +51,6 @@
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.opensearch.client</groupId>
-			<artifactId>opensearch-java</artifactId>
-			<version>2.19.0</version>
-		</dependency>
-		<dependency>
-			<groupId>org.opensearch.client</groupId>
-			<artifactId>opensearch-rest-client</artifactId>
-			<version>2.11.0</version>
-		</dependency>
-		<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-resolver-dns-native-macos</artifactId>
 			<classifier>osx-aarch_64</classifier>
