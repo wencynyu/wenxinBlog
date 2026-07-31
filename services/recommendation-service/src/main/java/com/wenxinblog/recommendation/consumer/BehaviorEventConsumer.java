@@ -33,7 +33,7 @@ public class BehaviorEventConsumer {
     private final RecommendationService recommendationService;
 
     @KafkaListener(topics = "user-behavior-events", groupId = "recommendation-service-group")
-    public void consume(ConsumerRecord<String, String> record) {
+    public Mono<Void> consume(ConsumerRecord<String, String> record) {
         try {
             JsonNode node = objectMapper.readTree(record.value());
             String eventType = node.get("eventType").asText();
@@ -52,12 +52,11 @@ public class BehaviorEventConsumer {
                     ? recommendationService.recordViewedPost(userId, postId)
                     : Mono.empty();
 
-            tagPart.then(vectorPart).then(recordPart)
-                    .doOnError(e -> log.warn("behavior→vector refresh failed for {}: {}", userId, e.getMessage()))
-                    .onErrorResume(e -> Mono.empty())
-                    .subscribe();
+            return tagPart.then(vectorPart).then(recordPart)
+                    .doOnError(e -> log.warn("behavior→vector refresh failed for {}: {}", userId, e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to process behavior event: {}", e.getMessage(), e);
+            return Mono.error(e);
         }
     }
 

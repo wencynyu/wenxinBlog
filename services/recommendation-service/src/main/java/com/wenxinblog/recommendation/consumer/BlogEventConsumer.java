@@ -10,12 +10,12 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 /**
  * 消费 wenxinblog.blog.events：博文创建/更新 → embedding → upsert Milvus；删除 → 移除。
  * 与 search-service（group=search-service）互不干扰（本服务 group=recommendation-service）。
- * 非发布态不进推荐库（已存在则移除）。所有异步链 fire-and-forget，错误不抛回 Kafka。
+ * 非发布态不进推荐库（已存在则移除）。consume 返回 Mono<Void>，Spring Kafka 等待完成后再提交 offset；
+ * Milvus/embedding 失败向上抛错走默认重试（至少一次语义），不静默丢事件。
  */
 @Slf4j
 @Component
@@ -27,7 +27,7 @@ public class BlogEventConsumer {
     private final EmbeddingClient embeddingClient;
 
     @KafkaListener(topics = "wenxinblog.blog.events", groupId = "recommendation-service")
-    public void consume(ConsumerRecord<String, String> record) {
+    public Mono<Void> consume(ConsumerRecord<String, String> record) {
         try {
             JsonNode root = objectMapper.readTree(record.value());
             String eventType = root.path("eventType").asText();
@@ -35,30 +35,27 @@ public class BlogEventConsumer {
             String postId = data.path("id").asText();
             log.info("consumed blog event: type={}, postId={}", eventType, postId);
             if (postId.isEmpty()) {
-                return;
+                return Mono.empty();
             }
-            switch (eventType) {
+            return switch (eventType) {
                 case "CREATE", "UPDATE" -> handleUpsert(data, postId);
                 case "DELETE" -> milvusService.removePost(postId)
-                        .doOnError(e -> log.warn("Milvus removePost failed {}: {}", postId, e.getMessage()))
-                        .onErrorResume(e -> Mono.empty())
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .subscribe();
-                default -> log.debug("ignore blog event type: {}", eventType);
-            }
+                        .doOnError(e -> log.warn("Milvus removePost failed {}: {}", postId, e.getMessage()));
+                default -> {
+                    log.debug("ignore blog event type: {}", eventType);
+                    yield Mono.empty();
+                }
+            };
         } catch (Exception e) {
             log.warn("Failed to handle blog event: {}", e.getMessage());
+            return Mono.error(e);
         }
     }
 
-    private void handleUpsert(JsonNode data, String postId) {
+    private Mono<Void> handleUpsert(JsonNode data, String postId) {
         String status = data.path("status").asText();
         if (!"published".equalsIgnoreCase(status)) {
-            milvusService.removePost(postId)
-                    .onErrorResume(e -> Mono.empty())
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .subscribe();
-            return;
+            return milvusService.removePost(postId);
         }
         String title = data.path("title").asText("");
         String summary = data.path("summary").asText("");
@@ -71,9 +68,9 @@ public class BlogEventConsumer {
         }
         final String embedText = text;
         if (embedText.isEmpty()) {
-            return;
+            return Mono.empty();
         }
-        embeddingClient.embed(embedText)
+        return embeddingClient.embed(embedText)
                 .flatMap(vec -> {
                     if (vec.length == 0) {
                         log.warn("embedding empty for post {} (model service down?)", postId);
@@ -82,8 +79,6 @@ public class BlogEventConsumer {
                     log.info("embedding post {} (dim={}) → Milvus upsert", postId, vec.length);
                     return milvusService.upsertPost(postId, authorId, title, vec);
                 })
-                .doOnError(e -> log.warn("embed/upsert failed for {}: {}", postId, e.getMessage()))
-                .onErrorResume(e -> Mono.empty())
-                .subscribe();
+                .doOnError(e -> log.warn("embed/upsert failed for {}: {}", postId, e.getMessage()));
     }
 }
