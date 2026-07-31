@@ -1,0 +1,11 @@
+<clickhouse>
+  <!-- dev 环境：允许 default 用户从任意来源连接（analytics-service 从宿主机经 Docker 端口映射连接）。
+       生产环境应收紧为内网网段。 -->
+  <users>
+    <default>
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+    </default>
+  </users>
+</clickhouse>

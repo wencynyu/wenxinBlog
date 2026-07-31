@@ -313,6 +313,7 @@ services:
       # TCP 9000 不映射到宿主机（MinIO 占了 9000-9001），Docker 网络内直连 clickhouse:9000
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./infra/clickhouse/users.d:/etc/clickhouse-server/users.d:ro
     ulimits:
       nofile:
         soft: 262144
