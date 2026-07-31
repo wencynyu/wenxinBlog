@@ -107,8 +107,6 @@ stop_service() {
   local pid=$(lsof -ti:$port 2>/dev/null)
   if [ -n "$pid" ]; then
     kill -9 $pid 2>/dev/null
-    # Also kill parent Maven process
-    pkill -9 -f "spring-boot:run.*$name" 2>/dev/null || true
     echo "  $name($port) stopped"
   else
     echo "  $name($port) not running"
@@ -187,9 +185,10 @@ case "${1:-start}" in
       stop_service "$name" "$port"
     done
 
-    # Stop Docker
-    echo "=== Stopping Docker ==="
-    docker compose down 2>/dev/null
+    # 兜底：杀残留的 mvn spring-boot:run 父进程（stop_service 按端口只杀了 java 子）
+    pkill -9 -f "spring-boot:run" 2>/dev/null || true
+
+    echo "=== 项目服务已停；docker 基建（postgres/redis/kafka/ES/clickhouse 等）保留 ==="
     echo "Done."
     ;;
 
