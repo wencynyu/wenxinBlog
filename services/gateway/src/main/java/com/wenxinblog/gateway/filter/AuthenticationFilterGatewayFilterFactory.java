@@ -40,31 +40,41 @@ public class AuthenticationFilterGatewayFilterFactory
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            String path = exchange.getRequest().getURI().getPath();
-            HttpMethod method = exchange.getRequest().getMethod();
+            // 先剥离客户端可能伪造的 X-User-* 头（防止下游信任自报身份），
+            // 只在 JWT 验证通过后由本过滤器注入真实值。
+            ServerWebExchange sanitized = exchange.mutate()
+                    .request(r -> r.headers(h -> {
+                        h.remove("X-User-Id");
+                        h.remove("X-User-Roles");
+                        h.remove("X-User-Email");
+                    }))
+                    .build();
 
-            // 白名单 → 直接放行
+            String path = sanitized.getRequest().getURI().getPath();
+            HttpMethod method = sanitized.getRequest().getMethod();
+
+            // 白名单 → 直接放行（已剥离伪造头）
             if (isWhitelisted(path)) {
-                return chain.filter(exchange);
+                return chain.filter(sanitized);
             }
 
-            String token = extractToken(exchange);
+            String token = extractToken(sanitized);
 
             // GET：有 token 则验证并注入用户信息（供个性化 GET，如 /recommend/feed），
-            // 无 token 或验证失败 → 放行（公开读，降级匿名，不阻断）。
+            // 无 token 或验证失败 → 放行（公开读，降级匿名，不阻断，且不带伪造头）。
             if (method == HttpMethod.GET) {
                 if (token == null || token.isEmpty()) {
-                    return chain.filter(exchange);
+                    return chain.filter(sanitized);
                 }
                 return validateToken(token)
                         .flatMap(userInfo -> chain.filter(
                                 userInfo != null && userInfo.isValid()
-                                        ? exchange.mutate().request(r -> r
+                                        ? sanitized.mutate().request(r -> r
                                                 .header("X-User-Id", userInfo.userId())
                                                 .header("X-User-Roles", String.join(",", userInfo.roles()))
                                                 .header("X-User-Email", userInfo.email())).build()
-                                        : exchange))
-                        .onErrorResume(e -> chain.filter(exchange));
+                                        : sanitized))
+                        .onErrorResume(e -> chain.filter(sanitized));
             }
 
             // POST/PUT/DELETE：必须有有效 token
@@ -78,7 +88,7 @@ public class AuthenticationFilterGatewayFilterFactory
                         }
                         log.debug("Auth OK: user={} method={} path={}", userInfo.userId(), method, path);
                         return chain.filter(
-                                exchange.mutate().request(r -> r
+                                sanitized.mutate().request(r -> r
                                         .header("X-User-Id", userInfo.userId())
                                         .header("X-User-Roles", String.join(",", userInfo.roles()))
                                         .header("X-User-Email", userInfo.email())).build());
