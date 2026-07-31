@@ -62,13 +62,13 @@ services:
       SPRING_R2DBC_USERNAME: postgres
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       SPRING_DATA_REDIS_HOST: redis-cache
-      OPENSEARCH_URIS: http://opensearch:9200
+      OPENSEARCH_URIS: http://elasticsearch:9200
     depends_on:
       postgres-blog:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
-      opensearch:
+      elasticsearch:
         condition: service_healthy
 
   search-service:
@@ -79,11 +79,11 @@ services:
       - "8005:8005"
     environment:
       OTEL_SERVICE_NAME: search-service
-      OPENSEARCH_URIS: http://opensearch:9200
+      OPENSEARCH_URIS: http://elasticsearch:9200
       SPRING_DATA_REDIS_HOST: redis-cache
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
-      opensearch:
+      elasticsearch:
         condition: service_healthy
       redis-cache:
         condition: service_healthy

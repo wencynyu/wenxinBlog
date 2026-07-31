@@ -108,41 +108,27 @@ services:
       - redis-cache-data:/data
 
   # =====================================================
-  # OpenSearch 全文检索
+  # Elasticsearch 全文检索 + OTel traces/logs 存储
+  # （从 OpenSearch 迁移：API 兼容，ES 8 关 security；traces/logs 可视化走 Grafana，故不装 Kibana）
   # =====================================================
-  opensearch:
-    image: opensearchproject/opensearch:2.11.0
-    container_name: wenxinblog-opensearch
+  elasticsearch:
+    image: elasticsearch:9.3.8
+    container_name: wenxinblog-elasticsearch
     environment:
-      - cluster.name=wenxinblog
       - discovery.type=single-node
-      - DISABLE_SECURITY_PLUGIN=true
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
-      - "9600:9600"
     volumes:
-      - opensearch-data:/usr/share/opensearch/data
+      - elasticsearch-data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q green"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -q '\"status\"'"]
       interval: 30s
       timeout: 10s
-      retries: 5
-    networks:
-      - wenxinblog
-
-  # OpenSearch Dashboard
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
-    container_name: wenxinblog-opensearch-dashboards
-    environment:
-      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "5601:5601"
-    depends_on:
-      opensearch:
-        condition: service_healthy
+      retries: 10
     networks:
       - wenxinblog
 
@@ -315,7 +301,7 @@ services:
     networks:
       - wenxinblog
     depends_on:
-      opensearch:
+      elasticsearch:
         condition: service_started
   # =====================================================
   clickhouse:
@@ -403,8 +389,8 @@ volumes:
     name: wenxinblog-redis-data
 
   # OpenSearch data
-  opensearch-data:
-    name: wenxinblog-opensearch-data
+  elasticsearch-data:
+    name: wenxinblog-elasticsearch-data
 
   # Kafka & Zookeeper data
   zookeeper-data:

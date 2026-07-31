@@ -21,12 +21,10 @@ processors:
         action: upsert
 
 exporters:
-  # Traces + Logs → OpenSearch（专用 opensearch exporter）
-  opensearch/traces:
-    http:
-      endpoint: http://opensearch:9200
-    traces_index: otel-traces
-    logs_index: otel-logs
+  # Traces + Logs → Elasticsearch（默认 otel 模式：自动建 index template + data stream，
+  # 如 traces-apm-default / logs-generic.default，exporter 全自动管理，无需手动建索引）
+  elasticsearch/traces:
+    endpoints: ["http://elasticsearch:9200"]
   # Debug
   debug:
     verbosity: basic
@@ -42,11 +40,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
-      exporters: [opensearch/traces, debug]
+      exporters: [elasticsearch/traces, debug]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
-      exporters: [opensearch/traces]
+      exporters: [elasticsearch/traces]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]
