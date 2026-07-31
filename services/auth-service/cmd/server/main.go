@@ -44,7 +44,7 @@ func main() {
 	// Initialize dependencies
 	userRepo := repository.NewUserRepo(db)
 	jwtService := service.NewJWTService(cfg.JWT.Secret)
-	authService := service.NewAuthService(userRepo, jwtService)
+	authService := service.NewAuthService(userRepo, jwtService, service.NewHTTPUserSyncClient(cfg.UserService.URL))
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{

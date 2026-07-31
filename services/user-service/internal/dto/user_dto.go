@@ -20,6 +20,13 @@ func Error(msg string) APIResponse {
 	return APIResponse{Code: -1, Message: msg}
 }
 
+// InternalCreateUserRequest 是 auth-service 调用内部接口同步注册用户时的请求体。
+type InternalCreateUserRequest struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
 type UpdateProfileRequest struct {
 	DisplayName *string `json:"display_name"`
 	AvatarUrl   *string `json:"avatar_url"`

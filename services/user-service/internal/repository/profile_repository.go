@@ -14,6 +14,7 @@ import (
 // ProfileRepository defines the interface for profile data operations
 type ProfileRepositoryInterface interface {
 	Create(profile *model.UserProfile) error
+	CreateUser(userID uuid.UUID, username, email string) error
 	GetByUserID(userID uuid.UUID) (*model.UserProfile, error)
 	GetByID(id uuid.UUID) (*model.UserProfile, error)
 	GetUsername(userID uuid.UUID) (string, error)
@@ -48,6 +49,17 @@ func (r *ProfileRepository) Create(profile *model.UserProfile) error {
 		profile.Website, profile.Location, profile.Company, profile.Birthday,
 		time.Now(), time.Now(),
 	)
+	return err
+}
+
+// CreateUser 幂等把注册用户插入 users 表（auth-service 注册成功后跨库调用）。
+// user_db.users.email/password_hash 为 NOT NULL：email 由 auth 传入；
+// password_hash 在本库永不被校验，置空串占位即可。status/two_fa_enabled 走 DB 默认值。
+func (r *ProfileRepository) CreateUser(userID uuid.UUID, username, email string) error {
+	query := `INSERT INTO users (id, username, email, password_hash, created_at, updated_at)
+		VALUES ($1, $2, $3, '', $4, $5)
+		ON CONFLICT (id) DO NOTHING`
+	_, err := r.db.Exec(query, userID, username, email, time.Now(), time.Now())
 	return err
 }
 

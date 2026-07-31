@@ -90,6 +90,11 @@ func main() {
 
 	api.Get("/me/following", middleware.AuthMiddleware(), h.GetMyFollowing)
 
+	// 服务间内部接口（无外部鉴权，仅限内网调用）。
+	// 独立 /internal 前缀避免与 /users/:id 冲突。
+	internal := app.Group("/internal")
+	internal.Post("/users", h.InternalCreateUser)
+
 	log.Printf("User Service starting on port %s", cfg.Server.Port)
 	log.Fatal(app.Listen(":" + cfg.Server.Port))
 }

@@ -8,10 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-
-import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -66,9 +66,11 @@ class UserEventConsumerTest {
         setupJsonIntMock(dataNode, "followerCount", 100);
         setupJsonIntMock(dataNode, "postCount", 50);
 
+        when(userRepo.indexUser(any(UserDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(userRepo).indexUser(any(UserDocument.class));
     }
@@ -105,9 +107,11 @@ class UserEventConsumerTest {
         when(dataNode.has("followerCount")).thenReturn(false);
         when(dataNode.has("postCount")).thenReturn(false);
 
+        when(userRepo.indexUser(any(UserDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(userRepo).indexUser(any(UserDocument.class));
     }
@@ -143,9 +147,11 @@ class UserEventConsumerTest {
         when(dataNode.has("avatarUrl")).thenReturn(false);
         when(dataNode.has("postCount")).thenReturn(false);
 
+        when(userRepo.indexUser(any(UserDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(userRepo).indexUser(any(UserDocument.class));
     }
@@ -172,7 +178,7 @@ class UserEventConsumerTest {
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         // Delete events skip search index removal
         verify(userRepo, never()).indexUser(any());
@@ -198,21 +204,21 @@ class UserEventConsumerTest {
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(userRepo, never()).indexUser(any());
     }
 
     @Test
-    void consume_WithInvalidJson_ShouldLogErrorAndNotThrow() throws Exception {
+    void consume_WithInvalidJson_ShouldLogErrorAndSkip() throws Exception {
         String invalidJson = "{ invalid json";
 
         when(objectMapper.readTree(anyString())).thenThrow(new RuntimeException("Invalid JSON"));
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.user.events", 0, 0, "key", invalidJson);
 
-        // Should not throw exception
-        consumer.consume(record);
+        // Invalid JSON cannot be processed: logged and skipped (offset committed, no retry)
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(userRepo, never()).indexUser(any());
     }

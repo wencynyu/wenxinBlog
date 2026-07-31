@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public class BlogEventConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "wenxinblog.blog.events", groupId = "search-service")
-    public void consume(ConsumerRecord<String, String> record) {
+    public Mono<Void> consume(ConsumerRecord<String, String> record) {
         try {
             JsonNode node = objectMapper.readTree(record.value());
             String eventType = node.get("eventType").asText();
@@ -31,17 +32,23 @@ public class BlogEventConsumer {
 
             log.info("Consumed blog event: type={}", eventType);
 
-            switch (eventType) {
+            return switch (eventType) {
                 case "CREATE", "UPDATE" -> handleUpsert(data, eventType);
                 case "DELETE" -> handleDelete(data);
-                default -> log.warn("Unknown blog event type: {}", eventType);
-            }
+                default -> {
+                    log.warn("Unknown blog event type: {}", eventType);
+                    yield Mono.empty();
+                }
+            };
         } catch (Exception e) {
+            // 反序列化/字段解析错误：事件本身不可处理，记录后跳过（offset 正常提交）。
+            // ES 写入失败不在此处捕获——由返回的 Mono error 触发 DefaultErrorHandler 重试。
             log.error("Failed to process blog event: {}", e.getMessage(), e);
+            return Mono.empty();
         }
     }
 
-    private void handleUpsert(JsonNode data, String eventType) {
+    private Mono<Void> handleUpsert(JsonNode data, String eventType) {
         BlogDocument doc = BlogDocument.builder()
                 .id(getText(data, "id"))
                 .title(getText(data, "title"))
@@ -71,15 +78,15 @@ public class BlogEventConsumer {
         // eventType 在顶层（node.eventType），不在 data 里；之前误读 data._eventType 导致
         // CREATE 永远走 updateBlog。CREATE 全量 index，UPDATE 局部 update。
         if ("CREATE".equals(eventType)) {
-            blogRepo.indexBlog(doc);
+            return blogRepo.indexBlog(doc);
         } else {
-            blogRepo.updateBlog(doc);
+            return blogRepo.updateBlog(doc);
         }
     }
 
-    private void handleDelete(JsonNode data) {
+    private Mono<Void> handleDelete(JsonNode data) {
         String blogId = data.get("id").asString();
-        blogRepo.deleteBlog(blogId);
+        return blogRepo.deleteBlog(blogId);
     }
 
     private String getText(JsonNode node, String field) {

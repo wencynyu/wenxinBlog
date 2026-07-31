@@ -23,6 +23,7 @@ type UserServicer interface {
 	IsFollowing(followerID, followingID uuid.UUID) (bool, error)
 	GetFollowingIDs(userID uuid.UUID) ([]uuid.UUID, error)
 	GetStats(userID uuid.UUID) (*dto.StatsResponse, error)
+	CreateUser(userID uuid.UUID, username, email string) error
 }
 
 type UserService struct {
@@ -33,6 +34,11 @@ type UserService struct {
 
 func NewUserService(pr repository.ProfileRepositoryInterface, fr repository.FollowRepositoryInterface, sr repository.StatsRepositoryInterface) *UserService {
 	return &UserService{profileRepo: pr, followRepo: fr, statsRepo: sr}
+}
+
+// CreateUser 幂等插入 users 表（auth-service 注册成功后调用，跨库同步）。
+func (s *UserService) CreateUser(userID uuid.UUID, username, email string) error {
+	return s.profileRepo.CreateUser(userID, username, email)
 }
 
 func (s *UserService) GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, error) {

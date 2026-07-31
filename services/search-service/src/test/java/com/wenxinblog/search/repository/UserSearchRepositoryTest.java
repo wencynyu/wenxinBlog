@@ -13,6 +13,7 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchPage;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,17 +52,19 @@ class UserSearchRepositoryTest {
         UserDocument doc = createTestUserDocument();
         when(operations.save(any(UserDocument.class))).thenReturn(Mono.just(doc));
 
-        assertDoesNotThrow(() -> userSearchRepository.indexUser(doc));
+        StepVerifier.create(userSearchRepository.indexUser(doc)).verifyComplete();
         verify(operations, times(1)).save(doc);
     }
 
     @Test
-    void indexUser_Error_ShouldNotThrowException() {
+    void indexUser_Error_ShouldPropagateError() {
         UserDocument doc = createTestUserDocument();
         when(operations.save(any(UserDocument.class)))
                 .thenReturn(Mono.error(new RuntimeException("Connection failed")));
 
-        assertDoesNotThrow(() -> userSearchRepository.indexUser(doc));
+        StepVerifier.create(userSearchRepository.indexUser(doc))
+                .expectError(RuntimeException.class)
+                .verify();
         verify(operations, times(1)).save(doc);
     }
 
@@ -72,7 +75,7 @@ class UserSearchRepositoryTest {
         UserDocument doc = createTestUserDocument();
         when(operations.save(any(UserDocument.class))).thenReturn(Mono.just(doc));
 
-        userSearchRepository.updateUser(doc);
+        StepVerifier.create(userSearchRepository.updateUser(doc)).verifyComplete();
 
         verify(operations, times(1)).save(doc);
     }

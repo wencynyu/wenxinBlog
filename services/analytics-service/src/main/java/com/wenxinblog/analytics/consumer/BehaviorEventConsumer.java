@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -24,24 +25,28 @@ public class BehaviorEventConsumer {
     private final JdbcTemplate clickHouse;
     private final ObjectMapper mapper = new ObjectMapper();
     private static final int BATCH_SIZE = 500;
-    private final List<String> buffer = Collections.synchronizedList(new ArrayList<>());
+    private final List<PendingEvent> buffer = Collections.synchronizedList(new ArrayList<>());
 
     public BehaviorEventConsumer(@Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouse) {
         this.clickHouse = clickHouse;
     }
 
     @KafkaListener(topics = "user-behavior-events", groupId = "analytics-service")
-    public void consume(ConsumerRecord<String, String> record) {
-        buffer.add(record.value());
+    public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        buffer.add(new PendingEvent(record, acknowledgment));
         if (buffer.size() >= BATCH_SIZE) flush();
     }
 
     @Scheduled(fixedDelay = 5000)
     public void scheduledFlush() { flush(); }
 
+    /**
+     * 将缓冲的事件写入 ClickHouse，成功后才 acknowledge 对应 Kafka offset（至少一次语义）。
+     * 失败时批次留在 buffer 头部待重试且不提交 offset，崩溃/重启后由 Kafka 重新投递。
+     */
     private synchronized void flush() {
         if (buffer.isEmpty()) return;
-        List<String> batch;
+        List<PendingEvent> batch;
         synchronized (buffer) { batch = new ArrayList<>(buffer); buffer.clear(); }
         try {
             clickHouse.batchUpdate(
@@ -50,7 +55,7 @@ public class BehaviorEventConsumer {
                     @Override
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
                         try {
-                            JsonNode n = mapper.readTree(batch.get(i));
+                            JsonNode n = mapper.readTree(batch.get(i).record.value());
                             ps.setString(1, n.path("userId").asText(""));
                             ps.setString(2, n.path("eventType").asText(""));
                             ps.setString(3, n.path("postId").asText(""));
@@ -69,10 +74,20 @@ public class BehaviorEventConsumer {
                     @Override
                     public int getBatchSize() { return batch.size(); }
                 });
-            log.info("Flushed {} events to ClickHouse", batch.size());
+            batch.forEach(pending -> pending.acknowledgment.acknowledge());
+            log.info("Flushed {} events to ClickHouse and acknowledged offsets", batch.size());
         } catch (Exception e) {
-            log.error("Failed to flush {} events: {}", batch.size(), e.getMessage());
+            log.error("Failed to flush {} events, keeping them unacknowledged for retry: {}", batch.size(), e.getMessage());
             synchronized (buffer) { buffer.addAll(0, batch); }
+        }
+    }
+
+    private static final class PendingEvent {
+        final ConsumerRecord<String, String> record;
+        final Acknowledgment acknowledgment;
+        PendingEvent(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+            this.record = record;
+            this.acknowledgment = acknowledgment;
         }
     }
 }

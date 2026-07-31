@@ -62,6 +62,26 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 	return c.JSON(dto.Success(profile))
 }
 
+// InternalCreateUser 是服务间内部接口：auth-service 注册成功后调用，
+// 幂等把用户插入 user_db.users。无外部鉴权（仅限内网调用）。
+func (h *UserHandler) InternalCreateUser(c *fiber.Ctx) error {
+	var req dto.InternalCreateUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(dto.Error("invalid request body"))
+	}
+	if req.ID == "" || req.Username == "" {
+		return c.Status(400).JSON(dto.Error("id and username are required"))
+	}
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return c.Status(400).JSON(dto.Error("invalid user id"))
+	}
+	if err := h.svc.CreateUser(id, req.Username, req.Email); err != nil {
+		return c.Status(500).JSON(dto.Error(err.Error()))
+	}
+	return c.JSON(dto.Success(nil))
+}
+
 func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {

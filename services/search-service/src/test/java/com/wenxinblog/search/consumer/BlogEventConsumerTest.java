@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -95,9 +97,11 @@ class BlogEventConsumerTest {
         when(tag2.asText()).thenReturn("spring");
         when(tagsNode.iterator()).thenReturn(List.of(tag1, tag2).iterator());
 
+        when(blogRepo.indexBlog(any(BlogDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo).indexBlog(any(BlogDocument.class));
     }
@@ -141,9 +145,11 @@ class BlogEventConsumerTest {
         when(dataNode.has("tags")).thenReturn(false);
         when(dataNode.has("publishedAt")).thenReturn(false);
 
+        when(blogRepo.updateBlog(any(BlogDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo).updateBlog(any(BlogDocument.class));
     }
@@ -172,23 +178,25 @@ class BlogEventConsumerTest {
         when(idNode.asText()).thenReturn("blog123");
         when(idNode.asString()).thenReturn("blog123"); // Jackson 3
 
+        when(blogRepo.deleteBlog("blog123")).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo).deleteBlog("blog123");
     }
 
     @Test
-    void consume_WithInvalidJson_ShouldLogErrorAndNotThrow() throws Exception {
+    void consume_WithInvalidJson_ShouldLogErrorAndSkip() throws Exception {
         String invalidJson = "{ invalid json";
 
         when(objectMapper.readTree(anyString())).thenThrow(new RuntimeException("Invalid JSON"));
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", invalidJson);
 
-        // Should not throw exception
-        consumer.consume(record);
+        // Invalid JSON cannot be processed: logged and skipped (offset committed, no retry)
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo, never()).indexBlog(any());
         verify(blogRepo, never()).updateBlog(any());
@@ -215,7 +223,7 @@ class BlogEventConsumerTest {
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo, never()).indexBlog(any());
         verify(blogRepo, never()).updateBlog(any());
@@ -273,9 +281,11 @@ class BlogEventConsumerTest {
         when(dataNode.has("commentCount")).thenReturn(false);
         when(dataNode.has("publishedAt")).thenReturn(false);
 
+        when(blogRepo.indexBlog(any(BlogDocument.class))).thenReturn(Mono.empty());
+
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
-        consumer.consume(record);
+        StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo).indexBlog(any(BlogDocument.class));
     }

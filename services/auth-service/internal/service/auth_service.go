@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 
 	"wenxinblog/auth-service/internal/model"
 	"wenxinblog/auth-service/internal/repository"
@@ -11,9 +12,9 @@ import (
 )
 
 var (
-	ErrUserExists      = errors.New("user already exists")
+	ErrUserExists         = errors.New("user already exists")
 	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrUserNotFound     = errors.New("user not found")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 // AuthServicer defines the interface for auth operations (used for mocking in tests)
@@ -28,10 +29,15 @@ type AuthServicer interface {
 type AuthService struct {
 	userRepo   repository.UserRepository
 	jwtService *JWTService
+	userSync   UserSyncClient // 跨库同步到 user-service；nil 表示跳过
 }
 
-func NewAuthService(userRepo repository.UserRepository, jwtService *JWTService) *AuthService {
-	return &AuthService{userRepo: userRepo, jwtService: jwtService}
+func NewAuthService(userRepo repository.UserRepository, jwtService *JWTService, syncClients ...UserSyncClient) *AuthService {
+	s := &AuthService{userRepo: userRepo, jwtService: jwtService}
+	if len(syncClients) > 0 && syncClients[0] != nil {
+		s.userSync = syncClients[0]
+	}
+	return s
 }
 
 func (s *AuthService) Register(ctx context.Context, email, username, password string) (*model.User, error) {
@@ -54,6 +60,13 @@ func (s *AuthService) Register(ctx context.Context, email, username, password st
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
+	}
+	// 跨库同步：注册成功后把用户同步到 user-service（幂等）。
+	// 失败只记录日志，不阻断注册（保证主库写入优先）。
+	if s.userSync != nil {
+		if err := s.userSync.CreateUser(ctx, user.ID, user.Username, user.Email); err != nil {
+			log.Printf("user-service sync failed for user %s: %v", user.ID, err)
+		}
 	}
 	return user, nil
 }

@@ -20,18 +20,14 @@ public class UserSearchRepository {
 
     private final ReactiveElasticsearchOperations operations;
 
-    public void indexUser(UserDocument doc) {
-        operations.save(doc)
+    public Mono<Void> indexUser(UserDocument doc) {
+        return operations.save(doc)
                 .doOnSuccess(saved -> log.debug("Indexed user: {}", doc.getId()))
-                .onErrorResume(e -> {
-                    log.error("Failed to index user {}: {}", doc.getId(), e.getMessage());
-                    return Mono.empty();
-                })
-                .subscribe();
+                .then();
     }
 
-    public void updateUser(UserDocument doc) {
-        indexUser(doc);
+    public Mono<Void> updateUser(UserDocument doc) {
+        return indexUser(doc);
     }
 
     public Mono<SearchPage<UserDocument>> searchUsers(String query, int page, int size) {

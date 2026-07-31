@@ -14,6 +14,7 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchPage;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,17 +60,19 @@ class BlogSearchRepositoryTest {
         BlogDocument doc = createTestBlogDocument();
         when(operations.save(any(BlogDocument.class))).thenReturn(Mono.just(doc));
 
-        assertDoesNotThrow(() -> blogSearchRepository.indexBlog(doc));
+        StepVerifier.create(blogSearchRepository.indexBlog(doc)).verifyComplete();
         verify(operations, times(1)).save(doc);
     }
 
     @Test
-    void indexBlog_Error_ShouldNotThrowException() {
+    void indexBlog_Error_ShouldPropagateError() {
         BlogDocument doc = createTestBlogDocument();
         when(operations.save(any(BlogDocument.class)))
                 .thenReturn(Mono.error(new RuntimeException("Connection failed")));
 
-        assertDoesNotThrow(() -> blogSearchRepository.indexBlog(doc));
+        StepVerifier.create(blogSearchRepository.indexBlog(doc))
+                .expectError(RuntimeException.class)
+                .verify();
         verify(operations, times(1)).save(doc);
     }
 
@@ -80,7 +83,7 @@ class BlogSearchRepositoryTest {
         BlogDocument doc = createTestBlogDocument();
         when(operations.save(any(BlogDocument.class))).thenReturn(Mono.just(doc));
 
-        blogSearchRepository.updateBlog(doc);
+        StepVerifier.create(blogSearchRepository.updateBlog(doc)).verifyComplete();
 
         verify(operations, times(1)).save(doc);
     }
@@ -91,16 +94,18 @@ class BlogSearchRepositoryTest {
     void deleteBlog_Success_ShouldInvokeDelete() {
         when(operations.delete(anyString(), eq(BlogDocument.class))).thenReturn(Mono.just("blog-1"));
 
-        assertDoesNotThrow(() -> blogSearchRepository.deleteBlog("blog-1"));
+        StepVerifier.create(blogSearchRepository.deleteBlog("blog-1")).verifyComplete();
         verify(operations, times(1)).delete("blog-1", BlogDocument.class);
     }
 
     @Test
-    void deleteBlog_Error_ShouldNotThrowException() {
+    void deleteBlog_Error_ShouldPropagateError() {
         when(operations.delete(anyString(), eq(BlogDocument.class)))
                 .thenReturn(Mono.error(new RuntimeException("Delete failed")));
 
-        assertDoesNotThrow(() -> blogSearchRepository.deleteBlog("blog-1"));
+        StepVerifier.create(blogSearchRepository.deleteBlog("blog-1"))
+                .expectError(RuntimeException.class)
+                .verify();
         verify(operations, times(1)).delete("blog-1", BlogDocument.class);
     }
 

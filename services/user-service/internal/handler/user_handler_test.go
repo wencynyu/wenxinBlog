@@ -16,15 +16,16 @@ import (
 
 // MockUserService implements service.UserServicer for testing
 type MockUserService struct {
-	getProfileFunc     func(userID uuid.UUID) (*dto.UserProfileResponse, error)
-	updateProfileFunc  func(userID uuid.UUID, req *dto.UpdateProfileRequest) (*dto.UserProfileResponse, error)
-	getStatsFunc       func(userID uuid.UUID) (*dto.StatsResponse, error)
-	getFollowersFunc   func(userID uuid.UUID, page, size int) (*dto.UserListResponse, error)
-	getFollowingFunc   func(userID uuid.UUID, page, size int) (*dto.UserListResponse, error)
-	followUserFunc     func(followerID, followingID uuid.UUID) error
-	unfollowUserFunc   func(followerID, followingID uuid.UUID) error
-	searchUsersFunc    func(query string, page, size int) (*dto.UserListResponse, error)
+	getProfileFunc      func(userID uuid.UUID) (*dto.UserProfileResponse, error)
+	updateProfileFunc   func(userID uuid.UUID, req *dto.UpdateProfileRequest) (*dto.UserProfileResponse, error)
+	getStatsFunc        func(userID uuid.UUID) (*dto.StatsResponse, error)
+	getFollowersFunc    func(userID uuid.UUID, page, size int) (*dto.UserListResponse, error)
+	getFollowingFunc    func(userID uuid.UUID, page, size int) (*dto.UserListResponse, error)
+	followUserFunc      func(followerID, followingID uuid.UUID) error
+	unfollowUserFunc    func(followerID, followingID uuid.UUID) error
+	searchUsersFunc     func(query string, page, size int) (*dto.UserListResponse, error)
 	getFollowingIDsFunc func(userID uuid.UUID) ([]uuid.UUID, error)
+	createUserFunc      func(userID uuid.UUID, username, email string) error
 }
 
 func (m *MockUserService) GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, error) {
@@ -92,6 +93,13 @@ func (m *MockUserService) GetFollowingIDs(userID uuid.UUID) ([]uuid.UUID, error)
 
 func (m *MockUserService) IsFollowing(followerID, followingID uuid.UUID) (bool, error) {
 	return false, nil
+}
+
+func (m *MockUserService) CreateUser(userID uuid.UUID, username, email string) error {
+	if m.createUserFunc != nil {
+		return m.createUserFunc(userID, username, email)
+	}
+	return nil
 }
 
 // Helper function to setup test app with handler
@@ -813,11 +821,11 @@ func TestHandler_ParsePagination_CustomValues(t *testing.T) {
 
 func TestHandler_ParsePagination_BoundaryValues(t *testing.T) {
 	tests := []struct {
-		name           string
-		pageParam      string
-		sizeParam      string
-		expectedPage   int
-		expectedSize   int
+		name         string
+		pageParam    string
+		sizeParam    string
+		expectedPage int
+		expectedSize int
 	}{
 		{"Page less than 1 defaults to 1", "0", "20", 1, 20},
 		{"Size less than 1 defaults to 20", "1", "0", 1, 20},

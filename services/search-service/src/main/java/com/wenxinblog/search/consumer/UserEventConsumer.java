@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component
@@ -19,7 +20,7 @@ public class UserEventConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "wenxinblog.user.events", groupId = "search-service")
-    public void consume(ConsumerRecord<String, String> record) {
+    public Mono<Void> consume(ConsumerRecord<String, String> record) {
         try {
             JsonNode node = objectMapper.readTree(record.value());
             String eventType = node.get("eventType").asText();
@@ -27,17 +28,26 @@ public class UserEventConsumer {
 
             log.info("Consumed user event: type={}", eventType);
 
-            switch (eventType) {
+            return switch (eventType) {
                 case "CREATE", "UPDATE", "PROFILE_UPDATE" -> handleUpsert(data);
-                case "DELETE" -> handleDelete(data);
-                default -> log.warn("Unknown user event type: {}", eventType);
-            }
+                case "DELETE" -> {
+                    log.info("User delete event received, skipping search index removal");
+                    yield Mono.empty();
+                }
+                default -> {
+                    log.warn("Unknown user event type: {}", eventType);
+                    yield Mono.empty();
+                }
+            };
         } catch (Exception e) {
+            // 反序列化/字段解析错误：事件本身不可处理，记录后跳过（offset 正常提交）。
+            // ES 写入失败不在此处捕获——由返回的 Mono error 触发 DefaultErrorHandler 重试。
             log.error("Failed to process user event: {}", e.getMessage(), e);
+            return Mono.empty();
         }
     }
 
-    private void handleUpsert(JsonNode data) {
+    private Mono<Void> handleUpsert(JsonNode data) {
         UserDocument doc = UserDocument.builder()
                 .id(getText(data, "id"))
                 .displayName(getText(data, "displayName"))
@@ -48,12 +58,7 @@ public class UserEventConsumer {
                 .postCount(getInt(data, "postCount", 0))
                 .build();
 
-        userRepo.indexUser(doc);
-    }
-
-    private void handleDelete(JsonNode data) {
-        // User deletion not commonly needed in search index
-        log.info("User delete event received, skipping search index removal");
+        return userRepo.indexUser(doc);
     }
 
     private String getText(JsonNode node, String field) {

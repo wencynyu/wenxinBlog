@@ -51,7 +51,10 @@ func (m *MockProfileRepository) IncrementViewCount(userID uuid.UUID) error {
 	return nil
 }
 
-func (m *MockProfileRepository) Create(profile *model.UserProfile) error          { return nil }
+func (m *MockProfileRepository) Create(profile *model.UserProfile) error { return nil }
+func (m *MockProfileRepository) CreateUser(userID uuid.UUID, username, email string) error {
+	return nil
+}
 func (m *MockProfileRepository) GetByID(id uuid.UUID) (*model.UserProfile, error) { return nil, nil }
 func (m *MockProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
 	if m.GetUsernameFunc != nil {

@@ -31,28 +31,20 @@ public class BlogSearchRepository {
 
     private final ReactiveElasticsearchOperations operations;
 
-    public void indexBlog(BlogDocument doc) {
-        operations.save(doc)
+    public Mono<Void> indexBlog(BlogDocument doc) {
+        return operations.save(doc)
                 .doOnSuccess(saved -> log.debug("Indexed blog: {}", doc.getId()))
-                .onErrorResume(e -> {
-                    log.error("Failed to index blog {}: {}", doc.getId(), e.getMessage());
-                    return Mono.empty();
-                })
-                .subscribe();
+                .then();
     }
 
-    public void updateBlog(BlogDocument doc) {
-        indexBlog(doc);
+    public Mono<Void> updateBlog(BlogDocument doc) {
+        return indexBlog(doc);
     }
 
-    public void deleteBlog(String blogId) {
-        operations.delete(blogId, BlogDocument.class)
+    public Mono<Void> deleteBlog(String blogId) {
+        return operations.delete(blogId, BlogDocument.class)
                 .doOnSuccess(id -> log.debug("Deleted blog: {}", blogId))
-                .onErrorResume(e -> {
-                    log.error("Failed to delete blog {}: {}", blogId, e.getMessage());
-                    return Mono.empty();
-                })
-                .subscribe();
+                .then();
     }
 
     public Mono<SearchPage<BlogDocument>> searchBlogs(SearchRequest request) {

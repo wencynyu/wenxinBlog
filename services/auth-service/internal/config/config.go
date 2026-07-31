@@ -26,6 +26,11 @@ type Config struct {
 		Expiry int    `yaml:"expiry"`
 	} `yaml:"jwt"`
 
+	// UserService 是 user-service 的内部同步目标（跨库同步注册用户）。
+	UserService struct {
+		URL string `yaml:"url"`
+	} `yaml:"userService"`
+
 	OAuth struct {
 		Google OAuthConfig `yaml:"google"`
 		GitHub OAuthConfig `yaml:"github"`
@@ -112,6 +117,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.JWT.Expiry == 0 {
 		cfg.JWT.Expiry = 86400
 	}
+	if cfg.UserService.URL == "" {
+		cfg.UserService.URL = "http://localhost:8002"
+	}
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -132,6 +140,9 @@ func applyEnvOverrides(cfg *Config) {
 		if _, err := fmt.Sscanf(v, "%d", &val); err == nil {
 			cfg.JWT.Expiry = val
 		}
+	}
+	if v := os.Getenv("USER_SERVICE_URL"); v != "" {
+		cfg.UserService.URL = v
 	}
 
 	if v := os.Getenv("GOOGLE_CLIENT_ID"); v != "" {
