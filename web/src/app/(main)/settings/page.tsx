@@ -50,7 +50,20 @@ export default function SettingsPage() {
         location: values.location || undefined,
         website: values.website || undefined,
       });
-      if (setUser) setUser(updated);
+      if (setUser && user) {
+        // 修复：后端返回的 user_id 才是真实用户 id（id 是 user_profiles 主键），字段是 snake_case。
+        // 直接 setUser(updated) 会把 profile 主键塞进 user.id，导致「我的主页」跳转到不存在的用户 id。
+        const up = updated as any;
+        setUser({
+          ...user,
+          id: up.user_id || user.id,
+          displayName: up.display_name ?? user.displayName,
+          avatar: up.avatar_url ?? user.avatar,
+          bio: up.bio ?? user.bio,
+          location: up.location ?? user.location,
+          website: up.website ?? user.website,
+        });
+      }
       Toast.success('个人资料已更新');
     } catch (error: any) {
       Toast.error(error?.message || '更新失败');
