@@ -20,7 +20,7 @@
       "title": "Span 吞吐趋势（按服务）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-traces"
+        "uid": "elasticsearch-traces"
       },
       "gridPos": {
         "x": 0,
@@ -33,7 +33,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-traces"
+            "uid": "elasticsearch-traces"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -95,7 +95,7 @@
       "title": "最近 Span（traceId / name / service / kind / time）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-traces"
+        "uid": "elasticsearch-traces"
       },
       "gridPos": {
         "x": 0,
@@ -108,7 +108,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-traces"
+            "uid": "elasticsearch-traces"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -172,7 +172,7 @@
       "title": "Span 按服务分布",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-traces"
+        "uid": "elasticsearch-traces"
       },
       "gridPos": {
         "x": 0,
@@ -185,7 +185,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-traces"
+            "uid": "elasticsearch-traces"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -230,7 +230,7 @@
       "title": "Span 按类型分布（SERVER / CLIENT / INTERNAL）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-traces"
+        "uid": "elasticsearch-traces"
       },
       "gridPos": {
         "x": 12,
@@ -243,7 +243,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-traces"
+            "uid": "elasticsearch-traces"
           },
           "query": "*",
           "timeField": "@timestamp",

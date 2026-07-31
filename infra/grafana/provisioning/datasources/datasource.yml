@@ -21,9 +21,8 @@ datasources:
     editable: true
 
   # Traces → Elasticsearch（data stream，OTel otel 模式自动建）
-  # uid 沿用 opensearch-traces 以兼容现有 dashboard 引用
   - name: Elasticsearch-Traces
-    uid: opensearch-traces
+    uid: elasticsearch-traces
     type: elasticsearch
     access: proxy
     url: http://elasticsearch:9200
@@ -36,7 +35,7 @@ datasources:
 
   # Logs → Elasticsearch（data stream）
   - name: Elasticsearch-Logs
-    uid: opensearch-logs
+    uid: elasticsearch-logs
     type: elasticsearch
     access: proxy
     url: http://elasticsearch:9200

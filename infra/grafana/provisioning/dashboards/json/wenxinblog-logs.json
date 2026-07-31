@@ -20,7 +20,7 @@
       "title": "日志流（query 栏可按 resource.service.name: blog-service 过滤）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-logs"
+        "uid": "elasticsearch-logs"
       },
       "gridPos": {
         "x": 0,
@@ -33,7 +33,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-logs"
+            "uid": "elasticsearch-logs"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -63,7 +63,7 @@
       "title": "日志量趋势（按服务）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-logs"
+        "uid": "elasticsearch-logs"
       },
       "gridPos": {
         "x": 0,
@@ -76,7 +76,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-logs"
+            "uid": "elasticsearch-logs"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -134,7 +134,7 @@
       "title": "日志按服务分布",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-logs"
+        "uid": "elasticsearch-logs"
       },
       "gridPos": {
         "x": 0,
@@ -147,7 +147,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-logs"
+            "uid": "elasticsearch-logs"
           },
           "query": "*",
           "timeField": "@timestamp",
@@ -192,7 +192,7 @@
       "title": "按级别分布（INFO / WARN / ERROR）",
       "datasource": {
         "type": "elasticsearch",
-        "uid": "opensearch-logs"
+        "uid": "elasticsearch-logs"
       },
       "gridPos": {
         "x": 12,
@@ -205,7 +205,7 @@
           "refId": "A",
           "datasource": {
             "type": "elasticsearch",
-            "uid": "opensearch-logs"
+            "uid": "elasticsearch-logs"
           },
           "query": "*",
           "timeField": "@timestamp",
