@@ -4,21 +4,41 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 6,
+  "version": 7,
   "refresh": "10s",
-  "time": { "from": "now-24h", "to": "now" },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "templating": {
     "list": [
       {
         "name": "service",
         "type": "query",
-        "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "elasticsearch-logs"
+        },
         "query": "{\"find\": \"terms\", \"field\": \"service.name\", \"size\": 20}",
         "refresh": 1,
         "includeAll": true,
         "multi": true,
         "allValue": "*",
-        "current": { "text": "All", "value": "$__all" }
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "search",
+        "type": "textbox",
+        "label": "内容搜索",
+        "description": "Lucene 表达式，留 * 不过滤。例：body.text:*error*、severity_text:ERROR、scope.name:*Consumer*",
+        "query": "*",
+        "current": {
+          "text": "*",
+          "value": "*"
+        }
       }
     ]
   },
@@ -27,15 +47,31 @@
       "id": 2,
       "type": "timeseries",
       "title": "日志量趋势（按服务）",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 7 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 7
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
@@ -52,56 +88,87 @@
               "id": "3",
               "type": "date_histogram",
               "field": "@timestamp",
-              "settings": { "interval": "auto", "min_doc_count": "0" }
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
             }
           ]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10 }
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
         },
         "overrides": []
       },
-      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] } }
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["sum"]
+        }
+      }
     },
     {
       "id": 5,
       "type": "stat",
       "title": "日志总数",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
               "type": "date_histogram",
               "field": "@timestamp",
-              "settings": { "interval": "auto", "min_doc_count": "0" }
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
             }
           ]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "steps": [
-              { "color": "blue", "value": null },
-              { "color": "yellow", "value": 1000 },
-              { "color": "red", "value": 5000 }
-            ]
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
           }
         }
       },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "fields": "" },
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": ""
+        },
         "orientation": "horizontal"
       }
     },
@@ -109,67 +176,145 @@
       "id": 6,
       "type": "stat",
       "title": "ERROR 数",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 16, "y": 4, "w": 4, "h": 3 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 4,
+        "h": 3
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:ERROR",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search AND severity_text:ERROR",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
               "type": "date_histogram",
               "field": "@timestamp",
-              "settings": { "interval": "auto", "min_doc_count": "0" }
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
             }
           ]
         }
       ],
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
-      "options": { "reduceOptions": { "calcs": ["sum"], "fields": "" } }
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": ""
+        }
+      }
     },
     {
       "id": 7,
       "type": "stat",
       "title": "WARN 数",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 20, "y": 4, "w": 4, "h": 3 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 4,
+        "w": 4,
+        "h": 3
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service AND severity_text:WARN",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search AND severity_text:WARN",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
               "type": "date_histogram",
               "field": "@timestamp",
-              "settings": { "interval": "auto", "min_doc_count": "0" }
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
             }
           ]
         }
       ],
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" } } },
-      "options": { "reduceOptions": { "calcs": ["sum"], "fields": "" } }
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "yellow"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": ""
+        }
+      }
     },
     {
       "id": 4,
       "type": "piechart",
       "title": "按级别分布",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 0, "y": 7, "w": 8, "h": 7 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 8,
+        "h": 7
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
@@ -185,9 +330,16 @@
           ]
         }
       ],
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "values": false, "fields": "" },
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": true,
+          "fields": ""
+        },
         "pieType": "donut",
         "displayLabels": ["name", "percent"]
       }
@@ -196,15 +348,31 @@
       "id": 3,
       "type": "piechart",
       "title": "按服务分布",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 8, "y": 7, "w": 16, "h": 7 },
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 7,
+        "w": 16,
+        "h": 7
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "count" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
           "bucketAggs": [
             {
               "id": "2",
@@ -220,9 +388,16 @@
           ]
         }
       ],
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "options": {
-        "reduceOptions": { "calcs": ["sum"], "values": false, "fields": "" },
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": true,
+          "fields": ""
+        },
         "pieType": "donut",
         "displayLabels": ["name", "percent"]
       }
@@ -230,16 +405,32 @@
     {
       "id": 1,
       "type": "logs",
-      "title": "日志流（右上搜索栏可按关键字过滤；点条目展开看 logger/trace_id 等详情）",
-      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 10 },
+      "title": "日志流（顶部「内容搜索」变量过滤关键字；点条目展开看 logger/trace_id 等详情）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-logs"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 10
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
-          "query": "service.name:$service",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-logs"
+          },
+          "query": "service.name:$service AND $search",
           "timeField": "@timestamp",
-          "metrics": [{ "id": "1", "type": "logs" }],
+          "metrics": [
+            {
+              "id": "1",
+              "type": "logs"
+            }
+          ],
           "bucketAggs": []
         }
       ],
