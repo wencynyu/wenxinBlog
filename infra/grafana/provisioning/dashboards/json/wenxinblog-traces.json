@@ -4,7 +4,7 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 6,
+  "version": 20,
   "refresh": "10s",
   "time": {
     "from": "now-24h",
@@ -33,6 +33,232 @@
   },
   "panels": [
     {
+      "id": 10,
+      "type": "stat",
+      "title": "Span 总数",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Trace 数",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "cardinality",
+              "field": "trace_id"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["last"],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "错误 Span（status.code=ERROR）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "status.code:ERROR",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "P95 延迟",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "percentiles",
+              "field": "duration",
+              "settings": {
+                "percents": ["95"]
+              }
+            }
+          ],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10000000
+              },
+              {
+                "color": "red",
+                "value": 50000000
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["last"],
+          "fields": ""
+        }
+      }
+    },
+    {
       "id": 1,
       "type": "timeseries",
       "title": "Span 吞吐趋势（按服务）",
@@ -42,8 +268,8 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
-        "w": 24,
+        "y": 3,
+        "w": 16,
         "h": 8
       },
       "targets": [
@@ -53,6 +279,7 @@
             "type": "elasticsearch",
             "uid": "elasticsearch-traces"
           },
+          "queryType": "lucene",
           "query": "*",
           "timeField": "@timestamp",
           "metrics": [
@@ -92,7 +319,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "stacking": {
-              "mode": "none",
+              "mode": "normal",
               "group": "A"
             }
           }
@@ -108,18 +335,18 @@
       }
     },
     {
-      "id": 2,
-      "type": "table",
-      "title": "链路时序（近似）：选 trace 查看该链路所有 span，按时间排序（无父子层级，近似替代瀑布图）",
+      "id": 5,
+      "type": "bargauge",
+      "title": "各服务 P95 延迟",
       "datasource": {
         "type": "elasticsearch",
         "uid": "elasticsearch-traces"
       },
       "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 24,
-        "h": 11
+        "x": 16,
+        "y": 3,
+        "w": 8,
+        "h": 8
       },
       "targets": [
         {
@@ -128,6 +355,373 @@
             "type": "elasticsearch",
             "uid": "elasticsearch-traces"
           },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "percentiles",
+              "field": "duration",
+              "settings": {
+                "percents": ["95"]
+              }
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "service.name",
+              "settings": {
+                "size": "12",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10000000
+              },
+              {
+                "color": "red",
+                "value": 50000000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": ["last"],
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "请求延迟分位 P50 / P95 / P99",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "percentiles",
+              "field": "duration",
+              "settings": {
+                "percents": ["50", "95", "99"]
+              }
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "settings": {
+                "interval": "auto",
+                "min_doc_count": "0"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 5,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["last", "max"]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Span 按服务分布",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "service.name",
+              "settings": {
+                "size": "10",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": true,
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "最慢的 Trace（按链路内最大单 span 耗时排序）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            },
+            {
+              "id": "2",
+              "type": "max",
+              "field": "duration"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "3",
+              "type": "terms",
+              "field": "trace_id",
+              "settings": {
+                "size": "15",
+                "min_doc_count": "1",
+                "order": "desc",
+                "orderBy": "2"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Max duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ns"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "renameByName": {
+              "trace_id": "trace_id",
+              "Count": "span 数",
+              "Max duration": "最长 span"
+            },
+            "indexByName": {
+              "trace_id": 0,
+              "Count": 1,
+              "Max duration": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Span 按类型分布",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 19,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
+          "query": "*",
+          "timeField": "@timestamp",
+          "metrics": [
+            {
+              "id": "1",
+              "type": "count"
+            }
+          ],
+          "bucketAggs": [
+            {
+              "id": "2",
+              "type": "terms",
+              "field": "kind",
+              "settings": {
+                "size": "10",
+                "min_doc_count": "0",
+                "order": "desc",
+                "orderBy": "_count"
+              }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "values": true,
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"]
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "链路详情：选 trace 查看该链路所有 span，按时间排序（近似替代瀑布图）",
+      "datasource": {
+        "type": "elasticsearch",
+        "uid": "elasticsearch-traces"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "elasticsearch",
+            "uid": "elasticsearch-traces"
+          },
+          "queryType": "lucene",
           "query": "trace_id:$trace",
           "timeField": "@timestamp",
           "metrics": [
@@ -221,122 +815,6 @@
           }
         }
       ]
-    },
-    {
-      "id": 3,
-      "type": "piechart",
-      "title": "Span 按服务分布",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 19,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "service.name",
-              "settings": {
-                "size": "10",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "values": true,
-          "fields": ""
-        },
-        "pieType": "donut",
-        "displayLabels": ["name", "percent"]
-      }
-    },
-    {
-      "id": 4,
-      "type": "piechart",
-      "title": "Span 按类型分布（SERVER / CLIENT / INTERNAL）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 19,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "kind",
-              "settings": {
-                "size": "10",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "values": true,
-          "fields": ""
-        },
-        "pieType": "donut",
-        "displayLabels": ["name", "percent"]
-      }
     }
   ]
 }
