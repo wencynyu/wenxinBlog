@@ -160,12 +160,12 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "jvm_threads_live_threads{service_name=~\"$service\"}",
+          "expr": "jvm_threads_live{service_name=~\"$service\"}",
           "legendFormat": "{{service_name}} live"
         },
         {
-          "expr": "jvm_threads_states_threads{service_name=~\"$service\"}",
-          "legendFormat": "{{service_name}} {{state}}"
+          "expr": "jvm_threads_daemon{service_name=~\"$service\"}",
+          "legendFormat": "{{service_name}} daemon"
         }
       ]
     },
