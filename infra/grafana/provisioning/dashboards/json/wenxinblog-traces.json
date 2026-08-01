@@ -4,7 +4,7 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 23,
+  "version": 24,
   "refresh": "10s",
   "time": {
     "from": "now-24h",
@@ -813,6 +813,17 @@
         ]
       },
       "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "@timestamp",
+                "destinationType": "number"
+              }
+            ]
+          }
+        },
         {
           "id": "filterFieldsByName",
           "options": {
