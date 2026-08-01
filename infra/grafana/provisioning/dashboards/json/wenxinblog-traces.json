@@ -4,7 +4,7 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 5,
+  "version": 6,
   "refresh": "10s",
   "time": {
     "from": "now-24h",
@@ -19,7 +19,7 @@
           "type": "elasticsearch",
           "uid": "elasticsearch-traces"
         },
-        "query": "{\"find\": \"terms\", \"field\": \"trace_id\", \"size\": 20, \"order\": \"desc\", \"orderBy\": \"_count\"}",
+        "query": "{\"find\": \"terms\", \"field\": \"trace_id\", \"size\": 30}",
         "refresh": 1,
         "includeAll": true,
         "allValue": "*",
@@ -158,10 +158,10 @@
           "options": {
             "alias": "耗时(ms)",
             "mode": "binary",
-            "operation": "divide",
             "binary": {
               "left": "duration",
               "right": "constant",
+              "operator": "divide",
               "constant": 1000000
             }
           }
