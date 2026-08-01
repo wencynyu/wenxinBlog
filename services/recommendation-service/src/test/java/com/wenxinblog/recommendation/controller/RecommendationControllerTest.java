@@ -58,6 +58,24 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void backfill_WithoutAdminRole_Returns403() {
+        client.post().uri("/api/v1/recommend/admin/backfill")
+                .header("X-User-Roles", "USER")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    @Test
+    void backfill_WithAdminRole_CallsService() {
+        when(recommendationService.backfill(1000)).thenReturn(Mono.just(5));
+        client.post().uri("/api/v1/recommend/admin/backfill")
+                .header("X-User-Roles", "admin,USER")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(Result.class).value(r -> assertEquals(5, r.getData()));
+    }
+
+    @Test
     void getFeed_Anonymous_NoHeader_ReturnsTrending() {
         when(recommendationService.getFeedRecommendations(null, 0, 10)).thenReturn(Mono.just(List.of()));
         client.get().uri("/api/v1/recommend/feed").exchange().expectStatus().isOk();
@@ -114,7 +132,9 @@ class RecommendationControllerTest {
     @Test
     void backfill_ShouldReturnCount() {
         when(recommendationService.backfill(1000)).thenReturn(Mono.just(14));
-        client.post().uri("/api/v1/recommend/admin/backfill").exchange()
+        client.post().uri("/api/v1/recommend/admin/backfill")
+                .header("X-User-Roles", "admin")
+                .exchange()
                 .expectStatus().isOk()
                 .expectBody(Result.class).value(r -> assertEquals(14, r.getData()));
     }

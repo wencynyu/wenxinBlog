@@ -6,9 +6,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchPage;
@@ -175,6 +177,26 @@ class BlogSearchRepositoryTest {
         blogSearchRepository.searchBlogs(request).block();
 
         verify(operations, times(1)).searchForPage(any(), eq(BlogDocument.class));
+    }
+
+    @Test
+    void searchBlogs_AppliesStatusAndTagCategoryAuthorFilters() {
+        SearchRequest request = new SearchRequest("java", 0, 10, "relevance",
+                List.of("spring", "java"), "tech", "author-1");
+        SearchPage<BlogDocument> page = createMockSearchPage(List.of(), 0L);
+        when(operations.searchForPage(any(), eq(BlogDocument.class))).thenReturn(Mono.just(page));
+
+        blogSearchRepository.searchBlogs(request).block();
+
+        ArgumentCaptor<NativeQuery> captor = ArgumentCaptor.forClass(NativeQuery.class);
+        verify(operations, times(1)).searchForPage(captor.capture(), eq(BlogDocument.class));
+        String q = captor.getValue().getQuery().toString();
+        // 必须只返回已发布内容（防草稿泄漏）
+        assertTrue(q.contains("PUBLISHED"), "query should filter status=PUBLISHED, got: " + q);
+        // tags/category/author 过滤拼进查询
+        assertTrue(q.contains("spring") && q.contains("java"), "query should filter by tags, got: " + q);
+        assertTrue(q.contains("tech"), "query should filter by category, got: " + q);
+        assertTrue(q.contains("author-1"), "query should filter by author, got: " + q);
     }
 
     @Test

@@ -8,6 +8,7 @@ import co.elastic.clients.elasticsearch._types.FieldSort;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
@@ -48,12 +49,28 @@ public class BlogSearchRepository {
     }
 
     public Mono<SearchPage<BlogDocument>> searchBlogs(SearchRequest request) {
+        BoolQuery.Builder bb = new BoolQuery.Builder()
+                .must(m -> m.multiMatch(mm -> mm
+                        .query(request.query())
+                        .fields("title^3", "content^2", "summary^2", "tags^2", "author_name^1")
+                        .type(TextQueryType.BestFields)));
+        // 只返回已发布内容（防草稿/未发布内容泄漏到搜索结果）
+        bb.filter(f -> f.term(t -> t.field("status").value("PUBLISHED")));
+        // tags 过滤（可选）
+        if (request.tags() != null && !request.tags().isEmpty()) {
+            bb.filter(f -> f.terms(t -> t.field("tags")
+                    .terms(tv -> tv.value(request.tags().stream().map(FieldValue::of).toList()))));
+        }
+        // category 过滤（可选）
+        if (request.category() != null && !request.category().isBlank()) {
+            bb.filter(f -> f.term(t -> t.field("category").value(request.category())));
+        }
+        // 按作者过滤（可选）
+        if (request.authorId() != null && !request.authorId().isBlank()) {
+            bb.filter(f -> f.term(t -> t.field("author_id").value(request.authorId())));
+        }
         NativeQuery query = NativeQuery.builder()
-                .withQuery(q -> q.bool(b -> b
-                        .must(m -> m.multiMatch(mm -> mm
-                                .query(request.query())
-                                .fields("title^3", "content^2", "summary^2", "tags^2", "author_name^1")
-                                .type(TextQueryType.BestFields)))))
+                .withQuery(q -> q.bool(bb.build()))
                 .withSort(buildSort(request.sortBy()))
                 .withPageable(PageRequest.of(request.page(), request.size()))
                 .withHighlightQuery(new HighlightQuery(

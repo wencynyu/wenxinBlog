@@ -236,6 +236,18 @@ func TestValidateToken_Invalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestValidateToken_RejectsRefresh(t *testing.T) {
+	jwtService := NewJWTService("test-secret")
+	authService := NewAuthService(nil, jwtService)
+
+	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	require.NoError(t, err)
+
+	// refresh token 不能当 access token 用于接口鉴权
+	_, err = authService.ValidateToken(tokens.RefreshToken)
+	assert.Error(t, err)
+}
+
 func TestRefreshToken_Success(t *testing.T) {
 	mockRepo := &MockUserRepository{}
 	jwtService := NewJWTService("test-secret")

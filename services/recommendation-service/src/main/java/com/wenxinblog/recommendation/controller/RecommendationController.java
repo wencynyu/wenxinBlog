@@ -6,7 +6,9 @@ import com.wenxinblog.recommendation.dto.TrendingPost;
 import com.wenxinblog.recommendation.entity.UserInterestTag;
 import com.wenxinblog.recommendation.service.RecommendationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -94,9 +96,23 @@ public class RecommendationController {
                 .thenReturn(Result.success("ok"));
     }
 
-    /** 把已有已发布帖子批量嵌入 Milvus（返回成功 upsert 条数）。 */
+    /** 把已有已发布帖子批量嵌入 Milvus（返回成功 upsert 条数）。仅 admin 可调。 */
     @PostMapping("/admin/backfill")
-    public Mono<Result<Integer>> backfill(@RequestParam(defaultValue = "1000") int limit) {
+    public Mono<Result<Integer>> backfill(
+            @RequestHeader(value = "X-User-Roles", defaultValue = "") String roles,
+            @RequestParam(defaultValue = "1000") int limit) {
+        if (isNotAdmin(roles)) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "需要管理员权限"));
+        }
         return recommendationService.backfill(limit).map(Result::success);
+    }
+
+    /** 网关在 JWT 验证后注入的 X-User-Roles 为逗号分隔；未含 admin 则拒绝。 */
+    private boolean isNotAdmin(String roles) {
+        if (roles == null || roles.isBlank()) return true;
+        for (String role : roles.split(",")) {
+            if ("admin".equals(role.trim())) return false;
+        }
+        return true;
     }
 }

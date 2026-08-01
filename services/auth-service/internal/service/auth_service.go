@@ -90,7 +90,15 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Token
 }
 
 func (s *AuthService) ValidateToken(token string) (*Claims, error) {
-	return s.jwtService.ParseToken(token)
+	claims, err := s.jwtService.ParseToken(token)
+	if err != nil {
+		return nil, err
+	}
+	// 接口鉴权只接受 access token；refresh token 不能当 access 用（防止长效 token 直接调 API）
+	if claims.TokenType != "access" {
+		return nil, errors.New("access token required")
+	}
+	return claims, nil
 }
 
 func (s *AuthService) RefreshToken(token string) (*TokenPair, error) {
