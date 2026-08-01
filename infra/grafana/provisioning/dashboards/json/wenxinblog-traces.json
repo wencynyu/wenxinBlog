@@ -4,7 +4,7 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "10s",
   "time": {
     "from": "now-24h",
@@ -273,7 +273,7 @@
       "options": {
         "reduceOptions": {
           "calcs": ["sum"],
-          "values": false,
+          "values": true,
           "fields": ""
         },
         "pieType": "donut",
@@ -331,7 +331,7 @@
       "options": {
         "reduceOptions": {
           "calcs": ["sum"],
-          "values": false,
+          "values": true,
           "fields": ""
         },
         "pieType": "donut",
