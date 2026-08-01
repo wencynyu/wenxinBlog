@@ -319,7 +319,8 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      # busybox wget 不支持 --spider；且 localhost 会解析到 ::1（IPv6）被拒，ClickHouse 只监听 IPv4 → 显式用 127.0.0.1
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8123/ping"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -353,6 +354,8 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # 实验特性：ES|QL 查询（traces 链路时序图需要，若本版 Grafana 不支持会自动忽略）
+      GF_FEATURE_TOGGLES_ENABLE: "elasticsearchESQLQuery"
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana

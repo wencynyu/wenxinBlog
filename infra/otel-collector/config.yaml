@@ -19,11 +19,21 @@ processors:
       - key: deployment.environment
         value: dev
         action: upsert
+  # 把日志类名（scope.name）拼进 body，Grafana 日志流里每行直接显示类名。
+  # 注意：Grafana 的 ES 数据源只在展开详情里显示 scope.name，这里在源头就拼进去。
+  transform:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(body, Concat([scope.name, body], " | "))
 
 exporters:
   # Traces + Logs → Elasticsearch（默认 otel 模式：自动建 index template + data stream，
   # 如 traces-apm-default / logs-generic.default，exporter 全自动管理，无需手动建索引）
   elasticsearch/traces:
+    endpoints: ["http://elasticsearch:9200"]
+  elasticsearch/logs:
     endpoints: ["http://elasticsearch:9200"]
   # Debug
   debug:
@@ -43,8 +53,8 @@ service:
       exporters: [elasticsearch/traces, debug]
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
-      exporters: [elasticsearch/traces]
+      processors: [memory_limiter, resource, transform, batch]
+      exporters: [elasticsearch/logs]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, resource, batch]

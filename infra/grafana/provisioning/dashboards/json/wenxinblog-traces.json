@@ -4,14 +4,32 @@
   "tags": ["otel"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 4,
   "refresh": "10s",
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "trace",
+        "type": "query",
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "elasticsearch-traces"
+        },
+        "query": "{\"find\": \"terms\", \"field\": \"trace_id\", \"size\": 20, \"order\": \"desc\", \"orderBy\": \"_count\"}",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": "*",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
   },
   "panels": [
     {
@@ -92,7 +110,7 @@
     {
       "id": 2,
       "type": "table",
-      "title": "最近 Span（traceId / name / service / kind / time）",
+      "title": "链路时序（近似）：选 trace 查看该链路所有 span，按时间排序（无父子层级，近似替代瀑布图）",
       "datasource": {
         "type": "elasticsearch",
         "uid": "elasticsearch-traces"
@@ -110,14 +128,14 @@
             "type": "elasticsearch",
             "uid": "elasticsearch-traces"
           },
-          "query": "*",
+          "query": "trace_id:$trace",
           "timeField": "@timestamp",
           "metrics": [
             {
               "id": "1",
               "type": "raw_data",
               "settings": {
-                "size": "200"
+                "size": "500"
               }
             }
           ],
@@ -136,31 +154,69 @@
       },
       "transformations": [
         {
+          "id": "calculateField",
+          "options": {
+            "alias": "耗时(ms)",
+            "mode": "binary",
+            "operation": "divide",
+            "binary": {
+              "left": "duration",
+              "right": "constant",
+              "constant": 1000000
+            }
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "@timestamp",
+                "name",
+                "resource.attributes.service.name",
+                "kind",
+                "耗时(ms)",
+                "parent_span_id",
+                "span_id",
+                "trace_id"
+              ]
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "@timestamp",
+                "desc": false
+              }
+            ]
+          }
+        },
+        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "droppedAttributesCount": true,
-              "droppedEventsCount": true,
-              "droppedLinksCount": true,
-              "traceState": true,
-              "status": true,
-              "instrumentationScope": true,
-              "@timestamp": true,
-              "attributes": true,
-              "resource": true,
-              "endTime": true
-            },
+            "excludeByName": {},
             "renameByName": {
-              "trace_id": "trace_id",
-              "name": "operation",
-              "kind": "kind",
-              "@timestamp": "time"
+              "@timestamp": "时间",
+              "name": "操作",
+              "resource.attributes.service.name": "服务",
+              "kind": "类型",
+              "耗时(ms)": "耗时(ms)",
+              "parent_span_id": "父span",
+              "span_id": "span_id",
+              "trace_id": "trace_id"
             },
             "indexByName": {
               "@timestamp": 0,
-              "trace_id": 1,
-              "name": 2,
-              "kind": 3
+              "name": 1,
+              "resource.attributes.service.name": 2,
+              "kind": 3,
+              "耗时(ms)": 4,
+              "parent_span_id": 5,
+              "span_id": 6,
+              "trace_id": 7
             }
           }
         }
