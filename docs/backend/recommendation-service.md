@@ -1,333 +1,134 @@
 # Recommendation Service
 
-推荐服务 - 负责个性化推荐、相关内容推荐
+推荐服务 - 基于向量召回 + trending 兜底的个性化推荐。
 
-> ⚠️ **实现状态：占位（Placeholder）**
->
-> 当前 Milvus 向量检索尚未接入：`MilvusService` 是占位实现，所有方法返回空并打印 WARN 日志，**不会静默返回伪造数据**。
-> 当无真实结果时，推荐流 / 相关推荐 / 趋势 / "可能认识的人" 会返回**演示数据**，并在日志中以 `WARN ... DEMO ...` 显式标注 —— **不应用于生产**。
-> 完整实现（embedding 生成、向量入库、ANN 检索、协同过滤、真实趋势信号）是独立的后续任务。
->
-> 技术栈已由设计阶段的 **Python + FastAPI** 调整为 **Java 25 + Spring Boot 4**，与实际代码一致（端口 8006）。
+> 最近更新：2026-08-02（对照实际代码核对）
 
-## 功能
+> ⚠️ **本文档已与代码核对。** 旧版本里"全是占位/DEMO 数据"的描述**已过时**：Milvus 向量召回、真实 embedding、trending 兜底均已实现。不再返回任何 DEMO 数据。
 
-- 首页推荐流 (基于协同过滤 + 内容相似度)
-- 相关博文推荐
-- 可能认识的人推荐
-- 热门趋势推荐
-- 兴趣标签推荐
-- A/B测试支持
+## 实现现状（体检）
+
+| 模块                                                 | 状态            | 说明                                                                          |
+| ---------------------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
+| Milvus 向量召回（feed / related / related-by-image） | ✅ 真实         | SDK 2.4.2，dim **1024**，`MetricType.IP`（向量预归一化≈cosine），IVF_FLAT     |
+| Embedding 生成                                       | ✅ 真实         | 外部服务 `embedding.url`，Qwen3-VL-Embedding-2B，1024 维，带熔断器            |
+| Trending 兜底                                        | ✅ 真实         | 召回为空/匿名 → trending；trending 用真实 SQL 信号 + 时间衰减                 |
+| Kafka 消费（blog 事件 + 行为事件）                   | ✅ 至少一次     | 消费者返回 `Mono<Void>`，`enable.auto.commit=false`                           |
+| 兴趣标签 / 反馈 / viewed 去重                        | ✅              | Redis SET 30 天 + 行为加权更新用户向量（EMA item-CF）                         |
+| A/B 权重                                             | ✅ 部分         | 读取 experiment-service 写的 `ab:{userId}:recommendation`，发 impression 事件 |
+| 用户推荐 `/users`（人-人协同过滤）                   | ❌ 未实现       | `// TODO Phase 3`，恒返回空 `List.of()`                                       |
+| `/admin/backfill` 鉴权                               | ❌ 缺失（待修） | 无任何 admin 校验，匿名可调（见下）                                           |
+| 离线批任务 / 定时重排                                | ❌ 未实现       | 无 `@Scheduled`，旧文档的"每5分钟/每小时"调度不存在                           |
+| DEMO 数据                                            | ❌ 已无         | 代码里无 demo/stub/mock 数据                                                  |
 
 ## 技术栈
 
-- Java 25
-- Spring Boot 4.0.4 (WebFlux)
-- Milvus 2.6 (向量搜索)
-- Kafka (用户行为事件)
-- Redis (缓存推荐结果)
+- Java 25 + Spring Boot 4.0.4（WebFlux + R2DBC）
+- **Milvus SDK `2.4.2`**（`io.milvus:milvus-sdk-java`；旧文档写的 2.6 不对）
+- 外部 Embedding 服务（`embedding.url: http://localhost:8008`，FastAPI/vLLM）
+- `spring-kafka`、`spring-boot-starter-data-redis-reactive`
+- PostgreSQL（`blog_db`，实例端口 5434，读 `posts`/`authors`/`tags`）
+- Flyway（独立 history table `flyway_schema_history_recommendation`）
+- Actuator + `micrometer-registry-prometheus`
+- OTel Java Agent 2.30.0
 
-## 推荐算法
+**端口：8006**（旧文档环境变量块写 8005 是错的，8005 是 search-service）。
 
-### 1. 协同过滤 (User-based & Item-based)
-
-```python
-# 用户相似度计算
-similarity(user1, user2) = cosine(interaction_vectors)
-
-# 物品相似度计算
-similarity(item1, item2) = jaccard(users_who_liked_item1, users_who_liked_item2)
-```
-
-### 2. 向量相似度 (Content-based)
-
-使用Milvus存储博文embedding:
+## 召回链路（真实）
 
 ```
-博文 -> Embedding模型 (Sentence-BERT) -> 向量 (768维)
-用户兴趣 -> 用户交互过的博文向量平均 -> 用户向量
-推荐 -> TopK相似博文
+feed(userId, page, size)
+  ├─ 匿名 / 无 X-User-Id        → trendingAsFeed(size)
+  └─ 有 userId
+       读 user_embeddings 向量（无则由兴趣标签聚合重算）
+       → Milvus search(blog_embeddings, IP, nprobe=16, topK)
+       → hybrid 重排：0.6*相似度 + 0.3*热度 + 0.1*新鲜度（权重可被 A/B 覆盖）
+       → 过滤已看（user:viewed:{userId}）
+       → 仍为空 → trendingAsFeed(size)   ← switchIfEmpty 兜底
+
+related/{postId}        → 取该 post 向量 → Milvus search → 兜底 trending
+related-by-image/{postId} → 走 VL embedding（/embed-image）→ 同上
+trending                → 真实 SQL（见下）
 ```
 
-### 3. 混合推荐
+### Trending 真实打分（`PostReadRepository.findTrending`）
 
-```python
-score = α * collaborative_score + β * content_score + γ * popularity_score
-
-# 动态权重调整
-α, β, γ 根据用户类型、时段、场景动态调整
+```sql
+ORDER BY (like_count*3 + view_count*1 + comment_count*5)
+       * POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - published_at)), 0), -0.4) DESC
+-- 仅 status='published' AND published_at IS NOT NULL；常量 LIKE_W=3, VIEW_W=1, COMMENT_W=5, DECAY=0.4
 ```
 
-## Milvus集合设计
+## Milvus 集合（启动时 `MilvusInitializer` 自动建）
 
-### blog_embeddings (博文向量)
+| 集合              | 字段                                                                                                       | 索引                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `blog_embeddings` | `post_id` VarChar(64) pk, `author_id` VarChar(64), `title` VarChar(512), `embedding` FloatVector(**1024**) | IVF_FLAT, `MetricType.IP`, `{"nlist":128}` |
+| `user_embeddings` | `user_id` VarChar(64) pk, `embedding` FloatVector(1024)                                                    | IVF_FLAT, IP, nlist 128                    |
 
-```python
-Collection: blog_embeddings
-Fields:
-  - id: VARCHAR(36) (主键)
-  - vector: FLOAT_VECTOR (768维) - 文本embedding
-  - tags: VARCHAR(500) - 标签 (用于过滤)
-  - category: VARCHAR(50) - 分类
-  - created_at: INT64 - 时间戳
-  - view_count: INT - 浏览数
+- 查询参数 `nprobe=16`；`DIM=1024`（旧文档写 768 不对）
+- metric 用 **IP**（向量预归一化，等价 cosine），旧文档写的 `COSINE` 不对
+- Milvus 连不上时 `MilvusInitializer` 捕获异常并记日志（"recommendation will degrade to trending"），不阻断启动
 
-Index:
-  - IVF_FLAT 或 HNSW (用于近似搜索)
-
-Parameters:
-  - metric_type: COSINE
-  - nlist: 128
-```
-
-### user_embeddings (用户兴趣向量)
-
-```python
-Collection: user_embeddings
-Fields:
-  - user_id: VARCHAR(36)
-  - vector: FLOAT_VECTOR (768维)
-  - updated_at: INT64
-  - interaction_count: INT
-
-Update Strategy:
-  - 每次用户产生交互行为后异步更新
-  - 取最近100次交互的博文向量加权平均
-```
-
-## API
-
-### 推荐流
+## API（均在 `/api/v1/recommend` 下）
 
 ```
-GET    /api/v1/recommend/feed?page=1&pageSize=20
-       ?type=for_you | following | trending
-
-Response:
-{
-  "items": [
-    {
-      "postId": "uuid",
-      "score": 0.95,
-      "reason": "基于你的兴趣",
-      "type": "CONTENT_BASED"
-    }
-  ],
-  "refreshId": "xxx"  // 用于去重和刷新
-}
+GET  /feed                   ?page=0&size=10            X-User-Id 可选；无 type 参数（旧文档的 type 不存在）
+GET  /related/{postId}       ?topK=10
+GET  /related-by-image/{postId} ?topK=10                 图像相似博文（VL embedding）
+GET  /trending               ?limit=10
+GET  /users                  ?limit=                    X-User-Id 可选；⚠️ 当前恒返回 []（人-人 CF 未实现）
+GET  /interests                                         X-User-Id 可选；无则返回 []
+PUT  /interests              body: ["tag1","tag2"]      X-User-Id 必填
+POST /feedback               body: {postId, action}     X-User-Id 必填；发行为事件
+POST /admin/backfill         ?limit=1000                ⚠️ 无 admin 鉴权（见下）
 ```
 
-### 相关博文推荐
+响应统一是 `Result{code,message,data}`，`data` 直接是 `List<...>`。无旧文档的 `refreshId` / `reason` 字段。
+
+### `/admin/backfill` 鉴权缺失（待修）
+
+`backfill` handler 无 `@PreAuthorize`、无角色检查、无 `X-User-Id` 要求，`pom.xml` 也无 `spring-boot-starter-security`。任何匿名客户端都能 POST，触发最多 1000 次 embedding + Milvus upsert（成本/滥用风险）。**需要补 admin 鉴权。**
+
+## Kafka 消费（至少一次）
+
+`enable.auto.commit=false`，消费者返回 `Mono<Void>`，等 Milvus/embedding 写完才提交 offset；失败抛错 → 不 ack → 重投递。
+
+| Topic                    | groupId                        | 处理                                                                                                                      |
+| ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `wenxinblog.blog.events` | `recommendation-service`       | CREATE/UPDATE 且 `status==published` → embedding + `upsertPost`；非 published → `removePost`；DELETE → `removePost`       |
+| `user-behavior-events`   | `recommendation-service-group` | 按行为加权（like 0.5 / comment 0.7 / share 0.8 / view 0.1 / default 0.2），存 `user_interest_tags`，并用 EMA 更新用户向量 |
+
+生产者：`/feedback` 和 impression 事件都发到 `user-behavior-events`。
+
+> 旧文档列的 `wenxinblog.user.view/like/comment/follow/share` 五个 topic **不存在**。
+
+## Redis 缓存
 
 ```
-GET    /api/v1/recommend/related/:postId?limit=5
-
-Response:
-{
-  "recommendations": [
-    {
-      "postId": "uuid",
-      "title": "相关博文",
-      "similarity": 0.87,
-      "reason": "相似内容"
-    }
-  ]
-}
+recommend:feed:{userId}:{page}:{size}   STRING(JSON)  TTL 10min
+recommend:trending:{limit}              STRING(JSON)  TTL 10min
+user:viewed:{userId}                    SET           TTL 30 天   已看去重
+ab:{userId}:recommendation              STRING(JSON)  A/B 桶（experiment-service 写入）
 ```
 
-### 用户推荐
+> 旧文档的 `recommend:interests:*` HASH、`recommend:trending:daily/weekly` ZSET **不存在**；兴趣直接读 DB `user_interest_tags`。
 
-```
-GET    /api/v1/recommend/users?limit=10
+## Flyway 表（迁移 V1）
 
-Response:
-{
-  "users": [
-    {
-      "userId": "uuid",
-      "reason": "你们都关注了xxx",
-      "mutualFollowers": 5
-    }
-  ]
-}
-```
+- `recommendation_config`（`user_id, algorithm_type, weights JSONB`）— **当前未被任何代码使用**（占位）
+- `user_interest_tags`（`user_id, tag, weight`，UNIQUE(user_id,tag)）— 实际在用
 
-### 趋势推荐
+> `posts`/`authors`/`tags` 不在此迁移里——recommendation 直接读共享的 `blog_db`（blog-service 所有权）。
 
-```
-GET    /api/v1/recommend/trending?period=24h|7d|30d
+## A/B 测试（轻量）
 
-Response:
-{
-  "posts": [ ],
-  "tags": [ ],
-  "users": [ ]
-}
-```
+`getExperimentWeights(userId)` 读 `ab:{userId}:recommendation` 的 `params.hybridWeights`（3 元素数组），作为 hybrid 重排权重；默认 `{0.6, 0.3, 0.1}`（相似度/热度/新鲜度）。`sendImpressionEvent` 读同一 key 取 `experimentId`+`variant`，发 impression 事件到 `user-behavior-events` 供 experiment-service 算 CTR。**这是 experiment-service 桶的消费者**，不是自包含实验框架；旧文档的 `feed_algorithm_v2` 设计是 aspirational。
 
-### 兴趣标签
+## 可观测性 / 运行
 
-```
-GET    /api/v1/recommend/interests
-
-Response:
-{
-  "tags": [
-    { "name": "Java", "relevance": 0.92 },
-    { "name": "架构设计", "relevance": 0.85 }
-  ]
-}
-```
-
-## Kafka事件监听
-
-### 用户行为事件
-
-```yaml
-Topics:
-  - wenxinblog.user.view      # 浏览博文
-  - wenxinblog.user.like      # 点赞
-  - wenxinblog.user.comment   # 评论
-  - wenxinblog.user.follow    # 关注
-  - wenxinblog.user.share     # 分享
-
-Event Format:
-{
-  "userId": "uuid",
-  "itemId": "uuid",
-  "itemType": "POST" | "USER",
-  "action": "VIEW" | "LIKE" | "COMMENT",
-  "timestamp": "2024-01-01T00:00:00Z",
-  "context": { }
-}
-```
-
-## Redis缓存设计
-
-### 推荐结果缓存
-
-```
-Key: recommend:feed:{userId}:{type}
-Type: LIST
-TTL: 600 (10分钟)
-```
-
-### 用户兴趣向量
-
-```
-Key: recommend:interests:{userId}
-Type: HASH
-Fields:
-  - tags: JSON (标签及权重)
-  - categories: JSON (分类及权重)
-  - updated_at: TIMESTAMP
-TTL: 86400
-```
-
-### 热门内容缓存
-
-```
-Key: recommend:trending:daily
-Key: recommend:trending:weekly
-Type: ZSET (有序集合)
-Score: 热度分数
-TTL: 3600
-```
-
-## 离线计算
-
-### 批量任务 (定时)
-
-```yaml
-Schedule:
-  - 每5分钟: 更新用户兴趣向量
-  - 每小时: 计算相似用户/相似博文
-  - 每天凌晨: 批量更新推荐结果、重排
-
-Tasks: 1. 从Kafka消费用户行为数据
-  2. 更新Milvus中的用户向量
-  3. 计算协同过滤相似度矩阵
-  4. 生成预推荐列表存入Redis
-```
-
-## 冷启动策略
-
-### 新用户
-
-```python
-# 基于注册信息推荐
-- 注册时选择的兴趣标签
-- 地理位置
-- 推荐热门内容
-
-# 快速学习
-- 前10次展示使用探索策略 (多样性)
-- 收够交互数据后切换到个性化
-```
-
-### 新博文
-
-```python
-# 进入推荐池
-- 质量分 = 作者粉丝数 * 0.3 + 内容质量分 * 0.7
-- 初始推荐给作者的粉丝
-- 收集反馈后调整
-```
-
-## A/B测试
-
-```yaml
-Experiments:
-  - name: 'feed_algorithm_v2'
-    traffic: 0.2 # 20%流量
-    variants:
-      - name: 'control'
-        algorithm: 'collaborative_filtering_v1'
-      - name: 'treatment'
-        algorithm: 'hybrid_v2'
-
-Metrics:
-  - ctr (点击率)
-  - dwell_time (停留时长)
-  - engagement_rate (互动率)
-```
-
-## 环境变量
-
-```yaml
-server:
-  port: 8005
-
-spring:
-  kafka:
-    bootstrap-servers: localhost:9092
-
-milvus:
-  host: localhost
-  port: 19530
-  collections:
-    blog-embeddings: blog_embeddings
-    user-embeddings: user_embeddings
-
-recommendation:
-  feed-size: 20
-  cache-ttl: 600
-  cold-start:
-    popular-items: 50
-    exploration-ratio: 0.2
-  algorithms:
-    collaborative:
-      weight: 0.4
-      min-interactions: 5
-    content-based:
-      weight: 0.5
-      similarity-threshold: 0.7
-    popularity:
-      weight: 0.1
-      time-window: 24h
-```
-
-## 运行
+- OTel Java Agent 2.30.0；大量自定义 Micrometer 指标：`recommendation_source_total{source=trending|...}`、`milvus_*_seconds`、`embedding_request_seconds`、`embedding_circuit_open`、`backfill_total{result}`、`recommendation_cache_total{cache,result}`、`user_vector_update_total`
+- 堆内存：开发环境 `scripts/start-dev.sh` 统一 `-Xmx512m`；生产 Dockerfile 未显式设 -Xmx
 
 ```bash
 cd services/recommendation-service

@@ -1,6 +1,8 @@
 # Go 服务 Schema 管理技术债
 
-> 记录于 2026-07-31。auth-service / user-service 的数据库 schema 暂时手动管理，待后续补齐自动化。
+> 最近更新：2026-08-02（对照实际代码核对）
+>
+> 记录于 2026-07-31。auth-service / user-service 的数据库 schema 暂时手动管理，待后续补齐自动化。2026-08-02 复核：现状不变——Go 侧仍无 migration 工具、Java 侧仍用 Flyway，本文档内容仍然准确。
 
 ## 现状
 

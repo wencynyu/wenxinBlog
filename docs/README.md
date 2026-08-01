@@ -1,5 +1,7 @@
 # WenxinBlog 开发文档
 
+> 最近更新：2026-08-02（对照实际代码核对）
+
 ## 文档结构
 
 ```
@@ -39,48 +41,53 @@ docs/
 ### 我想了解...
 
 **系统架构**
+
 - [系统架构总览](architecture/overview.md) - 整体架构图和技术栈
 - [微服务设计](architecture/microservices.md) - 服务划分和通信
 - [安全设计](architecture/security.md) - 认证授权和安全防护
 
 **后端服务**
+
 - [认证服务](backend/auth-service.md) - OAuth2、JWT、会话管理
 - [用户服务](backend/user-service.md) - 用户资料、关注关系
 - [博文服务](backend/blog-service.md) - 博文CRUD、评论系统
 - [内容服务](backend/content-service.md) - 图片视频上传处理
-- [搜索服务](backend/search-service.md) - OpenSearch全文搜索
+- [搜索服务](backend/search-service.md) - Elasticsearch全文搜索
 - [推荐服务](backend/recommendation-service.md) - 个性化推荐算法
 - [广告服务](backend/ad-service.md) - 广告投放计费
 - [API网关](backend/gateway.md) - 路由、限流、熔断
 
 **前端开发**
-- [Web端](frontend/web.md) - Next.js + Semi-Design
-- [iOS端](frontend/mobile.md) - React Native + Expo
+
+- [Web端](frontend/web.md) - Next.js 14 + Semi-Design（主力实现）
+- [iOS端](frontend/mobile.md) - React Native + Expo（⚠️ 早期脚手架 / POC，大量功能未实现，详见该文档）
 
 **API接口**
+
 - [REST API](api/rest-api.md) - 接口规范和示例
 - [Kafka事件](api/events.md) - 事件流定义
 
 **基础设施**
+
 - [数据库设计](infrastructure/database.md) - 表结构和索引
 - [部署指南](infrastructure/deployment.md) - 容器化部署
 - [监控告警](infrastructure/monitoring.md) - Prometheus + Grafana
 
 ## 技术栈总览
 
-| 层级 | 技术选型 |
-|------|----------|
-| 前端Web | Next.js 14 + Semi-Design |
-| 前端iOS | React Native 0.74 + Expo 51 |
-| 后端认证 | Go 1.23 + Fiber 2.52 |
-| 后端业务 | Java 25 + Spring Boot 4.0 |
-| 网关 | Spring Cloud Gateway |
-| 数据库 | PostgreSQL 15 |
-| 缓存 | Redis 7 |
-| 搜索 | OpenSearch 2.11 |
-| 向量 | Milvus 2.6 |
-| 消息队列 | RabbitMQ + Kafka |
-| 对象存储 | 阿里云OSS/MinIO |
+| 层级     | 技术选型                                               |
+| -------- | ------------------------------------------------------ |
+| 前端Web  | Next.js 14 + Semi-Design（主力实现）                   |
+| 前端iOS  | React Native 0.74 + Expo 51（⚠️ 脚手架 / POC，未完成） |
+| 后端认证 | Go 1.23 + Fiber 2.52                                   |
+| 后端业务 | Java 25 + Spring Boot 4.0                              |
+| 网关     | Spring Cloud Gateway                                   |
+| 数据库   | PostgreSQL 15                                          |
+| 缓存     | Redis 7                                                |
+| 搜索     | Elasticsearch 9.3.8                                    |
+| 向量     | Milvus 2.6                                             |
+| 消息队列 | Kafka（唯一消息骨干，RabbitMQ 已移除）                 |
+| 对象存储 | 阿里云OSS/MinIO                                        |
 
 ## 开发指南
 
@@ -95,7 +102,7 @@ cd wenxinblog
 docker-compose up -d
 
 # 验证服务
-curl http://localhost:9200   # OpenSearch
+curl http://localhost:9200   # Elasticsearch
 curl http://localhost:9091/healthz  # Milvus
 ```
 
@@ -115,16 +122,16 @@ mvn spring-boot:run
 ### 3. 前端开发
 
 ```bash
-# Web端
+# Web端（主力实现）
 cd web
 npm install
 npm run dev
 
-# iOS端
+# iOS端（⚠️ 仅早期脚手架，依赖与页面均不完整，详见 frontend/mobile.md）
 cd mobile
 npm install
 npm start
-# 按 'i' 打开iOS模拟器
+# 按 'i' 打开iOS模拟器（需补齐缺失依赖与原生环境）
 ```
 
 ## 文档规范

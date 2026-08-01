@@ -1,5 +1,7 @@
 # 安全架构设计
 
+> 最近更新：2026-08-02（对照实际架构核对）
+
 ## 安全体系
 
 ```
@@ -40,9 +42,9 @@
 │          │                                                   │
 │          v                                                   │
 │     ┌─────────────┐                                        │
-│     │auth-service │ -> 创建用户                             │
+│     │auth-service │ -> 创建账号 (auth_db)                   │
 │     │             │    - 密码哈希 (bcrypt)                  │
-│     │             │    - 发送验证邮件                        │
+│     │             │    - 同步建 user 到 user-service (跨库) │
 │     └─────────────┘                                        │
 │                                                              │
 │  2. 用户登录                                                 │
@@ -74,24 +76,22 @@
 ### JWT设计
 
 ```
-JWT Payload:
+JWT Payload (access token):
 {
   "iss": "wenxinblog",           // 签发者
   "sub": "user-id",               // 用户ID
+  "email": "user@example.com",    // 邮箱
   "iat": 1234567890,              // 签发时间
-  "exp": 1234654290,              // 过期时间 (24h)
-  "type": "access",               // Token类型
-  "roles": ["user"],              // 用户角色
-  "permissions": [                // 权限列表
-    "post:read",
-    "post:write"
-  ]
+  "exp": 1234567890,              // 过期时间 (随 token 类型不同)
+  "type": "access" | "refresh",   // Token 类型，区分访问/刷新
+  "roles": ["user"]               // 用户角色（由 auth-service 校验后透传给网关）
 }
 
-Token刷新:
-- Access Token: 24小时有效
-- Refresh Token: 30天有效
-- 刷新接口: POST /api/v1/auth/refresh
+Token 刷新（access / refresh 双 token）:
+- Access Token: 15 分钟有效
+- Refresh Token: 7 天有效
+- 刷新接口: POST /api/v1/auth/refresh（携带 refreshToken，返回新的 access/refresh）
+- 网关通过 GET /api/v1/auth/validate 校验 access token，换取 userId/email/roles
 ```
 
 ### OAuth2.0
@@ -109,6 +109,25 @@ Token刷新:
 4. auth-service: 换取用户信息
 5. auth-service: 创建/绑定账号
 6. auth-service: 签发JWT
+```
+
+### 网关身份防伪（关键）
+
+```
+下游服务只信任网关注入的身份头，绝不信任客户端自报身份:
+
+1. 全局过滤器 (default-filters):
+   - 进入路由前先 RemoveRequestHeader 剥离客户端可能伪造的
+     X-User-Id / X-User-Roles / X-User-Email
+
+2. AuthenticationFilter:
+   - 提取 Bearer token → 调 auth-service 的 /api/v1/auth/validate 校验
+   - 校验通过后才把真实的 X-User-Id / X-User-Roles / X-User-Email 注入下游
+   - GET + 白名单 (/api/v1/auth, /health) 放行；匿名 GET 不注入（降级为公开读）
+   - POST/PUT/DELETE 无有效 token 直接 401
+
+意义: 即使攻击者在请求头里塞入 X-User-Id: <他人ID>，也会被网关先剥离，
+      再用 JWT 中的真实身份重新注入，从入口处杜绝身份伪造。
 ```
 
 ## 权限控制
@@ -176,22 +195,25 @@ public class AuthorizationFilter implements WebFilter {
 }
 ```
 
-### 数据权限
+### 数据权限 (IDOR 防护)
 
 ```
-场景: 用户只能管理自己的数据
+场景: 用户只能管理自己拥有的资源（防越权 IDOR）
 
-实现方式:
-1. 应用层检查
-   if (post.getAuthorId().equals(currentUserId)) {
-       // 允许操作
-   }
+实现方式: 应用层属主校验（从 X-User-Id 取当前用户，与资源属主比对，
+         不匹配返回 403 FORBIDDEN）
 
-2. 数据库层检查 (Row Level Security)
-   CREATE POLICY user_posts_policy ON posts
-   FOR ALL
-   TO app_user
-   USING (author_id = current_user_id());
+当前已覆盖的服务:
+- blog-service:  博文更新/删除、评论删除 → 校验作者归属
+- content-service: 媒体资源访问/操作 → 校验 owner 归属
+- ad-service:    广告计划查询/修改/删除 → 校验 owner 归属
+- user-service:  用户资料操作 → 校验本人归属
+
+示例 (blog-service, 响应式):
+  post.getAuthorId()
+      .filter(author -> author.equals(currentUserId))
+      .switchIfEmpty(Mono.error(new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Not the author")));
 ```
 
 ## 数据安全
@@ -420,4 +442,7 @@ public class SecurityConfig {
    - 应急响应演练
    - 渗透测试
    - 红蓝对抗
+
+```
+
 ```

@@ -1,28 +1,41 @@
 # 数据库设计
 
+> 最近更新：2026-08-02（对照实际配置核对）
+
 ## 数据库架构
 
+本地 dev 跑 **4 个独立 PostgreSQL 15 实例**（`docker-compose.yml` 中 `postgres:15-alpine`）：
+
+| 容器                           | 数据库          | 宿主端口 | 使用方                                                 |
+| ------------------------------ | --------------- | -------- | ------------------------------------------------------ |
+| wenxinblog-postgres-auth       | `auth_db`       | 5432     | auth-service（Go）                                     |
+| wenxinblog-postgres-user       | `user_db`       | 5433     | user-service（Go）                                     |
+| wenxinblog-postgres-blog       | `blog_db`       | 5434     | blog / content / recommendation / ad（Java，**共享**） |
+| wenxinblog-postgres-experiment | `experiment_db` | 5435     | experiment-service（Java）                             |
+
+> 注：search-service 用 Elasticsearch（无 PG schema），analytics-service 用 ClickHouse（无 PG schema），
+> gateway 无 DB。各 PG 实例仅放数据卷，**不挂 init-SQL**，schema 由各服务自行管理（见下文）。
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       应用层                                 │
-├─────────────────────────────────────────────────────────────┤
-│  auth_db      │  user_db      │  blog_db                    │
-│  (认证)        │  (用户)        │  (业务)                      │
-├───────────────┼───────────────┼─────────────────────────────┤
-│  users        │  user_profiles│  posts                      │
-│  oauth_accounts│  follows      │  tags                       │
-│  sessions     │  user_stats   │  post_tags                  │
-│  2fa          │               │  comments                   │
-│               │               │  likes                      │
-│               │               │  media_assets               │
-│               │               │  ad_*                       │
-└───────────────┴───────────────┴─────────────────────────────┘
-         │                 │                  │
-         └─────────────────┴──────────────────┘
-                          │
-                   PostgreSQL 15
-              (3个独立数据库/集群)
+┌──────────────────────────────────────────────────────────────────┐
+│  auth_db (5432)   │  user_db (5433)   │  blog_db (5434)          │
+│  auth-service     │  user-service     │  blog / content /        │
+│  (Go, 手动 schema) │  (Go, 手动 schema) │  recommendation / ad     │
+│                   │                   │  (Java, Flyway, 共享库)   │
+│  users            │  user_profiles    │  posts / tags / comments │
+│  oauth_accounts   │  follows          │  likes / ad_* / ...      │
+│  sessions         │  user_stats       │                          │
+├───────────────────┴───────────────────┴──────────────────────────┤
+│              experiment_db (5435) — experiment-service (Flyway)   │
+└──────────────────────────────────────────────────────────────────┘
+                  PostgreSQL 15（4 个独立实例）
 ```
+
+> **关于下文 DDL**：以下各表 DDL 为**设计参考**，说明字段与关系意图。**权威 schema 以代码为准**——
+> Java 服务看 `src/main/resources/db/migration/V*.sql`（Flyway 管理），Go 服务看
+> `services/{auth,user}-service/db/schema.sql`（`pg_dump --schema-only` 导出）。
+> 注意：实际部署中各库**物理隔离**，DDL 里出现的 `REFERENCES auth_db.users(id)` 这类**跨库外键
+> 仅为概念示意**（PostgreSQL 原生不支持跨库 FK），真实实现通过应用层保证一致性。
 
 ## 数据库隔离策略
 
@@ -60,6 +73,7 @@ JOIN user_profiles u ON p.author_id = u.user_id;
 ## auth_db (认证数据库)
 
 ### users (用户表)
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,6 +92,7 @@ CREATE INDEX idx_users_username ON users(username);
 ```
 
 ### oauth_accounts (OAuth绑定)
+
 ```sql
 CREATE TABLE oauth_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -92,6 +107,7 @@ CREATE TABLE oauth_accounts (
 ```
 
 ### sessions (会话)
+
 ```sql
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -110,6 +126,7 @@ CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 ## user_db (用户数据库)
 
 ### user_profiles (用户资料)
+
 ```sql
 CREATE TABLE user_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -133,6 +150,7 @@ CREATE INDEX idx_user_profiles_display_name ON user_profiles USING GIN(to_tsvect
 ```
 
 ### follows (关注关系)
+
 ```sql
 CREATE TABLE follows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -153,6 +171,7 @@ CREATE INDEX idx_follows_following ON follows(following_id);
 ```
 
 ### user_stats (用户统计)
+
 ```sql
 CREATE TABLE user_stats (
     user_id UUID PRIMARY KEY,
@@ -170,6 +189,7 @@ CREATE TABLE user_stats (
 ## blog_db (业务数据库)
 
 ### posts (博文)
+
 ```sql
 CREATE TABLE posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -198,6 +218,7 @@ CREATE INDEX idx_posts_title ON posts USING GIN(to_tsvector('simple', title));
 ```
 
 ### tags (标签)
+
 ```sql
 CREATE TABLE tags (
     id SERIAL PRIMARY KEY,
@@ -209,6 +230,7 @@ CREATE TABLE tags (
 ```
 
 ### post_tags (博文标签关联)
+
 ```sql
 CREATE TABLE post_tags (
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -221,6 +243,7 @@ CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
 ```
 
 ### comments (评论)
+
 ```sql
 CREATE TABLE comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -241,6 +264,7 @@ CREATE INDEX idx_comments_parent ON comments(parent_id);
 ```
 
 ### likes (点赞)
+
 ```sql
 CREATE TABLE likes (
     user_id UUID NOT NULL,
@@ -256,39 +280,59 @@ CREATE TABLE likes (
 CREATE INDEX idx_likes_target ON likes(target_id, target_type);
 ```
 
-## 数据迁移策略
+## Schema 管理策略
 
-### Flyway目录结构
+### Java 服务：Flyway（5 个）
+
+blog / content / recommendation / ad / experiment 五个 Java 服务统一用 Flyway 自动迁移：
+
+- **触发方式**：每个服务有一个 `FlywayConfig.java` Bean（`@Bean(initMethod = "migrate")`），
+  手动构造 `Flyway` 并 `.migrate()`。**不依赖** Spring Boot 的 `FlywayAutoConfiguration`
+  （因为运行时用 R2DBC，Flyway 用 JDBC 走启动期迁移，自动配置不会触发）。
+- **基线**：`.baselineOnMigrate(true)` + `.baselineVersion("1")`，迁移文件在 `classpath:db/migration`。
+- **独立 history table（关键）**：每个服务用各自的 history table 互不干扰——
+  `.table("flyway_schema_history_<svc>")`。这是 4 个服务**共享 `blog_db`** 却能各自独立演进 schema 的前提。
+- `application.yml` 里的 `spring.flyway.*` 只声明 `enabled / url(JDBC) / user / password / locations`，
+  **不**设 `flyway.table`（table 名只在 Java 代码里指定）。
+
+| 服务                   | DB                   | history table                          | 迁移文件                             |
+| ---------------------- | -------------------- | -------------------------------------- | ------------------------------------ |
+| blog-service           | blog_db (5434)       | `flyway_schema_history_blog`           | `V1__init_blog_schema.sql`           |
+| content-service        | blog_db (5434)       | `flyway_schema_history_content`        | `V1__init_content_schema.sql`        |
+| recommendation-service | blog_db (5434)       | `flyway_schema_history_recommendation` | `V1__init_recommendation_schema.sql` |
+| ad-service             | blog_db (5434)       | `flyway_schema_history_ad`             | `V1__init_ad_schema.sql`             |
+| experiment-service     | experiment_db (5435) | `flyway_schema_history_experiment`     | `V1__init_experiment_schema.sql`     |
+
+目录结构（以 blog-service 为例）：
+
 ```
-services/
-├── auth-service/
-│   └── src/main/resources/db/migration/
-│       ├── V1__create_users.sql
-│       ├── V2__create_oauth.sql
-│       └── V3__create_sessions.sql
-├── user-service/
-│   └── src/main/resources/db/migration/
-│       └── V1__create_user_profiles.sql
-└── blog-service/
-    └── src/main/resources/db/migration/
-        ├── V1__create_posts.sql
-        └── V2__create_tags.sql
+services/blog-service/
+├── src/main/resources/db/migration/
+│   └── V1__init_blog_schema.sql
+└── src/main/java/com/wenxin/blog/config/FlywayConfig.java
 ```
 
-### Flyway配置
-```yaml
-# application.yml
-spring:
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    validate-on-migrate: true
-```
+### Go 服务：手动 schema（技术债）
+
+auth-service / user-service **没有自动迁移工具**，schema 手工维护：
+
+- 原始表是在容器里手动 `psql` 建的，`docker-compose.yml` 只挂数据卷、**不挂 init-SQL**——
+  一旦容器重建或卷被清空，schema 会丢失且无法自动恢复。
+- **当前兜底**：两份 schema 已用 `pg_dump --schema-only` 导入仓库：
+  - `services/auth-service/db/schema.sql`（表：`users`）
+  - `services/user-service/db/schema.sql`（表：`users`、`user_profiles`、`follows`、`user_stats`）
+
+  恢复方式仍是手动的 `docker exec -i ... psql ... < schema.sql`，无版本跟踪、无回滚。
+
+- **计划**：改用 `golang-migrate`（或 goose）做 `db/migrations/0001_init.up.sql` / `.down.sql`，
+  与 Java 侧 Flyway 对齐。详见 [`docs/GO_SCHEMA_TECH_DEBT.md`](../GO_SCHEMA_TECH_DEBT.md)。
+
+> 这是当前已知的数据库层最大技术债，**生产部署前必须解决**。
 
 ## 备份策略
 
 ### 全量备份 (每天凌晨)
+
 ```bash
 #!/bin/bash
 # backup-all.sh
@@ -305,11 +349,15 @@ pg_dump -h localhost -U postgres -d user_db | gzip > $BACKUP_DIR/user_db.sql.gz
 # blog_db
 pg_dump -h localhost -U postgres -d blog_db | gzip > $BACKUP_DIR/blog_db.sql.gz
 
+# experiment_db
+pg_dump -h localhost -U postgres -d experiment_db | gzip > $BACKUP_DIR/experiment_db.sql.gz
+
 # 上传到OSS
 aliyun oss cp $BACKUP_DIR oss://wenxinblog-backup/$(date +%Y%m%d)/ -r
 ```
 
 ### 增量备份 (WAL)
+
 ```bash
 # postgresql.conf
 wal_level = replica
@@ -318,6 +366,7 @@ archive_command = 'cp %p /backup/wal/%f'
 ```
 
 ### 恢复流程
+
 ```bash
 # 1. 停止应用
 # 2. 恢复全量备份
@@ -331,6 +380,7 @@ gunzip -c auth_db.sql.gz | psql -U postgres -d auth_db
 ## 监控指标
 
 ### 连接池监控
+
 ```
 active_connections: 当前活跃连接
 idle_connections: 空闲连接
@@ -339,6 +389,7 @@ connection_usage: 使用率
 ```
 
 ### 查询性能
+
 ```
 slow_queries: 慢查询数量 (>1s)
 query_duration_p95: 查询耗时P95
@@ -347,6 +398,7 @@ deadlocks: 死锁次数
 ```
 
 ### 存储监控
+
 ```
 database_size: 数据库大小
 table_size: 各表大小
@@ -357,6 +409,7 @@ bloat_ratio: 膨胀率
 ## 优化建议
 
 ### 索引优化
+
 ```sql
 -- 分析查询
 EXPLAIN ANALYZE SELECT * FROM posts WHERE author_id = 'xxx';
@@ -370,6 +423,7 @@ CREATE INDEX idx_posts_lower_title ON posts(LOWER(title));
 ```
 
 ### 分区策略 (大数据量)
+
 ```sql
 -- 按月分区logs表
 CREATE TABLE logs (
@@ -382,6 +436,7 @@ CREATE TABLE logs_2024_01 PARTITION OF logs
 ```
 
 ### 连接池配置
+
 ```yaml
 spring:
   r2dbc:

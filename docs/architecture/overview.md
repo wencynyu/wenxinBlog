@@ -1,5 +1,7 @@
 # 系统架构总览
 
+> 最近更新：2026-08-02（对照实际架构核对）
+
 ## 架构图
 
 ```
@@ -39,81 +41,80 @@
 │  └────────────────────────────────────────────────────────────┘    │
 └─────────────┬─────────────────┬──────────────┬─────────────────────┘
               │                 │              │
-┌─────────────▼─────┐ ┌────────▼──────┐ ┌───▼─────────────────────┐
-│  Go微服务         │ │ Java微服务     │ │   其他服务               │
-├──────────────────┤ ├───────────────┤ ├─────────────────────────┤
-│ auth-service     │ │ blog-service  │ │ Gateway (Kafka)         │
-│ :8001            │ │ :8005         │ │ Zookeeper               │
-│                  │ │               │ │                         │
-│ user-service     │ │ content-      │ │ 中间件                  │
-│ :8002            │ │   service     │ ├─────────────────────────┤
-│                  │ │ :8003         │ │ Redis (缓存/会话)       │
-│                  │ │               │ │ :6379                   │
-│                  │ │ search-       │ │                         │
-│                  │ │   service     │ │ RabbitMQ (任务队列)     │
-│                  │ │ :8004         │ │ :5672                   │
-│                  │ │               │ │                         │
-│                  │ │ recommenda-   │ │ Kafka (事件流)          │
-│                  │ │   tion-       │ │ :9092                   │
-│                  │ │   service     │ │                         │
-│                  │ │ :8006         │ │ OpenSearch (搜索)       │
-│                  │ │               │ │ :9200                   │
-│                  │ │ ad-service    │ │                         │
-│                  │ │ :8007         │ │ Milvus (向量)           │
-│                  │ │               │ │ :19530                  │
-└─────────┬─────────┘ └───────┬───────┘ └─────────────────────────┘
-          │                     │
-┌─────────▼─────────────────────▼───────────────────────────────────┐
-│                         数据层                                    │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │  auth_db     │  │  user_db     │  │  blog_db     │           │
-│  │ PostgreSQL   │  │ PostgreSQL   │  │ PostgreSQL   │           │
-│  │  :5432       │  │  :5433       │  │  :5434       │           │
-│  └──────────────┘  └──────────────┘  └──────────────┘           │
-│                                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │    Redis     │  │  OpenSearch  │  │    Milvus    │           │
-│  │   缓存/会话   │  │   全文搜索    │  │   向量搜索    │           │
-│  └──────────────┘  └──────────────┘  └──────────────┘           │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+┌─────────────▼──────────────────────────────────────────────────────┐
+│                          微服务层                                   │
+├──────────────────┬─────────────────────────────────────────────────┤
+│  Go 微服务       │  Java 微服务 (Spring Boot 4 / Java 25)          │
+│ ┌──────────────┐ │ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
+│ │ auth-service │ │ │ blog-service │ │search-service│ │ad-service│ │
+│ │   :8001      │ │ │   :8003      │ │   :8005      │ │  :8007   │ │
+│ │ 认证/JWT     │ │ │ 博文/评论    │ │ 全文搜索(ES) │ │ 广告投放 │ │
+│ └──────────────┘ │ └──────────────┘ └──────────────┘ └──────────┘ │
+│ ┌──────────────┐ │ ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
+│ │ user-service │ │ │content-service│ │recommendation│ │experiment│ │
+│ │   :8002      │ │ │   :8004      │ │   :8006      │ │  :8009   │ │
+│ │ 用户资料/关注 │ │ │ 媒体上传     │ │ 个性化推荐   │ │ A/B 实验 │ │
+│ └──────────────┘ │ └──────────────┘ └──────────────┘ └──────────┘ │
+│                  │ ┌──────────────┐                                 │
+│                  │ │analytics-svc │                                 │
+│                  │ │   :8010      │                                 │
+│                  │ │ 行为分析 BI  │                                 │
+│                  │ └──────────────┘                                 │
+└──────────┬───────────────────────────────────────────────────────┘
+           │
+┌──────────▼───────────────────────────────────────────────────────┐
+│                       中间件 / 数据层                              │
+├───────────────────────────────────────────────────────────────────┤
+│ PostgreSQL: auth_db:5432  user_db:5433  blog_db:5434  exp_db:5435 │
+│ Redis:6379(缓存/会话)  Elasticsearch:9200(全文检索 + trace/log)   │
+│ Kafka:9092(事件流)  ClickHouse:8123(行为分析 OLAP)                │
+│ Milvus:19530(推荐向量)  MinIO:9000(对象存储)                      │
+├───────────────────────────────────────────────────────────────────┤
+│ 可观测性: OTel Agent/SDK → Collector:4317/4318                    │
+│           → Elasticsearch(traces+logs) + Prometheus:9090(metrics) │
+│           → Grafana:3000(overview / logs / traces / api)          │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ## 技术栈总览
 
 ### 前端技术栈
 
-| 平台 | 框架 | UI库 | 状态管理 | 其他 |
-|------|------|------|----------|------|
-| Web | Next.js 14 | Semi-Design | Zustand | React Query, Tailwind |
-| iOS | React Native 0.74 | Semi Mobile | Zustand | Expo, Flash List |
+| 平台 | 框架              | UI库        | 状态管理 | 其他                  |
+| ---- | ----------------- | ----------- | -------- | --------------------- |
+| Web  | Next.js 14        | Semi-Design | Zustand  | React Query, Tailwind |
+| iOS  | React Native 0.74 | Semi Mobile | Zustand  | Expo, Flash List      |
 
 ### 后端技术栈
 
-| 服务 | 语言 | 框架 | 端口 | 职责 |
-|------|------|------|------|------|
-| auth-service | Go 1.23 | Fiber 2.52 | 8001 | 认证、OAuth、JWT |
-| user-service | Go 1.23 | Fiber 2.52 | 8002 | 用户资料、关注关系 |
-| blog-service | Java 25 | Spring Boot 4.0 | 8005 | 博文CRUD、评论、标签 |
-| content-service | Java 25 | Spring Boot 4.0 | 8003 | 图片/视频上传、处理 |
-| search-service | Java 25 | Spring Boot 4.0 | 8004 | 全文搜索、智能补全 |
-| recommendation-service | Java 25 | Spring Boot 4.0 | 8006 | 个性化推荐 |
-| ad-service | Java 25 | Spring Boot 4.0 | 8007 | 广告投放、计费 |
-| gateway | Java 25 | Spring Cloud Gateway | 8080 | API网关 |
+| 服务                   | 语言        | 框架                                  | 端口                  | 职责                                                                                          |
+| ---------------------- | ----------- | ------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| auth-service           | Go 1.23     | Fiber 2.52                            | 8001                  | 认证、OAuth、JWT（access/refresh）                                                            |
+| user-service           | Go 1.23     | Fiber 2.52                            | 8002                  | 用户资料、关注关系                                                                            |
+| blog-service           | Java 25     | Spring Boot 4.0                       | 8003                  | 博文CRUD、评论、标签                                                                          |
+| content-service        | Java 25     | Spring Boot 4.0                       | 8004                  | 图片/视频上传、处理                                                                           |
+| search-service         | Java 25     | Spring Boot 4.0（reactive ES 客户端） | 8005                  | 全文搜索、智能补全                                                                            |
+| recommendation-service | Java 25     | Spring Boot 4.0                       | 8006                  | 个性化推荐（Milvus）                                                                          |
+| embedding-service      | Python 3.14 | FastAPI/uvicorn                       | 8008                  | 文本向量化（独立仓库 `/AIProjects/embedding-service`，被 recommendation 调用；SSRF 校验待修） |
+| ad-service             | Java 25     | Spring Boot 4.0                       | 8007                  | 广告投放、计费                                                                                |
+| experiment-service     | Java 25     | Spring Boot 4.0                       | 8009                  | A/B 实验（分层正交）                                                                          |
+| analytics-service      | Java 25     | Spring Boot 4.0                       | 8010                  | 行为分析 BI（ClickHouse）                                                                     |
+| gateway                | Java 25     | Spring Cloud Gateway                  | 8080（管理端点 8081） | API网关                                                                                       |
 
 ### 基础设施
 
-| 组件 | 版本 | 用途 | 端口 |
-|------|------|------|------|
-| PostgreSQL | 15.17 | 主数据库 | 5432, 5433, 5434 |
-| Redis | 7-alpine | 缓存/会话 | 6379 |
-| OpenSearch | 2.11.0 | 全文搜索 | 9200 |
-| RabbitMQ | 3-management | 任务队列 | 5672, 15672 |
-| Kafka | 7.4.0 | 事件流 | 9092 |
-| Milvus | 2.6.13 | 向量搜索 | 19530 |
-| MinIO | latest | 对象存储 | 9000 |
+| 组件           | 版本             | 用途                                         | 端口                   |
+| -------------- | ---------------- | -------------------------------------------- | ---------------------- |
+| PostgreSQL     | 15-alpine        | 主数据库（auth/user/blog/experiment 各一库） | 5432, 5433, 5434, 5435 |
+| Redis          | 7-alpine         | 缓存/会话                                    | 6379                   |
+| Elasticsearch  | 9.3.8            | 全文检索 + trace/log 存储                    | 9200                   |
+| Kafka          | 7.4.0 (cp-kafka) | 事件流（唯一消息骨干，无 RabbitMQ）          | 9092                   |
+| Milvus         | 2.6.13           | 向量搜索（推荐）                             | 19530                  |
+| MinIO          | latest           | 对象存储                                     | 9000                   |
+| ClickHouse     | 24.8-alpine      | 行为分析 OLAP                                | 8123                   |
+| OTel Collector | 0.157.0          | 可观测性数据聚合                             | 4317, 4318, 8889       |
+| Prometheus     | v3.13.1          | 指标采集                                     | 9090                   |
+| Grafana        | 13.1             | 可视化看板                                   | 3000                   |
 
 ## 架构特点
 
@@ -165,17 +166,22 @@ L2缓存: Redis分布式缓存
 ### 4. 消息驱动
 
 ```
-RabbitMQ (任务队列):
-- 图片处理
-- 视频转码
-- 邮件发送
-- 数据导出
+Kafka 是项目唯一的消息骨干（未使用 RabbitMQ）:
+- 博文发布 → blog-service 发布事件 → search-service 消费 → 更新 Elasticsearch 索引
+- 用户行为事件 → analytics-service / recommendation-service 消费
+- 跨服务解耦、最终一致性
+```
 
-Kafka (事件流):
-- 用户行为追踪
-- 数据同步
-- 日志收集
-- 实时计算
+### 5. 可观测性
+
+```
+统一的 OpenTelemetry 管道（非碎片化）:
+- 采集: Java 服务挂 OTel Java Agent；Go 服务用 OTel SDK
+- 聚合: OTel Collector (4317/4318) 统一接收，批处理后导出
+- 存储/展示:
+  - Traces + Logs → Elasticsearch data stream (traces-apm-default / logs-generic.default)
+  - Metrics → Prometheus (Collector 在 8889 暴露) → Grafana
+- Grafana 看板: overview / logs / traces / api
 ```
 
 ## 部署架构
@@ -237,18 +243,18 @@ spec:
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 ```
 
 ### 垂直扩展
@@ -257,11 +263,11 @@ spec:
 # 根据负载调整资源配置
 resources:
   requests:
-    memory: "512Mi"
-    cpu: "250m"
+    memory: '512Mi'
+    cpu: '250m'
   limits:
-    memory: "2Gi"
-    cpu: "1000m"
+    memory: '2Gi'
+    cpu: '1000m'
 ```
 
 ## 高可用设计
@@ -306,14 +312,14 @@ Zone C: 备份 + 灾备
 
 ### 目标指标
 
-| 指标 | 目标值 |
-|------|--------|
+| 指标              | 目标值  |
+| ----------------- | ------- |
 | API响应时间 (P95) | < 200ms |
 | API响应时间 (P99) | < 500ms |
-| 可用性 | 99.9% |
-| 并发用户 | 10000+ |
-| QPS | 50000+ |
-| 错误率 | < 0.1% |
+| 可用性            | 99.9%   |
+| 并发用户          | 10000+  |
+| QPS               | 50000+  |
+| 错误率            | < 0.1%  |
 
 ### 容量规划
 

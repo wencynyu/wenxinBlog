@@ -1,97 +1,102 @@
 # 监控告警
 
-## 监控体系
+> 最近更新：2026-08-02（对照实际配置核对）
+
+## 可观测性体系（OpenTelemetry 统一管道）
+
+wenxinBlog 的 metrics / traces / logs 三支柱统一走 **OpenTelemetry**：所有服务用 OTLP 协议把遥测数据发给 **OTel Collector**，Collector 再分发到对应后端。不再有「每服务各自埋点 + 多套采集器」的旧模型。
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                       监控层次                              │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐  │
-│  │   应用监控    │   │   中间件监控  │   │   基础设施    │  │
-│  │              │   │              │   │              │  │
-│  │ - JVM/Go     │   │ - Redis      │   │ - PostgreSQL │  │
-│  │ - 接口性能    │   │ - Kafka      │   │ - CPU/Mem   │  │
-│  │ - 业务指标    │   │ - RabbitMQ   │   │ - 网络      │  │
-│  └──────────────┘   └──────────────┘   └──────────────┘  │
-│         │                   │                   │          │
-│         └───────────────────┴───────────────────┘          │
-│                             │                              │
-│                   ┌─────────▼─────────┐                   │
-│                   │   Prometheus     │                   │
-│                   │   (时序数据库)     │                   │
-│                   └─────────┬─────────┘                   │
-│                             │                              │
-│                   ┌─────────▼─────────┐                   │
-│                   │   Grafana        │                   │
-│                   │   (可视化)         │                   │
-│                   └───────────────────┘                   │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│   应用服务（按语言注入 OTel）                                       │
+│                                                                 │
+│   Java 服务   → OTel Java Agent（-javaagent，自动 instrumentation │
+│                 + Micrometer 桥把 Spring 指标转成 OTLP）           │
+│   Go 服务     → OTel SDK（OTel fiber/http 中间件）                 │
+│   Python 服务 → opentelemetry-instrument（自动注入）               │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ OTLP（gRPC :4317 / HTTP :4318）
+                            ▼
+              ┌──────────────────────────────┐
+              │   OTel Collector 0.157       │
+              │   infra/otel-collector/      │
+              │   config.yaml                │
+              └───┬─────────────┬──────────┬─┘
+        traces    │     logs    │  metrics │
+                  ▼             ▼          ▼
+         ┌──────────────┐ ┌──────────┐ ┌──────────────┐
+         │Elasticsearch │ │Elastic-  │ │ Prometheus   │
+         │9.3.8         │ │search    │ │ (Collector   │
+         │traces-generic│ │logs-     │ │  :8889 暴露) │
+       .otel-default    │generic.   │ └──────┬───────┘
+         │              │otel-     │        │ scrape
+         │              │default   │        ▼
+         │              └──────┬───┘   ┌──────────┐
+         │                     │       │Prometheus│
+         └──────────┬──────────┘       │  :9090   │
+                    ▼                  └────┬─────┘
+              ┌───────────┐                │
+              │  Grafana  │◀───────────────┘
+              │  13.1     │  (ES + Prometheus 数据源)
+              │  :3001    │
+              └───────────┘
 ```
 
-## Prometheus指标
+### Collector 配置要点（`infra/otel-collector/config.yaml`）
 
-### 应用指标
+- **接收**：OTLP gRPC `:4317`、HTTP `:4318`。
+- **处理器**：`memory_limiter`（80% / 25% spike）、`batch`（5s / 512）、`resource`（注入 `deployment.environment=dev`）、`transform`（把日志 `scope.name` 即类名拼进 body，便于 Grafana 日志流直接显示）。
+- **导出**：
+  - traces → `elasticsearch/traces`
+  - logs → `elasticsearch/logs`
+  - metrics → `prometheus`（`resource_to_telemetry_conversion.enabled: true`，把 `service.name` 暴露为 Prometheus 标签 `service_name`）。
+- ES exporter 走 otel 模式，**自动建 data stream + index template**，无需手动建索引。
 
-#### JVM指标 (Java服务)
-```yaml
-# Micrometer配置
-management:
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-    tags:
-      application: ${spring.application.name}
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-      percentiles:
-        http.server.requests: 0.5,0.95,0.99
-```
+## Prometheus 指标
 
-#### 关键指标
+### 采集链路
+
+**已统一**：不再逐服务抓 `/actuator/prometheus` 或 `/metrics`。所有指标经
+`OTLP → Collector → Prometheus exporter(:8889)`，Prometheus 只抓一个目标 `otel-collector:8889`
+（见 `infra/prometheus/prometheus.yml`）。用 `service_name` 标签区分服务。
+
+### Java 服务（OTel Java Agent + Micrometer 桥）
+
+- Java Agent（`scripts/start-dev.sh` 用 `-javaagent` 注入 `infra/otel/opentelemetry-javaagent.jar`）
+  自动 instrumentation：HTTP/DB/JVM 等。
+- Micrometer 桥（`OTEL_INSTRUMENTATION_MICROMETER_ENABLED=true`）把 Spring 的 Micrometer meter
+  原样转成 OTLP，**指标名不变**：`http_server_requests_seconds_*`、`jvm_threads_live_threads`、
+  `process_cpu_usage`、`jvm_memory_*` 等，保留 `method/status/uri/outcome` 等原标签。
+
+### Go 服务（OTel SDK）
+
+- Go 服务（auth/user）用 OTel SDK 的 fiber/http 中间件产生指标，经 OTLP 上报，不再用
+  `prometheus/client_golang` + `promhttp`。
+
+### 关键 PromQL（注意用 `service_name` 标签）
+
 ```promql
-# 请求QPS
-rate(http_server_requests_seconds_count{job="blog-service"}[5m])
+# 请求 QPS（按服务过滤）
+rate(http_server_requests_seconds_count{service_name="blog-service"}[5m])
 
-# 响应时间P95
-histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job="blog-service"}[5m]))
+# 响应时间 P95
+histogram_quantile(0.95,
+  sum by (le) (rate(http_server_requests_seconds_bucket{service_name="blog-service"}[5m])))
 
-# 错误率
-rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m])
+# 错误率（5xx 占比）
+sum(rate(http_server_requests_seconds_count{service_name="blog-service", status=~"5.."}[5m]))
+  / sum(rate(http_server_requests_seconds_count{service_name="blog-service"}[5m]))
 ```
 
-#### Go指标
-```go
-// 添加Prometheus指标
-import (
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promhttp"
-)
-
-var (
-    httpDuration = prometheus.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name: "http_request_duration_seconds",
-            Help: "HTTP request latency",
-        },
-        []string{"method", "path", "status"},
-    )
-)
-
-func init() {
-    prometheus.MustRegister(httpDuration)
-}
-
-// 在handler中记录
-httpDuration.WithLabelValues("GET", "/api/v1/posts", "200").Observe(duration)
-```
+> 注意：同时存在两套 HTTP 指标（不报错，仅冗余）——
+> ① Micrometer 桥的 `http_server_requests_seconds_*`（面板沿用这套）；
+> ② Agent 自带 Netty instrumentation 的 `http_server_request_duration_seconds_*`（OTel 语义约定标签）。
+> 详见 `infra/grafana/OTEL_METRICS_MIGRATION.md`。
 
 ### 业务指标
 
 #### 自定义指标
+
 ```java
 // Micrometer自定义指标
 @Service
@@ -118,6 +123,7 @@ public class PostMetrics {
 ```
 
 #### 关键业务指标
+
 ```promql
 # 博文创建速率
 rate(post_create_total[5m])
@@ -135,115 +141,90 @@ rate(ad_impression_total[5m])
 rate(ad_click_total[5m]) / rate(ad_impression_total[5m])
 ```
 
-## Grafana仪表板
+## Grafana 仪表板
 
-### 服务概览仪表板
+### 部署方式
 
-```yaml
-Dashboard: WenxinBlog Service Overview
+- 镜像 `grafana/grafana:13.1`，端口 `3001:3000`（admin/admin）。
+- 数据源与仪表板均走 **provisioning**（启动即注入，`infra/grafana/provisioning/`），无需手动在 UI 配置。
+- 实验特性 `elasticsearchESQLQuery` 已开启（traces 链路时序图需要）。
 
-Panels:
-  - Row: 服务状态
-    Panels:
-      - 服务健康状态 (Stat)
-      - 当前QPS (Stat)
-      - 错误率 (Gauge)
-      - P95延迟 (Gauge)
+### 数据源（`provisioning/datasources/datasource.yml`）
 
-  - Row: 请求指标
-    Panels:
-      - QPS趋势 (Graph)
-      - 响应时间分布 (Heatmap)
-      - 状态码分布 (Pie Chart)
+| 数据源               | 类型          | 指向                                                          | 用途            |
+| -------------------- | ------------- | ------------------------------------------------------------- | --------------- |
+| Prometheus           | prometheus    | `http://prometheus:9090`                                      | metrics（默认） |
+| Elasticsearch-Traces | elasticsearch | `http://elasticsearch:9200`，DB `traces-generic.otel-default` | traces          |
+| Elasticsearch-Logs   | elasticsearch | `http://elasticsearch:9200`，DB `logs-generic.otel-default`   | logs            |
 
-  - Row: JVM指标
-    Panels:
-      - 堆内存使用 (Graph)
-      - GC次数 (Graph)
-      - 线程数 (Graph)
+日志数据源配置了 `logMessageField=body.text`、`logLevelField=severity_text`，并从 `scope.name` 派生 `logger` 字段（OTel 日志模型字段名）。
 
-  - Row: 业务指标
-    Panels:
-      - 博文创建趋势 (Graph)
-      - 活跃用户数 (Stat)
-      - 广告填充率 (Gauge)
-```
+### 仪表板（`provisioning/dashboards/json/`，folder `WenxinBlog`）
 
-### 数据库仪表板
+仓库内已 provisioned **4 个**仪表板：
 
-```yaml
-Dashboard: PostgreSQL Overview
+| 仪表板 JSON                | 内容                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| `wenxinblog-overview.json` | 服务总览：QPS / 错误率 / P95 / JVM 堆内存 / GC / 业务指标                     |
+| `wenxinblog-api.json`      | API 维度：HTTP 请求量、状态码分布、响应时间分布、按 `service_name` 过滤       |
+| `wenxinblog-logs.json`     | 日志流（ES Logs 数据源），按服务 / 级别筛选，请求范围内的日志带 `traceId`     |
+| `wenxinblog-traces.json`   | 链路（ES Traces 数据源），按服务 / span 类型聚合，`traceId`/`spanId` 联动日志 |
 
-Panels:
-  - Row: 连接信息
-    Panels:
-      - 当前连接数
-      - 空闲连接数
-      - 最大连接数使用率
-
-  - Row: 查询性能
-    Panels:
-      - QPS
-      - 慢查询数量
-      - 查询时长P95
-
-  - Row: 存储信息
-    Panels:
-      - 数据库大小
-      - 各表大小排行
-      - 索引使用率
-
-  - Row: 复制/备份
-    Panels:
-      - 复制延迟
-      - WAL大小
-      - 备份状态
-```
+> **traces 瀑布图渲染受限**：Grafana 的 ES 数据源对 trace 视图支持有限（近似，非完整瀑布）。
+> 完整的 trace 瀑布图需要 **Tempo** 作为 traces 后端（当前未接入，是后续可选项）。
 
 ## 告警规则
+
+> **当前状态**：本地 dev 环境只部署了 Prometheus + Grafana，**未接 AlertManager**。
+> 以下规则是面向生产环境的模板，迁移到生产时再用 `service_name` 标签接入 AlertManager
+> （metrics 现已统一从 Collector :8889 抓，标签用 `service_name`，不再是 `job="<service>"`）。
 
 ### Prometheus告警规则
 
 ```yaml
-# alert_rules.yml
+# alert_rules.yml（生产模板）
 groups:
   - name: service_alerts
     interval: 30s
     rules:
-      # 服务宕机
-      - alert: ServiceDown
-        expr: up{job=~"wenxinblog-.*"} == 0
+      # Collector / Prometheus 健康度（目前唯一抓取目标）
+      - alert: OtelCollectorDown
+        expr: up{job="otel-collector"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "服务 {{ $labels.job }} 宕机"
-          description: "{{ $labels.instance }} 已宕机超过1分钟"
+          summary: 'OTel Collector 宕机（指标采集中断）'
 
-      # 错误率过高
+      # 服务错误率过高（用 service_name 标签）
       - alert: HighErrorRate
         expr: |
-          rate(http_server_requests_seconds_count{status=~"5.."}[5m])
-          / rate(http_server_requests_seconds_count[5m]) > 0.05
+          sum by (service_name) (
+            rate(http_server_requests_seconds_count{status=~"5.."}[5m])
+          )
+          /
+          sum by (service_name) (
+            rate(http_server_requests_seconds_count[5m])
+          ) > 0.05
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "服务 {{ $labels.job }} 错误率过高"
-          description: "错误率: {{ $value | humanizePercentage }}"
+          summary: '服务 {{ $labels.service_name }} 错误率过高'
 
       # 响应时间过长
       - alert: HighLatency
         expr: |
           histogram_quantile(0.95,
-            rate(http_server_requests_seconds_bucket{job="wenxinblog-.*"}[5m])
+            sum by (le, service_name) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
           ) > 1
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "服务 {{ $labels.job }} P95延迟过高"
-          description: "P95延迟: {{ $value }}s"
+          summary: '服务 {{ $labels.service_name }} P95延迟过高'
 
       # CPU使用率
       - alert: HighCPUUsage
@@ -252,18 +233,18 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "CPU使用率过高"
+          summary: 'CPU使用率过高'
 
   - name: database_alerts
     rules:
-      # 数据库连接数
+      # 数据库连接数（4 个库）
       - alert: HighDBConnections
-        expr: pg_stat_database_numbackends{datname=~"auth_db|user_db|blog_db"} > 80
+        expr: pg_stat_database_numbackends{datname=~"auth_db|user_db|blog_db|experiment_db"} > 80
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "数据库连接数过高"
+          summary: '数据库连接数过高'
 
       # 慢查询
       - alert: SlowQueries
@@ -272,7 +253,7 @@ groups:
         labels:
           severity: info
         annotations:
-          summary: "检测到慢查询"
+          summary: '检测到慢查询'
 
   - name: business_alerts
     rules:
@@ -283,7 +264,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "广告收入过低"
+          summary: '广告收入过低'
 
       # 用户增长
       - alert: LowUserGrowth
@@ -292,7 +273,7 @@ groups:
         labels:
           severity: info
         annotations:
-          summary: "日新增用户过低"
+          summary: '日新增用户过低'
 ```
 
 ### AlertManager配置
@@ -340,75 +321,68 @@ receivers:
 
 ## 链路追踪
 
-### Spring Cloud Sleuth配置
+OTel Collector 把 traces 写入 Elasticsearch 的 `traces-generic.otel-default` data stream，
+Grafana 用 `Elasticsearch-Traces` 数据源渲染。**不再用 Spring Cloud Sleuth / Zipkin。**
 
-```yaml
-# application.yml
-spring:
-  sleuth:
-    zipkin:
-      base-url: http://localhost:9411
-    sampler:
-      probability: 0.1  # 10%采样
+### 注入方式
 
-  application:
-    name: ${spring.application.name}
-```
+- **Java 服务**：OTel Java Agent 自动 instrumentation（HTTP 客户端、DB、Kafka、Redis 等全链路 span），
+  跨服务透传 W3C TraceContext。`scripts/start-dev.sh` 用 `-javaagent` 注入。
+- **Go 服务**：OTel SDK，fiber/http 中间件 + 自动 propagator。
+- 采样：dev 环境 **全量**上报（默认 HEAD 采样，根 span 100%）。
 
 ### 追踪信息展示
 
+Grafana `wenxinblog-traces` 仪表板里一条 trace 的典型形态（字段取自 ES OTel 文档）：
+
 ```
-Trace: abc123xyz
-├── Gateway: 50ms
-│   └── Auth Service: 20ms
-│       └── Database: 10ms
-├── Blog Service: 100ms
-│   ├── Content Service: 30ms
-│   └── Database: 40ms
-└── Recommendation Service: 80ms
-    └── Milvus: 50ms
+Trace: traceId（128 bit hex）
+└── Gateway span      service.name=gateway        kind=server
+    └── Blog span     service.name=blog-service   kind=client→server
+        ├── DB span   name=SELECT posts           kind=client
+        └── Kafka span name=send wenxinblog...    kind=producer
 ```
+
+span 文档字段：`traceId` / `spanId` / `parentSpanId` / `name` / `kind` /
+`resource.service.name` / `duration` / `status.code`。请求范围内的日志会带相同 `traceId`，
+可在 logs 仪表板里联动定位。
+
+> **限制**：ES 数据源下 trace 瀑布图为近似渲染；真瀑布图需 Tempo（未接入）。
 
 ## 日志聚合
 
-### 阿里云SLS配置
+### 链路（OTel，非 SLS）
 
-```yaml
-# logback-spring.xml
-<appender name="SLS" class="com.aliyun.openservices.log.logback.LoghubAppender">
-  <endpoint>https://cn-hangzhou.log.aliyuncs.com</endpoint>
-  <accessKeyId>${LOG_ACCESS_KEY_ID}</accessKeyId>
-  <accessKeySecret>${LOG_ACCESS_KEY_SECRET}</accessKeySecret>
-  <project>wenxinblog-logs</project>
-  <logStore>wenxinblog-store</logStore>
-  <topic>${spring.application.name}</topic>
-  <source>${HOSTNAME}</source>
-  <encoder>
-    <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-  </encoder>
-  <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-    <level>INFO</level>
-  </filter>
-</appender>
-```
+Logback（Java）/ Go slog / Python logging → **OTLP logs** → Collector（transform 处理器把
+`scope.name` 类名拼进 body）→ Elasticsearch `logs-generic.otel-default` data stream →
+Grafana `Elasticsearch-Logs` 数据源。
 
-### 日志格式规范
+本地 dev **不接阿里云 SLS**；SLS 是面向生产环境可选项。
+
+### 日志字段（OTel 数据模型）
 
 ```json
 {
-  "timestamp": "2024-01-01T00:00:00Z",
-  "level": "INFO",
-  "service": "blog-service",
-  "traceId": "abc123",
-  "spanId": "def456",
-  "userId": "uuid",
-  "message": "Post created",
-  "data": {
-    "postId": "uuid",
-    "title": "Hello World"
-  }
+  "@timestamp": "2026-08-01T00:00:00.000Z",
+  "severity_text": "INFO",
+  "scope": { "name": "c.w.blog.service.PostService" },
+  "body": { "text": "c.w.blog.service.PostService | Post created postId=..." },
+  "resource": { "service.name": "blog-service", "deployment.environment": "dev" },
+  "traceId": "abc123...",
+  "spanId": "def456..."
 }
 ```
+
+`body` 是 transform 处理器拼好的「类名 | 原始消息」，Grafana 日志流每行直接显示。
+
+## ClickHouse（行为事件 OLAP）
+
+> 严格说属于数据层而非可观测性，但同样在基建栈里，在此一并说明。
+
+- 镜像 `clickhouse/clickhouse-server:24.8-alpine`，HTTP `8123`（JDBC 驱动用）；TCP `9000` 不映射到宿主机（端口被 MinIO 占用），仅 Docker 网络内 `clickhouse:9000` 直连。
+- 用途：**analytics-service** 写入/查询用户行为事件（曝光、点击、阅读等），供推荐与报表分析。
+- 网络：`infra/clickhouse/users.d/default-user.xml` 把 `default` 用户的来源放宽到 `::/0`（dev 环境，方便 analytics-service 从宿主机经端口映射连入；**生产应收紧为内网网段**）。
+- 不参与 OTel 三支柱管道（traces/logs/metrics 都不进 ClickHouse）。
 
 ## 性能分析
 
@@ -436,13 +410,15 @@ jfr recording.jfr
 
 ## 告警通知渠道
 
-| 渠道 | 触发条件 | 用途 |
-|------|----------|------|
-| 钉钉群 | Warning+ | 开发团队 |
-| 钉钉个人 | Critical | on-call人员 |
-| 短信 | Critical | 紧急故障 |
-| 邮件 | 每日报告 | 运营汇总 |
-| PagerDuty | Critical | 值班轮换 |
+> 面向生产环境；本地 dev 未接入。
+
+| 渠道      | 触发条件 | 用途        |
+| --------- | -------- | ----------- |
+| 钉钉群    | Warning+ | 开发团队    |
+| 钉钉个人  | Critical | on-call人员 |
+| 短信      | Critical | 紧急故障    |
+| 邮件      | 每日报告 | 运营汇总    |
+| PagerDuty | Critical | 值班轮换    |
 
 ## 监控最佳实践
 

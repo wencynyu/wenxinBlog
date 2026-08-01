@@ -1,5 +1,7 @@
 # 微服务架构设计
 
+> 最近更新：2026-08-02（对照实际架构核对）
+
 ## 服务划分
 
 ### 划分原则
@@ -18,16 +20,16 @@
 │                                                            │
 │  认证域 (Auth Domain)                                      │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ auth-service - 认证服务                               │ │
-│  │ - 用户注册/登录                                       │ │
+│  │ auth-service - 认证服务 (:8001, Go/Fiber)             │ │
+│  │ - 用户注册/登录（注册成功后同步建 user 到 user-service）│ │
 │  │ - OAuth2/SSO                                         │ │
-│  │ - JWT签发与验证                                       │ │
-│  │ - 二步验证                                            │ │
+│  │ - JWT 签发与验证（access / refresh 双 token）          │ │
+│  │ - Token 校验端点供网关调用                             │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 │  用户域 (User Domain)                                      │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ user-service - 用户服务                              │ │
+│  │ user-service - 用户服务 (:8002, Go/Fiber)             │ │
 │  │ - 用户资料管理                                        │ │
 │  │ - 关注关系                                            │ │
 │  │ - 用户主页                                            │ │
@@ -36,50 +38,70 @@
 │                                                            │
 │  内容域 (Content Domain)                                   │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ blog-service - 博文服务                              │ │
-│  │ - 博文CRUD                                            │ │
+│  │ blog-service - 博文服务 (:8003)                       │ │
+│  │ - 博文CRUD（含作者属主校验）                          │ │
 │  │ - 标签管理                                            │ │
-│  │ - 评论系统                                            │ │
-│  │ - 点赞/收藏                                           │ │
+│  │ - 评论系统（含评论作者属主校验）                      │ │
+│  │ - 点赞/收藏、博文事件发布到 Kafka                     │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ content-service - 媒体服务                            │ │
-│  │ - 文件上传                                            │ │
+│  │ content-service - 媒体服务 (:8004)                    │ │
+│  │ - 文件上传（含属主校验）                              │ │
 │  │ - 图片处理                                            │ │
 │  │ - 视频转码                                            │ │
-│  │ - CDN分发                                             │ │
+│  │ - MinIO 对象存储                                      │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 │  发现域 (Discovery Domain)                                 │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ search-service - 搜索服务                            │ │
-│  │ - 全文搜索                                            │ │
-│  │ - 搜索建议                                            │ │
-│  │ - 搜索分析                                            │ │
+│  │ search-service - 搜索服务 (:8005)                     │ │
+│  │ - 全文搜索（Elasticsearch 9.3.8，reactive 客户端）    │ │
+│  │ - 搜索建议 / 搜索历史                                 │ │
+│  │ - 消费 Kafka 博文事件维护索引                         │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ recommendation-service - 推荐服务                      │ │
-│  │ - 首页推荐                                            │ │
-│  │ - 相关推荐                                            │ │
-│  │ - 用户推荐                                            │ │
+│  │ recommendation-service - 推荐服务 (:8006)             │ │
+│  │ - 首页推荐 / 相关推荐                                 │ │
+│  │ - Milvus 向量检索                                     │ │
+│  │ - 网关为 GET 注入 X-User-Id 供个性化                   │ │
+│  │ - 依赖 embedding-service 生成向量                     │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│  向量化 (Embedding)                                        │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ embedding-service - 文本向量化 (:8008, Python/FastAPI)│ │
+│  │ - 在独立仓库 /AIProjects/embedding-service（非本仓库）│ │
+│  │ - 被 recommendation-service 调用来生成博文/用户向量    │ │
+│  │ - 已知问题：出站 URL 校验（SSRF）待修                 │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 │  商业域 (Business Domain)                                  │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ ad-service - 广告服务                                │ │
-│  │ - 广告位管理                                          │ │
+│  │ ad-service - 广告服务 (:8007)                        │ │
+│  │ - 广告位/计划管理（含属主校验）                       │ │
 │  │ - 广告投放                                            │ │
 │  │ - 计费统计                                            │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
+│  分析与实验域 (Analytics & Experiment Domain)              │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ analytics-service - 行为分析服务 (:8010)             │ │
+│  │ - 用户行为 BI 查询（ClickHouse OLAP）                 │ │
+│  └──────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ experiment-service - A/B 实验服务 (:8009)            │ │
+│  │ - layer 分层正交 + 同层单 RUNNING 互斥分流            │ │
+│  │ - 实验分配 / 生命周期管理                              │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
 │  基础设施域 (Infrastructure Domain)                        │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │ gateway - API网关                                    │ │
-│  │ - 路由转发                                            │ │
-│  │ - 鉴权限流                                            │ │
-│  │ - 熔断降级                                            │ │
+│  │ gateway - API网关 (:8080，管理端点 8081)              │ │
+│  │ - 路由转发（直连各服务，未启用注册中心）              │ │
+│  │ - 鉴权（调 auth-service 验 token）+ 身份头防伪注入     │ │
+│  │ - 限流 + Resilience4j 熔断降级                        │ │
 │  └──────────────────────────────────────────────────────┘ │
 │                                                            │
 └────────────────────────────────────────────────────────────┘
@@ -109,14 +131,10 @@ Web -> Gateway -> Auth Service (登录)
 - 事件驱动 (用户行为追踪)
 - 解耦服务
 
-RabbitMQ (任务队列):
-- 图片上传 -> content.upload.queue -> Content Service
-- 博文发布 -> blog.published.queue -> Search Service
-- 用户注册 -> user.registered.queue -> Recommendation Service
-
-Kafka (事件流):
-- 用户浏览 -> wenxinblog.user.view -> 各服务消费
-- 点赞事件 -> wenxinblog.user.like -> 推荐服务消费
+项目统一使用 Kafka 作为消息骨干（未引入 RabbitMQ）:
+- 博文发布 -> blog-service 发布事件 -> search-service 消费 -> 更新 Elasticsearch 索引
+- 用户行为 -> 各服务发布 -> analytics-service / recommendation-service 消费
+- 注册成功 -> auth-service 同步建用户到 user-service (HTTP 同步，非消息)
 ```
 
 ## 服务发现
@@ -189,25 +207,31 @@ Kafka (事件流):
 ### 网关实现
 
 ```yaml
-# Spring Cloud Gateway配置
+# Spring Cloud 2025 Gateway 配置（路由前缀为 server.webflux.routes；
+# MVP 本地联调直连各服务 http://localhost:<port>，未启用服务注册中心）
 spring:
   cloud:
     gateway:
-      routes:
-        # 认证服务 (无需认证)
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/v1/auth/**
+      server:
+        webflux:
+          routes:
+            # 认证服务 (公开，无需认证)
+            - id: auth-service
+              uri: http://localhost:8001
+              predicates:
+                - Path=/api/v1/auth/**
 
-        # 博文服务 (需认证)
-        - id: blog-service
-          uri: lb://blog-service
-          predicates:
-            - Path=/api/v1/posts/**
-          filters:
-            - AuthenticationFilter
-            - RateLimitFilter=20,1
+            # 博文服务 (需认证：挂 AuthenticationFilter)
+            - id: blog-service
+              uri: http://localhost:8003
+              predicates:
+                - Path=/api/v1/posts/**,/api/v1/comments/**,/api/v1/tags/**
+              filters:
+                - name: AuthenticationFilter
+
+          # 全局剥离客户端自报的 X-User-* 头，下游只信任网关注入值
+          default-filters:
+            - RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email
 ```
 
 ## 数据一致性
@@ -221,10 +245,10 @@ spring:
    - 补偿机制
 
    示例: 发布博文 + 更新搜索索引
-   blog-service发布博文
-   -> 发送Kafka事件
-   -> search-service消费事件
-   -> 更新OpenSearch索引
+   blog-service 发布博文
+   -> 发送 Kafka 事件
+   -> search-service 消费事件
+   -> 更新 Elasticsearch 索引
 
 2. 强一致性
    - 2PC/XA (性能差)
@@ -342,17 +366,18 @@ K8s使用健康检查:
 ### 链路追踪
 
 ```
-Trace ID贯穿整个调用链:
+Trace ID 贯穿整个调用链（基于 OpenTelemetry 统一管道）:
 Gateway (trace-123)
   -> Auth Service (trace-123, span-1)
     -> Database (trace-123, span-2)
   -> Blog Service (trace-123, span-3)
     -> Search Service (trace-123, span-4)
 
-工具:
-- Spring Cloud Sleuth
-- Zipkin/Jaeger
-- 阿里云ARMS
+实现:
+- Java 服务: OTel Java Agent 自动埋点
+- Go 服务: OTel SDK 手动埋点
+- 数据经由 OTel Collector → Elasticsearch (traces-apm.default data stream)
+- 指标经 Collector → Prometheus，Grafana 统一查看 traces / logs / overview / api 看板
 ```
 
 ## 服务治理

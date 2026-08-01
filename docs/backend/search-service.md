@@ -1,312 +1,152 @@
 # Search Service
 
-搜索服务 - 负责全文搜索、智能补全、搜索分析
+搜索服务 - 负责博文/用户全文搜索、搜索建议、热门搜索词、搜索历史。
 
-## 功能
+> 最近更新：2026-08-02（对照实际代码核对）
 
-- 全文搜索 (博文、用户)
-- 搜索建议/自动补全
-- 搜索结果高亮
-- 搜索历史记录
-- 热门搜索词
-- 搜索分析 (点击率、转化率)
+## 实现现状（体检）
+
+| 模块                               | 状态      | 说明                                                                  |
+| ---------------------------------- | --------- | --------------------------------------------------------------------- |
+| 博文全文搜索（高亮 + 分页 + 排序） | ✅        | `multi_match` best_fields，title^3 等                                 |
+| 用户搜索                           | ✅        | `multi_match` on display_name^3/username^2/bio                        |
+| 搜索建议 suggest                   | ✅        | `match` + fuzziness AUTO（非 completion 字段）                        |
+| 热门搜索词（trending）             | ✅        | Redis ZSET，每次搜索 `ZINCRBY`                                        |
+| 消费 blog / user 事件建索引        | ✅        | Kafka 消费者返回 `Mono<Void>`，至少一次                               |
+| 搜索历史 GET / DELETE              | ⚠️ 半成   | 端点在，但**写入路径未接**（见下）                                    |
+| IK 分词 / 同义词 / completion 字段 | ❌ 未实现 | 旧文档的 `ik_max_word_synonym` 等是虚构的，用 ES 默认 standard 分析器 |
+| BM25 k1/b 调参、字段权重 YAML      | ❌ 未实现 | 代码里无此配置，权重靠查询时 `^N` 写死                                |
 
 ## 技术栈
 
-- Java 25
-- Spring Boot 4.0.4 (WebFlux)
-- OpenSearch 2.11
-- Kafka (监听博文变更事件)
-- Redis (缓存搜索结果)
+- Java 25 + Spring Boot 4.0.4（WebFlux）
+- **Elasticsearch 9.3.8**（`pom.xml` 的 `<elasticsearch.version>9.3.8</elasticsearch.version>`）
+- **`spring-boot-starter-data-elasticsearch`**（Spring Data Elasticsearch 6.x reactive）
+  - 通过 `ReactiveElasticsearchOperations` + `NativeQuery`（`co.elastic.clients` elasticsearch-java 模型）查询
+  - **已从旧的 OpenSearch + elasticsearch-java 客户端迁移过来**（旧文档写的 OpenSearch 2.11 已过时）
+- `spring-kafka`（消费者）、`spring-boot-starter-data-redis-reactive`
+- Actuator
 
-## OpenSearch索引
+**端口：8005**。ES 地址 `http://localhost:9200`。
 
-### blog_index (博文索引)
+## 索引（由 `@Document` 实体定义）
+
+索引在应用启动时由 Spring Data ES 自动建（无手写 mapping JSON、无 IK 分析器、无 completion 字段）。
+
+### wenxinblog-blog（`BlogDocument`）
+
 ```json
 {
-  "settings": {
-    "number_of_shards": 3,
-    "number_of_replicas": 1,
-    "analysis": {
-      "analyzer": {
-        "ik_max_word_synonym": {
-          "type": "custom",
-          "tokenizer": "ik_max_word",
-          "filter": ["lowercase", "synonym_filter"]
-        }
-      },
-      "filter": {
-        "synonym_filter": {
-          "type": "synonym",
-          "synonyms_path": "synonyms.txt"
-        }
-      }
-    }
-  },
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "title": {
-        "type": "text",
-        "analyzer": "ik_max_word_synonym",
-        "search_analyzer": "ik_smart",
-        "fields": {
-          "keyword": { "type": "keyword" },
-          "suggest": { "type": "completion" }
-        }
-      },
-      "content": {
-        "type": "text",
-        "analyzer": "ik_max_word_synonym",
-        "search_analyzer": "ik_smart"
-      },
-      "summary": {
-        "type": "text",
-        "analyzer": "ik_max_word"
-      },
-      "author": {
-        "properties": {
-          "id": { "type": "keyword" },
-          "username": { "type": "keyword" },
-          "displayName": { "type": "text" }
-        }
-      },
-      "tags": { "type": "keyword" },
-      "category": { "type": "keyword" },
-      "status": { "type": "keyword" },
-      "viewCount": { "type": "integer" },
-      "likeCount": { "type": "integer" },
-      "commentCount": { "type": "integer" },
-      "createdAt": { "type": "date" },
-      "updatedAt": { "type": "date" },
-      "publishedAt": { "type": "date" },
-      "coverImage": { "type": "keyword" }
-    }
-  }
+  "id": "keyword (@Id)",
+  "title": "text",
+  "content": "text",
+  "summary": "text",
+  "author_id": "keyword",
+  "author_name": "keyword",
+  "tags": ["keyword"],
+  "category": "keyword",
+  "status": "keyword",
+  "view_count": "integer",
+  "like_count": "integer",
+  "comment_count": "integer",
+  "published_at": "date (date_hour_minute_second)",
+  "created_at": "date (date_hour_minute_second)"
 }
 ```
 
-### user_index (用户索引)
+### wenxinblog-user（`UserDocument`）
+
 ```json
 {
-  "mappings": {
-    "properties": {
-      "id": { "type": "keyword" },
-      "username": {
-        "type": "text",
-        "analyzer": "standard",
-        "fields": {
-          "keyword": { "type": "keyword" },
-          "suggest": { "type": "completion" }
-        }
-      },
-      "displayName": {
-        "type": "text",
-        "analyzer": "ik_max_word",
-        "fields": {
-          "suggest": { "type": "completion" }
-        }
-      },
-      "bio": { "type": "text", "analyzer": "ik_max_word" },
-      "followersCount": { "type": "integer" },
-      "postCount": { "type": "integer" },
-      "createdAt": { "type": "date" }
-    }
-  }
+  "id": "keyword (@Id)",
+  "display_name": "keyword",
+  "username": "keyword",
+  "bio": "text",
+  "avatar_url": "keyword",
+  "follower_count": "integer",
+  "post_count": "integer",
+  "created_at": "date"
 }
 ```
+
+> 旧文档里 `blog_index`/`user_index` 的 `ik_max_word` 分词、`suggest` completion 字段、`author` 嵌套对象、`coverImage` 等**与实体不符**。实际用 ES 默认 standard 分析器，suggest 走 `match`+fuzziness 而非 completion。
 
 ## API
 
-### 博文搜索
 ```
-GET    /api/v1/search/blog?q=xxx&page=1&pageSize=20
-       ?sort=latest | popular | relevant
-       &tags=tag1,tag2
-       &category=tech
-       &dateFrom=2024-01-01
-       &dateTo=2024-12-31
-
-Response:
-{
-  "results": [
-    {
-      "id": "uuid",
-      "title": "博文标题",
-      "summary": "摘要...",
-      "highlights": {
-        "title": ["高亮<em>关键词</em>"],
-        "content": ["内容片段...<em>关键词</em>..."]
-      },
-      "author": { },
-      "stats": { },
-      "score": 2.5
-    }
-  ],
-  "total": 100,
-  "aggregations": {
-    "tags": { "Java": 45, "Go": 32 },
-    "categories": { "技术": 78 }
-  }
-}
+GET    /api/v1/search/blog?q=&page=0&size=10&sortBy=relevance&tags=&category=&authorId=
+GET    /api/v1/search/users?q=&page=0&size=10              # 注意是 users（复数），旧文档写 user
+GET    /api/v1/search/suggest?q=&type=blog|user
+GET    /api/v1/search/trending?limit=10                    # 热门搜索词
+GET    /api/v1/search/trending/tags?limit=20               # 热门标签（仅读，本服务不写入）
+GET    /api/v1/search/history           (X-User-Id) limit=20
+DELETE /api/v1/search/history           (X-User-Id)
 ```
 
-### 用户搜索
-```
-GET    /api/v1/search/user?q=xxx&page=1&pageSize=20
-```
+### 搜索逻辑（真实）
 
-### 搜索建议
-```
-GET    /api/v1/search/suggest?q=jav&type=blog|user
+- **博文**：`multi_match` best_fields，字段权重 `title^3, content^2, summary^2, tags^2, author_name^1`
+- **排序**：`relevance`（`_score` desc，默认）/ `date`（published_at desc）/ `views` / `likes`
+- **高亮**：`title` + `content`（fragment 200），`<em>...</em>`
+- **用户**：`multi_match` on `display_name^3, username^2, bio`，fuzziness AUTO
+- **suggest**：blog 走 `match` on `title` fuzziness AUTO；user 走 `match` on `display_name`
 
-Response:
-{
-  "suggestions": [
-    { "text": "Java", "type": "tag" },
-    { "text": "JavaScript", "type": "tag" },
-    { "text": "Java并发编程实战", "type": "blog" }
-  ]
-}
-```
+## Kafka 事件消费
 
-### 搜索历史
-```
-GET    /api/v1/search/history        - 获取搜索历史
-DELETE /api/v1/search/history        - 清空搜索历史
-```
+两个消费者都返回 `Mono<Void>`，**Spring Kafka 等 Mono 完成后再提交 offset**；ES 写失败时返回 `Mono.error` → `DefaultErrorHandler` 重试（至少一次语义）。反序列化/字段解析错误则记日志后跳过（提交 offset，不重试）。
 
-### 热门搜索
-```
-GET    /api/v1/search/trending       - 热门搜索词
+| Topic                    | groupId          | 处理                                                                    |
+| ------------------------ | ---------------- | ----------------------------------------------------------------------- |
+| `wenxinblog.blog.events` | `search-service` | CREATE/UPDATE → `indexBlog`/`updateBlog`（全量 `save`）；DELETE → 删除  |
+| `wenxinblog.user.events` | `search-service` | CREATE/UPDATE/PROFILE_UPDATE → `indexUser`；DELETE → 仅记日志、不删索引 |
 
-Response:
-{
-  "daily": ["ChatGPT", "Java 21", "微服务"],
-  "weekly": ["Spring Boot", "React", "AI"],
-  "monthly": ["架构设计", "性能优化"]
-}
+> 旧文档写的 `wenxinblog.blog.created/updated/deleted`、`wenxinblog.user.registered/updated` 及 `search-service-user` group **均不存在**，实际是单一 events topic。
+
+## Redis 缓存设计
+
+```
+search:trending            ZSET   每次搜索 ZINCRBY 1（recordSearch）   无显式 TTL
+search:trending:tags       ZSET   仅读（getTrendingTags）              本服务从不写入 → 实际为空
+search:history:{userId}    LIST   LPUSH + trim 50 + TTL 30 天          见下方已知问题
 ```
 
-## Kafka事件监听
+### 已知问题：搜索历史写入未接
 
-### 博文事件
-```yaml
-Topics:
-  - wenxinblog.blog.created  -> 创建索引
-  - wenxinblog.blog.updated  -> 更新索引
-  - wenxinblog.blog.deleted  -> 删除索引
+`SearchHistoryService.saveSearchHistory` 已实现（LPUSH + trim 50 + 30 天 TTL），但 **Controller 的搜索端点只调了 `recordSearch`（写 trending），从未调 `saveSearchHistory`**。因此 `GET /history` 能读、`DELETE /history` 能清，但列表始终是空的——写入路径断了，待修。
 
-Group: search-service
-```
-
-### 用户事件
-```yaml
-Topics:
-  - wenxinblog.user.registered -> 创建用户索引
-  - wenxinblog.user.updated    -> 更新用户索引
-
-Group: search-service-user
-```
-
-## Redis缓存设计
-
-### 搜索结果缓存
-```
-Key: search:blog:{query_hash}
-Type: JSON
-TTL: 300 (5分钟)
-Value: { results, total, aggregations }
-```
-
-### 热门搜索词缓存
-```
-Key: search:trending:daily
-Key: search:trending:weekly
-Key: search:trending:monthly
-Type: LIST
-TTL: 3600
-```
-
-### 搜索历史
-```
-Key: search:history:{userId}
-Type: LIST
-TTL: 2592000 (30天)
-Max Length: 50
-```
-
-## 搜索相关性配置
-
-### BM25参数
-```yaml
-search:
-  similarity:
-    default:
-      type: BM25
-      k1: 1.2
-      b: 0.75
-```
-
-### 字段权重
-```yaml
-search:
-  fields:
-    title:
-      boost: 2.0
-    summary:
-      boost: 1.5
-    content:
-      boost: 1.0
-    tags:
-      boost: 1.8
-```
-
-## 环境变量
+## 配置 (application.yml)
 
 ```yaml
 server:
-  port: 8004
-
+  port: 8005
 spring:
+  elasticsearch:
+    uris: http://localhost:9200
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: search-service
-
-opensearch:
-  uris: http://localhost:9200
-  username: ${OPENSEARCH_USERNAME:}
-  password: ${OPENSEARCH_PASSWORD:}
-  index:
-    blog: wenxinblog-blog
-    user: wenxinblog-user
-
+      auto-offset-reset: earliest
+  data:
+    redis: { host: localhost, port: 6379, password: ${REDIS_PASSWORD:redis} }
 search:
-  max-results: 100
-  default-page-size: 20
+  max-results: 20
+  default-page-size: 10
   highlight:
-    enabled: true
-    fragment-size: 150
-    number-of-fragments: 3
+    pre-tags: ["<em>"]
+    post-tags: ["</em>"]
 ```
 
-## 运行
+> 旧文档的 `opensearch.*` 配置块、BM25 `similarity` YAML、字段权重 YAML **均不存在**。
+
+## 可观测性 / 运行
+
+- OTel Java Agent 2.30.0（Dockerfile `-javaagent`）。注：Dockerfile 顶部注释还写着 "OpenSearch"，是历史遗留，实际已是 ES 9.3.8
+- 堆内存：开发环境 `scripts/start-dev.sh` 统一 `-Xmx512m`；生产 Dockerfile 未显式设 -Xmx
 
 ```bash
 cd services/search-service
 mvn spring-boot:run
 ```
 
-## 索引管理
-
-```bash
-# 创建索引
-curl -X PUT http://localhost:9200/wenxinblog-blog -d @blog-index.json
-
-# 重建索引
-curl -X POST http://localhost:9200/wenxinblog-blog/_reindex -d '{
-  "source": { "index": "wenxinblog-blog-old" },
-  "dest": { "index": "wenxinblog-blog" }
-}'
-```
+索引初始化由 Spring Data ES 在首次写入时自动创建；如需重建索引，删除 `wenxinblog-blog` / `wenxinblog-user` 后重新消费 Kafka events 即可。

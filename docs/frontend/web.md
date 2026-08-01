@@ -1,515 +1,160 @@
+> 最近更新：2026-08-02（对照实际代码核对）
+
 # Web Frontend
 
-Web前端架构文档 - Next.js 14 + Semi-Design
+Web 前端架构文档 — Next.js 14（App Router）+ Semi-Design。
+
+实际代码位于仓库根 `web/`。
 
 ## 技术栈
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Next.js | 14.2 | React框架 (App Router) |
-| React | 18.3 | UI库 |
-| Semi-Design | 2.65 | UI组件库 |
-| Zustand | 5.0 | 状态管理 |
-| React Query | 3.39 | 数据请求/缓存 |
-| Axios | 1.7 | HTTP客户端 |
-| Tailwind CSS | 3.4 | CSS框架 |
-| Day.js | 1.11 | 日期处理 |
-| Marked | 12.0 | Markdown渲染 |
-| Highlight.js | 11.9 | 代码高亮 |
+（来自 `web/package.json`）
+
+| 技术                              | 版本            | 用途                             |
+| --------------------------------- | --------------- | -------------------------------- |
+| Next.js                           | ^14.2           | React 框架（App Router）         |
+| React / ReactDOM                  | ^18.3           | UI 库                            |
+| @douyinfe/semi-ui + semi-icons    | ^2.65           | UI 组件库（Semi-Design）         |
+| @tanstack/react-query             | ^5.101          | 数据请求 / 缓存（**v5**，非 v3） |
+| Zustand                           | ^5.0            | 客户端状态管理                   |
+| Axios                             | ^1.7            | HTTP 客户端                      |
+| Tailwind CSS                      | ^3.4            | 原子化 CSS                       |
+| marked + dompurify + highlight.js | 12 / 3.1 / 11.9 | Markdown 渲染 + 消毒 + 代码高亮  |
+| dayjs                             | ^1.11           | 日期处理                         |
+
+测试：Vitest 4 + @testing-library/react（单元，`*.test.tsx`），Playwright（e2e，`web/e2e/`）。
+
+> 可观测性：前端**未接入 OpenTelemetry**（浏览器侧无 OTel SDK），后端链路追踪不由前端发起。
 
 ## 项目结构
 
+实际目录（`web/src/`）：
+
 ```
 src/
-├── app/                    # App Router页面
-│   ├── (main)/            # 主布局 (Header/Navbar)
-│   │   ├── layout.tsx     # 主布局组件
-│   │   ├── page.tsx       # 首页
-│   │   ├── feed/          # 推荐流
-│   │   ├── trending/      # 热门
-│   │   └── notifications/ # 通知
-│   │
-│   ├── (auth)/            # 认证相关 (无Header)
-│   │   ├── layout.tsx
-│   │   ├── login/         # 登录
-│   │   ├── register/      # 注册
-│   │   └── oauth/         # OAuth回调
-│   │
-│   ├── (blog)/            # 博文相关
-│   │   ├── [id]/          # 博文详情
-│   │   └── new/           # 发布博文
-│   │
-│   ├── (user)/            # 用户相关
-│   │   ├── [id]/          # 用户主页
-│   │   ├── [id]/posts     # 用户博文
-│   │   └── settings/      # 个人设置
-│   │
-│   ├── search/            # 搜索页
-│   └── api/               # API路由 (可选BFF)
-│       └── proxy/
+├── app/
+│   ├── layout.tsx              # 根布局：QueryProvider → AuthProvider → ThemeProvider
+│   ├── page.tsx                # 首页（/）：无限滚动的博文流 + Hero
+│   ├── (auth)/                 # 认证（无 Navbar）
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── (main)/                 # 主布局（Header + Navbar + Sidebar）
+│   │   ├── feed/page.tsx       # 推荐
+│   │   ├── trending/page.tsx   # 热门
+│   │   ├── posts/page.tsx      # 博文列表
+│   │   ├── posts/[id]/page.tsx # 博文详情
+│   │   ├── editor/page.tsx     # 写博文
+│   │   ├── editor/[id]/page.tsx# 编辑博文
+│   │   ├── search/page.tsx     # 搜索
+│   │   └── settings/page.tsx   # 个人设置
+│   └── user/[id]/page.tsx      # 用户主页（位于 app 根，非路由组内）
 │
-├── components/             # 组件
-│   ├── layout/            # 布局组件
-│   │   ├── Header.tsx
-│   │   ├── Sidebar.tsx
-│   │   ├── Footer.tsx
-│   │   └── Navigation.tsx
-│   │
-│   ├── blog/              # 博文组件
-│   │   ├── PostCard.tsx
-│   │   ├── PostList.tsx
-│   │   ├── PostDetail.tsx
-│   │   ├── PostEditor.tsx
-│   │   ├── CommentList.tsx
-│   │   └── TagList.tsx
-│   │
-│   ├── user/              # 用户组件
-│   │   ├── UserCard.tsx
-│   │   ├── UserList.tsx
-│   │   ├── FollowButton.tsx
-│   │   └── Avatar.tsx
-│   │
-│   ├── ui/                # 通用UI组件
-│   │   ├── Button.tsx
-│   │   ├── Input.tsx
-│   │   ├── Modal.tsx
-│   │   ├── Toast.tsx
-│   │   └── Loading.tsx
-│   │
-│   └── provider/          # Context Provider
-│       ├── QueryProvider.tsx
-│       ├── ThemeProvider.tsx
-│       └── AuthProvider.tsx
+├── components/
+│   ├── layout/                 # Header / Navbar / MainLayout / Sidebar / Footer
+│   ├── post/                   # PostCard / PostList / MarkdownRenderer
+│   ├── comment/                # CommentList / CommentInput
+│   ├── recommend/              # RecommendationCard
+│   ├── provider/               # QueryProvider / AuthProvider / ThemeProvider
+│   └── common/                 # EmptyState 等通用组件
 │
-├── lib/                   # 工具函数
-│   ├── api/               # API调用
-│   │   ├── client.ts      # Axios配置
-│   │   ├── auth.ts
-│   │   ├── posts.ts
-│   │   ├── users.ts
-│   │   └── search.ts
-│   ├── hooks/             # 自定义Hooks
-│   │   ├── useAuth.ts
-│   │   ├── useInfinite.ts
-│   │   └── useDebounce.ts
-│   ├── utils/             # 工具函数
-│   │   ├── format.ts      # 格式化
-│   │   ├── validation.ts  # 验证
-│   │   └── storage.ts     # LocalStorage
-│   └── constants/         # 常量
-│       └── endpoints.ts
-│
-├── store/                 # Zustand状态
-│   ├── authStore.ts
-│   ├── userStore.ts
-│   └── uiStore.ts
-│
-├── types/                 # TypeScript类型
-│   ├── auth.ts
-│   ├── post.ts
-│   ├── user.ts
-│   └── common.ts
-│
-└── styles/                # 样式
-    ├── globals.css        # 全局样式
-    └── markdown.css       # Markdown样式
+├── hooks/                      # usePosts / useAuth / useUser / useSearch / useRecommendations
+├── lib/
+│   └── api/                    # client / server(SSR) / auth / posts / users / comments / search / recommend / content
+├── store/                      # authStore / uiStore（Zustand）
+├── types/                      # auth / post / user / common
+└── styles/
+    └── globals.css
 ```
 
-## 核心页面
+> 说明：博文相关页面在 `(main)` 路由组下以 `posts` / `editor` 命名。**没有** `(blog)` / `(user)` 路由组，也没有 `app/api/` BFF 路由。
 
-### 首页 (/)
+## 路由表（实际）
+
+| 路径                 | 页面               | 认证 |
+| -------------------- | ------------------ | ---- |
+| `/`                  | 首页（最新博文流） | 否   |
+| `/feed`              | 推荐流             | 否   |
+| `/trending`          | 热门               | 否   |
+| `/posts`             | 博文列表           | 否   |
+| `/posts/[id]`        | 博文详情           | 否   |
+| `/editor`            | 写博文             | 是   |
+| `/editor/[id]`       | 编辑博文           | 是   |
+| `/search`            | 搜索               | 否   |
+| `/settings`          | 个人设置           | 是   |
+| `/user/[id]`         | 用户主页           | 否   |
+| `/login` `/register` | 登录 / 注册        | 否   |
+
+顶部导航（`Navbar.tsx`）暴露 4 项：首页 / 推荐 / 热门 / 博文。搜索、设置、用户主页通过页面内入口进入。
+
+## API 层
+
+- 入口：`lib/api/client.ts`，Axios 实例。
+- `baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'` —— **统一走网关**（localhost:8080），前端不直连后端微服务。
+- Token：客户端存 `localStorage`，并同步写一份非 httpOnly cookie（`auth_token`），供 Server Component / SSR 读取（`lib/api/server.ts`）。401 时清 token 并跳转 `/login`。
+- 响应拦截器自动解包 `response.data`（即 `ApiResponse<T>`），错误归一化为 `{ code, message, data }`。
+- 端点前缀统一 `/api/v1/...`（如 `/api/v1/posts`、`/api/v1/recommend/feed`、`/api/v1/recommend/trending`）。
+
+### 分页与无限滚动
+
+`PaginatedResponse<T> = { items, total, page, pageSize, totalPages }`。
+
+列表页用 React Query v5 的 `useInfiniteQuery`（`initialPageParam` + `getNextPageParam`），示例见 `app/page.tsx`：
+
 ```tsx
-// app/(main)/page.tsx
-export default function HomePage() {
-  return (
-    <InfiniteFeed
-      queryKey={['feed']}
-      fetchFn={() => api.posts.getFeed()}
-      renderItem={(post) => <PostCard post={post} />}
-    />
-  )
-}
+const { data, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
+  queryKey: ['posts', 'home-feed'],
+  queryFn: ({ pageParam }) =>
+    getPosts({
+      page: pageParam,
+      pageSize: 10,
+      status: 'published',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }),
+  initialPageParam: 1,
+  getNextPageParam: (lastPage) =>
+    lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+});
 ```
 
-### 博文详情 (/blog/[id])
-```tsx
-// app/(blog)/[id]/page.tsx
-export default function PostPage({ params }) {
-  const { data: post } = useQuery({
-    queryKey: ['post', params.id],
-    queryFn: () => api.posts.get(params.id)
-  })
+## 状态管理（Zustand）
 
-  return (
-    <div>
-      <PostDetail post={post} />
-      <CommentList postId={params.id} />
-      <RelatedPosts postId={params.id} />
-    </div>
-  )
-}
+- `authStore`：`{ user, token, isAuthenticated, login, logout, setUser }`。
+- `uiStore`：主题 / 侧边栏等 UI 状态。
+
+## 个人设置页（/settings）
+
+`app/(main)/settings/page.tsx`：表单更新个人资料（昵称 / 简介 / 头像 / 所在地 / 网站）+ 兴趣标签（`TagInput`，走推荐服务 `getUserInterests` / `updateUserInterests`）。
+
+> 历史修复：后端用户资料接口返回的 `id` 是 `user_profiles` 表主键，真实用户 id 在 `user_id` 字段，且字段为 snake_case。`setUser` 时已显式映射（`id: up.user_id`、`display_name` / `avatar_url` / ...），避免把 profile 主键塞进 `user.id`，导致「我的主页」跳转到不存在的用户。
+
+## 广告
+
+前端**没有任何广告组件**（无 AdCard / AdBanner / 广告位）。ad-service 目前仅后端，前端未接入。
+
+## SEO
+
+- 根 `app/layout.tsx` 导出 `metadata`（title / description / openGraph / twitter）。
+- `next.config.js` 配置全局响应头（`X-Frame-Options: SAMEORIGIN`、`X-DNS-Prefetch-Control: on`）与图片域名白名单。
+- 字体通过 `<link>` 运行时加载（display=swap），未用 `next/font`，以规避构建期拉取 Google Fonts 失败。
+- 暂未实现 `sitemap.ts` / `robots.ts` / 博文详情的 `generateMetadata`（可按需扩展）。
+
+## 环境变量
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8080   # 网关地址
+NEXT_PUBLIC_OSS_URL=                         # 对象存储 / CDN（留空走默认）
 ```
 
-### 用户主页 (/user/[id])
-```tsx
-// app/(user)/[id]/page.tsx
-export default function UserPage({ params }) {
-  const [activeTab, setActiveTab] = useState('posts')
+见仓库根 `.env.example`。
 
-  return (
-    <div>
-      <UserProfile userId={params.id} />
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab="博文" itemKey="posts">
-          <UserPosts userId={params.id} />
-        </TabPane>
-        <TabPane tab="喜欢" itemKey="likes">
-          <UserLikes userId={params.id} />
-        </TabPane>
-        <TabPane tab="关注" itemKey="following">
-          <UserFollowing userId={params.id} />
-        </TabPane>
-      </Tabs>
-    </div>
-  )
-}
-```
-
-## 状态管理
-
-### AuthStore (Zustand)
-```typescript
-// store/authStore.ts
-interface AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
-  setUser: (user: User) => void
-}
-
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  token: null,
-  isAuthenticated: false,
-
-  login: async (email, password) => {
-    const { user, token } = await api.auth.login(email, password)
-    set({ user, token, isAuthenticated: true })
-    storage.set('token', token)
-  },
-
-  logout: () => {
-    set({ user: null, token: null, isAuthenticated: false })
-    storage.remove('token')
-  },
-
-  setUser: (user) => set({ user })
-}))
-```
-
-### UIStore
-```typescript
-// store/uiStore.ts
-interface UIState {
-  theme: 'light' | 'dark'
-  sidebarOpen: boolean
-  notifications: Notification[]
-  setTheme: (theme: string) => void
-  toggleSidebar: () => void
-  addNotification: (notification: Notification) => void
-}
-```
-
-## API层设计
-
-### Axios配置
-```typescript
-// lib/api/client.ts
-import axios from 'axios'
-import { useAuthStore } from '@/store/authStore'
-
-const client = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  timeout: 10000,
-})
-
-// 请求拦截器
-client.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// 响应拦截器
-client.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
-
-export default client
-```
-
-### API模块
-```typescript
-// lib/api/posts.ts
-import client from './client'
-
-export const posts = {
-  // 获取推荐流
-  getFeed: (params: PaginationParams) =>
-    client.get('/posts/feed', { params }),
-
-  // 获取博文详情
-  get: (id: string) =>
-    client.get(`/posts/${id}`),
-
-  // 创建博文
-  create: (data: CreatePostDto) =>
-    client.post('/posts', data),
-
-  // 更新博文
-  update: (id: string, data: UpdatePostDto) =>
-    client.put(`/posts/${id}`, data),
-
-  // 删除博文
-  delete: (id: string) =>
-    client.delete(`/posts/${id}`),
-
-  // 点赞
-  like: (id: string) =>
-    client.post(`/posts/${id}/like`),
-
-  // 收藏
-  favorite: (id: string) =>
-    client.post(`/posts/${id}/favorite`),
-}
-```
-
-## 路由设计
-
-### 页面路由表
-| 路径 | 页面 | 布局 | 认证 |
-|------|------|------|------|
-| `/` | 首页 | main | 否 |
-| `/feed` | 推荐流 | main | 是 |
-| `/trending` | 热门 | main | 否 |
-| `/notifications` | 通知 | main | 是 |
-| `/login` | 登录 | auth | 否 |
-| `/register` | 注册 | auth | 否 |
-| `/blog/[id]` | 博文详情 | blog | 否 |
-| `/blog/new` | 发布博文 | blog | 是 |
-| `/blog/[id]/edit` | 编辑博文 | blog | 是 |
-| `/user/[id]` | 用户主页 | user | 否 |
-| `/user/[id]/posts` | 用户博文 | user | 否 |
-| `/settings` | 个人设置 | main | 是 |
-| `/search` | 搜索 | main | 否 |
-
-## 无限滚动
-
-```typescript
-// lib/hooks/useInfinite.ts
-export function useInfinite<T>(
-  queryKey: string[],
-  fetchFn: (page: number) => Promise<PaginatedResponse<T>>
-) {
-  return useInfiniteQuery({
-    queryKey,
-    queryFn: ({ pageParam = 1 }) => fetchFn(pageParam),
-    getNextPageParam: (lastPage) => {
-      if (lastPage.page < lastPage.totalPages) {
-        return lastPage.page + 1
-      }
-      return undefined
-    },
-  })
-}
-
-// 使用
-function PostFeed() {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfinite(
-    ['posts'],
-    (page) => api.posts.getFeed({ page })
-  )
-
-  return (
-    <InfiniteScroll
-      loadMore={fetchNextPage}
-      hasMore={hasNextPage}
-    >
-      {data?.pages.map((page) => (
-        page.data.map((post) => <PostCard key={post.id} post={post} />)
-      ))}
-    </InfiniteScroll>
-  )
-}
-```
-
-## 性能优化
-
-### 图片优化
-```tsx
-import Image from 'next/image'
-
-<Image
-  src={post.coverImage}
-  alt={post.title}
-  width={800}
-  height={400}
-  loading="lazy"
-  placeholder="blur"
-  blurDataURL="/placeholder.jpg"
-/>
-```
-
-### 代码分割
-```tsx
-// 动态导入重型组件
-const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
-  loading: () => <Loading />,
-  ssr: false,
-})
-
-// 路由级代码分割 (Next.js自动)
-```
-
-### 缓存策略
-```typescript
-// React Query配置
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,     // 5分钟内数据视为新鲜
-      cacheTime: 30 * 60 * 1000,    // 缓存30分钟
-      refetchOnWindowFocus: false,   // 窗口聚焦时不自动刷新
-      retry: 1,
-    },
-  },
-})
-```
-
-## SEO优化
-
-### Metadata API
-```tsx
-// app/(blog)/[id]/page.tsx
-export async function generateMetadata({ params }): Promise<Metadata> {
-  const post = await api.posts.get(params.id)
-
-  return {
-    title: `${post.title} - WenxinBlog`,
-    description: post.summary,
-    openGraph: {
-      title: post.title,
-      description: post.summary,
-      images: [post.coverImage],
-      type: 'article',
-      publishedTime: post.publishedAt,
-      authors: [post.author.username],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: post.title,
-      description: post.summary,
-      images: [post.coverImage],
-    },
-  }
-}
-```
-
-### 结构化数据
-```tsx
-// 博文结构化数据
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'BlogPosting',
-  headline: post.title,
-  image: post.coverImage,
-  datePublished: post.publishedAt,
-  dateModified: post.updatedAt,
-  author: {
-    '@type': 'Person',
-    name: post.author.displayName,
-  },
-}
-
-<script type="application/ld+json">
-  {JSON.stringify(jsonLd)}
-</script>
-```
-
-### Sitemap
-```tsx
-// app/sitemap.ts
-export default async function sitemap() {
-  const posts = await api.posts.getAll()
-
-  return [
-    {
-      url: 'https://wenxinblog.com',
-      lastModified: new Date(),
-    },
-    ...posts.map((post) => ({
-      url: `https://wenxinblog.com/blog/${post.id}`,
-      lastModified: post.updatedAt,
-    })),
-  ]
-}
-```
-
-## 环境配置
-
-```bash
-# .env.local
-NEXT_PUBLIC_API_URL=http://localhost:8080
-NEXT_PUBLIC_OSS_URL=http://localhost:9000
-NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
-NEXT_PUBLIC_SENTRY_DSN=https://xxx@sentry.io/xxx
-```
-
-## 开发
+## 开发与构建
 
 ```bash
 cd web
 npm install
-npm run dev
-```
-
-访问 http://localhost:3000
-
-## 构建
-
-```bash
-npm run build
-npm start
-```
-
-## 部署
-
-### Vercel (推荐)
-```bash
-vercel deploy
-```
-
-### 阿里云OSS + CDN
-```bash
-# 静态资源上传
-npm run build:oss
-
-# 配置CDN
-cdn_domain: https://cdn.wenxinblog.com
+npm run dev        # http://localhost:3000
+npm run build && npm start
+npm test           # vitest
+npm run test:e2e   # playwright
 ```
