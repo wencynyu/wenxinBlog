@@ -1,881 +1,1734 @@
 {
-  "uid": "wenxinblog-traces",
-  "title": "WenxinBlog Traces",
-  "tags": ["otel"],
-  "timezone": "browser",
-  "schemaVersion": 39,
-  "version": 24,
-  "refresh": "10s",
-  "time": {
-    "from": "now-24h",
-    "to": "now"
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "wenxinblog-traces",
+    "namespace": "default",
+    "uid": "f21c4904-80fc-47e8-b8ac-30754caff0b9",
+    "resourceVersion": "1785576537923987",
+    "generation": 25,
+    "creationTimestamp": "2026-07-30T17:17:30Z",
+    "labels": {
+      "grafana.app/deprecatedInternalID": "2215234314760192"
+    },
+    "annotations": {
+      "grafana.app/createdBy": "access-policy:service",
+      "grafana.app/folder": "aft6chla0y0owd",
+      "grafana.app/managedBy": "classic-file-provisioning",
+      "grafana.app/managerId": "WenxinBlog Dashboards",
+      "grafana.app/sourceChecksum": "03df68b800ac34311dd6c772f7961dd2",
+      "grafana.app/sourcePath": "/etc/grafana/provisioning/dashboards/json/wenxinblog-traces.json",
+      "grafana.app/sourceTimestamp": "1785576532000",
+      "grafana.app/updatedBy": "access-policy:service",
+      "grafana.app/updatedTimestamp": "2026-08-01T09:28:57Z",
+      "grafana.app/folderTitle": "WenxinBlog",
+      "grafana.app/folderUrl": "/dashboards/f/aft6chla0y0owd/wenxinblog"
+    }
   },
-  "templating": {
-    "list": [
+  "spec": {
+    "annotations": [
       {
-        "name": "trace",
-        "type": "query",
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "query": {
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "service.name",
+                            "id": "2",
+                            "settings": {
+                              "min_doc_count": "0",
+                              "order": "desc",
+                              "orderBy": "_count",
+                              "size": "10"
+                            },
+                            "type": "terms"
+                          },
+                          {
+                            "field": "@timestamp",
+                            "id": "3",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 1,
+          "links": [],
+          "title": "Span 吞吐趋势（按服务）",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "smooth",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": ["sum"],
+                  "displayMode": "table",
+                  "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 10,
+          "links": [],
+          "title": "Span 总数",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "blue",
+                    "mode": "fixed"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": ["sum"],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "field": "trace_id",
+                            "id": "1",
+                            "type": "cardinality"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 11,
+          "links": [],
+          "title": "Trace 数",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "purple",
+                    "mode": "fixed"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": ["sum"],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "status.code:ERROR",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 12,
+          "links": [],
+          "title": "错误 Span（status.code=ERROR）",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 1
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": ["sum"],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "field": "duration",
+                            "id": "1",
+                            "settings": {
+                              "percents": ["95"]
+                            },
+                            "type": "percentiles"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 13,
+          "links": [],
+          "title": "P95 延迟（最近）",
+          "vizConfig": {
+            "group": "stat",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 10000000
+                      },
+                      {
+                        "color": "red",
+                        "value": 50000000
+                      }
+                    ]
+                  },
+                  "unit": "ns"
+                },
+                "overrides": []
+              },
+              "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "percentChangeColorMode": "standard",
+                "reduceOptions": {
+                  "calcs": ["last"],
+                  "fields": "",
+                  "values": false
+                },
+                "showPercentChange": false,
+                "textMode": "auto",
+                "wideLayout": true
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "settings": {
+                              "size": "500"
+                            },
+                            "type": "raw_data"
+                          }
+                        ],
+                        "query": "",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "group": "filterFieldsByName",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "byVariable": false,
+                      "include": {
+                        "names": [
+                          "@timestamp",
+                          "attributes.thread.id",
+                          "attributes.thread.name",
+                          "duration",
+                          "kind",
+                          "name",
+                          "parent_span_id",
+                          "resource.attributes.service.name",
+                          "span_id",
+                          "trace_id"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "group": "sortBy",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "sort": [
+                        {
+                          "desc": false,
+                          "field": "@timestamp"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "group": "organize",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "includeByName": {},
+                      "indexByName": {
+                        "@timestamp": 0,
+                        "duration": 4,
+                        "kind": 3,
+                        "name": 1,
+                        "parent_span_id": 5,
+                        "resource.attributes.service.name": 2,
+                        "span_id": 6
+                      },
+                      "renameByName": {
+                        "@timestamp": "开始时间",
+                        "attributes.thread.id": "",
+                        "duration": "耗时",
+                        "kind": "类型",
+                        "name": "操作",
+                        "parent_span_id": "父span",
+                        "resource.attributes.service.name": "服务",
+                        "span_id": "span_id"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "description": "",
+          "id": 2,
+          "links": [],
+          "title": "链路详情：选 trace 查看该链路所有 span，按开始时间排序（开始时间 = span 起始，耗时 = 持续时长）",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "耗时"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "ns"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "开始时间",
+                      "scope": "series"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 204
+                      },
+                      {
+                        "id": "unit",
+                        "value": "time:YYYY-MM-DD HH:mm:ss.SSS"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": []
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "service.name",
+                            "id": "2",
+                            "settings": {
+                              "min_doc_count": "0",
+                              "order": "desc",
+                              "orderBy": "_count",
+                              "size": "10"
+                            },
+                            "type": "terms"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 3,
+          "links": [],
+          "title": "Span 按服务分布",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": ["name", "percent"],
+                "legend": {
+                  "displayMode": "list",
+                  "overflow": "ellipsis",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "donut",
+                "reduceOptions": {
+                  "calcs": ["sum"],
+                  "fields": "",
+                  "values": true
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "kind",
+                            "id": "2",
+                            "settings": {
+                              "min_doc_count": "0",
+                              "order": "desc",
+                              "orderBy": "_count",
+                              "size": "10"
+                            },
+                            "type": "terms"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 4,
+          "links": [],
+          "title": "Span 按类型分布",
+          "vizConfig": {
+            "group": "piechart",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "fixedColor": "#73BF69",
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    }
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayLabels": ["name", "percent"],
+                "legend": {
+                  "displayMode": "list",
+                  "overflow": "ellipsis",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "pieType": "donut",
+                "reduceOptions": {
+                  "calcs": ["sum"],
+                  "fields": "",
+                  "values": true
+                },
+                "sort": "desc",
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "service.name",
+                            "id": "2",
+                            "settings": {
+                              "min_doc_count": "0",
+                              "order": "desc",
+                              "orderBy": "_count",
+                              "size": "12"
+                            },
+                            "type": "terms"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "field": "duration",
+                            "id": "1",
+                            "settings": {
+                              "percents": ["95"]
+                            },
+                            "type": "percentiles"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 5,
+          "links": [],
+          "title": "各服务 P95 延迟",
+          "vizConfig": {
+            "group": "bargauge",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "yellow",
+                        "value": 10000000
+                      },
+                      {
+                        "color": "red",
+                        "value": 50000000
+                      }
+                    ]
+                  },
+                  "unit": "ns"
+                },
+                "overrides": []
+              },
+              "options": {
+                "displayMode": "gradient",
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "overflow": "ellipsis",
+                  "placement": "bottom",
+                  "showLegend": false
+                },
+                "maxVizHeight": 300,
+                "minVizHeight": 16,
+                "minVizWidth": 8,
+                "namePlacement": "auto",
+                "orientation": "horizontal",
+                "reduceOptions": {
+                  "calcs": ["last"],
+                  "fields": "",
+                  "values": false
+                },
+                "showUnfilled": true,
+                "sizing": "auto",
+                "valueMode": "color"
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "@timestamp",
+                            "id": "2",
+                            "settings": {
+                              "interval": "auto",
+                              "min_doc_count": "0"
+                            },
+                            "type": "date_histogram"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "field": "duration",
+                            "id": "1",
+                            "settings": {
+                              "percents": ["50", "95", "99"]
+                            },
+                            "type": "percentiles"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 6,
+          "links": [],
+          "title": "请求延迟分位 P50 / P95 / P99",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 5,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "smooth",
+                    "lineWidth": 2,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  "unit": "ns"
+                },
+                "overrides": []
+              },
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": ["last", "max"],
+                  "displayMode": "table",
+                  "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [
+                          {
+                            "field": "trace_id",
+                            "id": "3",
+                            "settings": {
+                              "min_doc_count": "1",
+                              "order": "desc",
+                              "orderBy": "2",
+                              "size": "15"
+                            },
+                            "type": "terms"
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "type": "count"
+                          },
+                          {
+                            "field": "duration",
+                            "id": "2",
+                            "type": "max"
+                          }
+                        ],
+                        "query": "*",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "group": "organize",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "indexByName": {
+                        "Count": 1,
+                        "Max duration": 2,
+                        "trace_id": 0
+                      },
+                      "renameByName": {
+                        "Count": "span 数",
+                        "Max duration": "最长 span",
+                        "trace_id": "trace_id"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "description": "",
+          "id": 7,
+          "links": [],
+          "title": "最慢的 Trace（按链路内最大单 span 耗时排序）",
+          "vizConfig": {
+            "group": "table",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "footer": {
+                      "reducers": []
+                    },
+                    "inspect": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Max",
+                      "scope": "series"
+                    },
+                    "properties": [
+                      {
+                        "id": "unit",
+                        "value": "ns"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "cellHeight": "sm",
+                "showHeader": true
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "elasticsearch-traces"
+                      },
+                      "group": "elasticsearch",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "bucketAggs": [],
+                        "metrics": [
+                          {
+                            "id": "1",
+                            "settings": {
+                              "size": "500"
+                            },
+                            "type": "raw_data"
+                          }
+                        ],
+                        "query": "trace_id:$trace",
+                        "queryType": "lucene",
+                        "timeField": "@timestamp"
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": [
+                {
+                  "group": "calculateField",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "alias": "dur_ms",
+                      "mode": "binary",
+                      "binary": {
+                        "left": "duration",
+                        "right": "constant",
+                        "operator": "divide",
+                        "constant": 1000000
+                      }
+                    }
+                  }
+                },
+                {
+                  "group": "calculateField",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "alias": "Time end",
+                      "mode": "binary",
+                      "binary": {
+                        "left": "@timestamp",
+                        "right": "dur_ms",
+                        "operator": "add"
+                      }
+                    }
+                  }
+                },
+                {
+                  "group": "filterFieldsByName",
+                  "kind": "Transformation",
+                  "spec": {
+                    "options": {
+                      "byVariable": false,
+                      "include": {
+                        "names": ["@timestamp", "Time end", "name"]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "description": "选 trace 后每个 span 画成横条（开始 → 开始+耗时），按操作名分泳道，近似瀑布图。依赖 State Timeline 的 Time + Time end 显式区间。",
+          "id": 8,
+          "links": [],
+          "title": "链路瀑布图（State Timeline）",
+          "vizConfig": {
+            "group": "state-timeline",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "fillOpacity": 70,
+                    "lineWidth": 1
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "mergeValues": true,
+                "rowHeight": 0.9,
+                "showValue": "auto",
+                "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+                }
+              }
+            },
+            "version": "13.1.1"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-10"
+              },
+              "height": 3,
+              "width": 6,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-11"
+              },
+              "height": 3,
+              "width": 6,
+              "x": 6,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-12"
+              },
+              "height": 3,
+              "width": 6,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-13"
+              },
+              "height": 3,
+              "width": 6,
+              "x": 18,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-1"
+              },
+              "height": 8,
+              "width": 16,
+              "x": 0,
+              "y": 3
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              },
+              "height": 8,
+              "width": 8,
+              "x": 16,
+              "y": 3
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-6"
+              },
+              "height": 8,
+              "width": 16,
+              "x": 0,
+              "y": 11
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              },
+              "height": 8,
+              "width": 8,
+              "x": 16,
+              "y": 11
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-7"
+              },
+              "height": 8,
+              "width": 16,
+              "x": 0,
+              "y": 19
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4"
+              },
+              "height": 8,
+              "width": 8,
+              "x": 16,
+              "y": 19
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              },
+              "height": 10,
+              "width": 24,
+              "x": 0,
+              "y": 27
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-8"
+              },
+              "height": 10,
+              "width": 24,
+              "x": 0,
+              "y": 37
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": ["otel"],
+    "timeSettings": {
+      "autoRefresh": "10s",
+      "autoRefreshIntervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+      "fiscalYearStartMonth": 0,
+      "from": "now-24h",
+      "hideTimepicker": false,
+      "timezone": "browser",
+      "to": "now"
+    },
+    "title": "WenxinBlog Traces",
+    "variables": [
+      {
+        "kind": "QueryVariable",
+        "spec": {
+          "allValue": "*",
+          "allowCustomValue": true,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "hide": "dontHide",
+          "includeAll": true,
+          "multi": false,
+          "name": "trace",
+          "options": [],
+          "query": {
+            "datasource": {
+              "name": "elasticsearch-traces"
+            },
+            "group": "elasticsearch",
+            "kind": "DataQuery",
+            "spec": {
+              "__legacyStringValue": "{\"find\": \"terms\", \"field\": \"trace_id\", \"size\": 30}"
+            },
+            "version": "v0"
+          },
+          "refresh": "onDashboardLoad",
+          "regex": "",
+          "regexApplyTo": "value",
+          "skipUrlSync": false,
+          "sort": "disabled"
+        }
+      },
+      {
         "datasource": {
-          "type": "elasticsearch",
-          "uid": "elasticsearch-traces"
+          "name": "elasticsearch-traces"
         },
-        "query": "{\"find\": \"terms\", \"field\": \"trace_id\", \"size\": 30}",
-        "refresh": 1,
-        "includeAll": true,
-        "allValue": "*",
-        "multi": false,
-        "current": {
-          "text": "All",
-          "value": "$__all"
+        "group": "elasticsearch",
+        "kind": "AdhocVariable",
+        "spec": {
+          "allowCustomValue": true,
+          "baseFilters": [],
+          "defaultKeys": [],
+          "enableGroupBy": false,
+          "filters": [],
+          "hide": "dontHide",
+          "name": "Filters",
+          "skipUrlSync": false
         }
       }
     ]
-  },
-  "panels": [
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Span 总数",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "blue"
-          }
-        }
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "Trace 数",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "cardinality",
-              "field": "trace_id"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "purple"
-          }
-        }
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "错误 Span（status.code=ERROR）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "status.code:ERROR",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 13,
-      "type": "stat",
-      "title": "P95 延迟（最近）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "percentiles",
-              "field": "duration",
-              "settings": {
-                "percents": ["95"]
-              }
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ns",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 10000000
-              },
-              {
-                "color": "red",
-                "value": 50000000
-              }
-            ]
-          }
-        }
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["last"],
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 1,
-      "type": "timeseries",
-      "title": "Span 吞吐趋势（按服务）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 3,
-        "w": 16,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "service.name",
-              "settings": {
-                "size": "10",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            },
-            {
-              "id": "3",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            }
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": ["sum"]
-        }
-      }
-    },
-    {
-      "id": 5,
-      "type": "bargauge",
-      "title": "各服务 P95 延迟",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 3,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "percentiles",
-              "field": "duration",
-              "settings": {
-                "percents": ["95"]
-              }
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "service.name",
-              "settings": {
-                "size": "12",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ns",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 10000000
-              },
-              {
-                "color": "red",
-                "value": 50000000
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "showUnfilled": true,
-        "reduceOptions": {
-          "calcs": ["last"],
-          "fields": ""
-        }
-      }
-    },
-    {
-      "id": 6,
-      "type": "timeseries",
-      "title": "请求延迟分位 P50 / P95 / P99",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 11,
-        "w": 16,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "percentiles",
-              "field": "duration",
-              "settings": {
-                "percents": ["50", "95", "99"]
-              }
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "date_histogram",
-              "field": "@timestamp",
-              "settings": {
-                "interval": "auto",
-                "min_doc_count": "0"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ns",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 5,
-            "lineWidth": 2
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": ["last", "max"]
-        }
-      }
-    },
-    {
-      "id": 3,
-      "type": "piechart",
-      "title": "Span 按服务分布",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 11,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "service.name",
-              "settings": {
-                "size": "10",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "values": true,
-          "fields": ""
-        },
-        "pieType": "donut",
-        "displayLabels": ["name", "percent"]
-      }
-    },
-    {
-      "id": 7,
-      "type": "table",
-      "title": "最慢的 Trace（按链路内最大单 span 耗时排序）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 19,
-        "w": 16,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            },
-            {
-              "id": "2",
-              "type": "max",
-              "field": "duration"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "3",
-              "type": "terms",
-              "field": "trace_id",
-              "settings": {
-                "size": "15",
-                "min_doc_count": "1",
-                "order": "desc",
-                "orderBy": "2"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "最长 span"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ns"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true
-      },
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "renameByName": {
-              "trace_id": "trace_id",
-              "Count": "span 数",
-              "Max duration": "最长 span"
-            },
-            "indexByName": {
-              "trace_id": 0,
-              "Count": 1,
-              "Max duration": 2
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "piechart",
-      "title": "Span 按类型分布",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 19,
-        "w": 8,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "*",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "count"
-            }
-          ],
-          "bucketAggs": [
-            {
-              "id": "2",
-              "type": "terms",
-              "field": "kind",
-              "settings": {
-                "size": "10",
-                "min_doc_count": "0",
-                "order": "desc",
-                "orderBy": "_count"
-              }
-            }
-          ]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": ["sum"],
-          "values": true,
-          "fields": ""
-        },
-        "pieType": "donut",
-        "displayLabels": ["name", "percent"]
-      }
-    },
-    {
-      "id": 2,
-      "type": "table",
-      "title": "链路详情：选 trace 查看该链路所有 span，按开始时间排序（开始时间 = span 起始，耗时 = 持续时长）",
-      "datasource": {
-        "type": "elasticsearch",
-        "uid": "elasticsearch-traces"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 27,
-        "w": 24,
-        "h": 10
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "elasticsearch",
-            "uid": "elasticsearch-traces"
-          },
-          "queryType": "lucene",
-          "query": "trace_id:$trace",
-          "timeField": "@timestamp",
-          "metrics": [
-            {
-              "id": "1",
-              "type": "raw_data",
-              "settings": {
-                "size": "500"
-              }
-            }
-          ],
-          "bucketAggs": []
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "耗时"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ns"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "开始时间"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeAsIso"
-              }
-            ]
-          }
-        ]
-      },
-      "transformations": [
-        {
-          "id": "convertFieldType",
-          "options": {
-            "conversions": [
-              {
-                "targetField": "@timestamp",
-                "destinationType": "number"
-              }
-            ]
-          }
-        },
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "@timestamp",
-                "name",
-                "resource.attributes.service.name",
-                "kind",
-                "duration",
-                "parent_span_id",
-                "span_id"
-              ]
-            }
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "sort": [
-              {
-                "field": "@timestamp",
-                "desc": false
-              }
-            ]
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "renameByName": {
-              "@timestamp": "开始时间",
-              "name": "操作",
-              "resource.attributes.service.name": "服务",
-              "kind": "类型",
-              "duration": "耗时",
-              "parent_span_id": "父span",
-              "span_id": "span_id"
-            },
-            "indexByName": {
-              "@timestamp": 0,
-              "name": 1,
-              "resource.attributes.service.name": 2,
-              "kind": 3,
-              "duration": 4,
-              "parent_span_id": 5,
-              "span_id": 6
-            }
-          }
-        }
-      ]
-    }
-  ]
+  }
 }
