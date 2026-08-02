@@ -149,6 +149,15 @@ WenxinBlog 是一个现代化的博文平台，支持图文视频内容，采用
 
 ## 3. RBAC 权限架构
 
+> **实现状态（2026-08-02 已落地）**：本节 + 4.2 节的 roles/permissions/role_permissions/user_roles 已实现。
+> 与设计的偏差：
+>
+> - RBAC 表落在 **auth_db**（不是 user_db）——因为 JWT 由 auth-service 签发、/validate 需按请求解析角色权限，
+>   放 auth_db 避免跨库调用；去掉了设计里不可行的跨库 FK。
+> - 迁移用**自研极简 runner**（golang-migrate 离线不可装），语义等价：`db/migrations/` 版本化 SQL + 启动按序应用 + `schema_migrations` 表记录。
+> - 权限走 **JWT claims**（permissions 字段），网关注入 `X-User-Permissions` 头，AuthorizationFilter 做粗粒度 + 各服务细粒度（own/any）。
+> - 权限码在 3.3 基础上补齐到 21 个（新增 experiment:manage / analytics:read / ad:manage / recommendation:manage）。
+
 ### 3.1 权限模型
 
 ```
