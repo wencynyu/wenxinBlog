@@ -15,6 +15,7 @@ public class Comment {
     private UUID authorId;
     private UUID parentId;
     private String content;
+    private String status;
     private Integer likeCount = 0;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

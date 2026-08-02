@@ -69,6 +69,7 @@ class AdCampaignControllerTest {
         webTestClient.post()
                 .uri("/api/v1/campaigns")
                 .header("X-User-Id", "advertiser123")
+                .header("X-User-Permissions", "ad:manage")
                 .bodyValue(campaignRequest)
                 .exchange()
                 .expectStatus().isOk()
@@ -76,6 +77,28 @@ class AdCampaignControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.id").isEqualTo(1)
                 .jsonPath("$.data.name").isEqualTo("Test Campaign");
+    }
+
+    @Test
+    void create_WithoutPermission_ShouldReturn403() {
+        CampaignRequest campaignRequest = new CampaignRequest(
+                "Test Campaign",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        webTestClient.post()
+                .uri("/api/v1/campaigns")
+                .header("X-User-Id", "advertiser123")
+                .bodyValue(campaignRequest)
+                .exchange()
+                .expectStatus().isForbidden();
     }
 
     @Test
@@ -103,6 +126,7 @@ class AdCampaignControllerTest {
         webTestClient.put()
                 .uri("/api/v1/campaigns/1")
                 .header("X-User-Id", "advertiser123")
+                .header("X-User-Permissions", "ad:manage")
                 .bodyValue(campaignRequest)
                 .exchange()
                 .expectStatus().isOk()
@@ -180,6 +204,7 @@ class AdCampaignControllerTest {
         webTestClient.put()
                 .uri("/api/v1/campaigns/1/pause")
                 .header("X-User-Id", "advertiser123")
+                .header("X-User-Permissions", "ad:manage")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -199,6 +224,7 @@ class AdCampaignControllerTest {
         webTestClient.put()
                 .uri("/api/v1/campaigns/1/activate")
                 .header("X-User-Id", "advertiser123")
+                .header("X-User-Permissions", "ad:manage")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()

@@ -60,12 +60,13 @@ class PostControllerTest {
         request.setTitle("New Post");
         request.setContent("New Content");
 
-        when(postService.createPost(eq(userId), any(PostRequest.class)))
+        when(postService.createPost(eq(userId), any(PostRequest.class), any()))
                 .thenReturn(Mono.just(post));
 
         client.post()
                 .uri("/api/v1/posts")
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "post:create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -107,12 +108,13 @@ class PostControllerTest {
         PostRequest request = new PostRequest();
         request.setTitle("Updated Post");
 
-        when(postService.updatePost(eq(userId), eq(postId), any(PostRequest.class)))
+        when(postService.updatePost(eq(userId), eq(postId), any(PostRequest.class), any()))
                 .thenReturn(Mono.just(post));
 
         client.put()
                 .uri("/api/v1/posts/{id}", postId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "post:update:own")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -124,11 +126,12 @@ class PostControllerTest {
 
     @Test
     void testDeletePost() {
-        when(postService.deletePost(userId, postId)).thenReturn(Mono.empty());
+        when(postService.deletePost(eq(userId), eq(postId), any())).thenReturn(Mono.empty());
 
         client.delete()
                 .uri("/api/v1/posts/{id}", postId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "post:delete:own")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -181,16 +184,34 @@ class PostControllerTest {
 
     @Test
     void testPublishPost() {
-        when(postService.publishPost(userId, postId)).thenReturn(Mono.empty());
+        when(postService.publishPost(eq(userId), eq(postId), any())).thenReturn(Mono.empty());
         when(postService.getPost(postId)).thenReturn(Mono.just(post));
 
         client.post()
                 .uri("/api/v1/posts/{id}/publish", postId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "post:publish")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(200)
                 .jsonPath("$.data.id").exists();
+    }
+
+    @Test
+    void testFeaturePost() {
+        post.setFeatured(true);
+
+        when(postService.featurePost(postId, "post:feature")).thenReturn(Mono.just(post));
+
+        client.post()
+                .uri("/api/v1/posts/{id}/feature", postId)
+                .header("X-User-Permissions", "post:feature")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(200)
+                .jsonPath("$.data.id").exists()
+                .jsonPath("$.data.featured").isEqualTo(true);
     }
 }

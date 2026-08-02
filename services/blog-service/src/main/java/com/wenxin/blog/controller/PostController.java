@@ -19,8 +19,9 @@ public class PostController {
 
     @PostMapping
     public Mono<Result<Post>> createPost(@RequestHeader("X-User-Id") UUID userId,
+                                         @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                          @RequestBody PostRequest req) {
-        return postService.createPost(userId, req).map(post -> Result.success(post));
+        return postService.createPost(userId, req, permissions).map(post -> Result.success(post));
     }
 
     @GetMapping("/{id}")
@@ -31,15 +32,17 @@ public class PostController {
 
     @PutMapping("/{id}")
     public Mono<Result<Post>> updatePost(@RequestHeader("X-User-Id") UUID userId,
+                                         @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                          @PathVariable UUID id, @RequestBody PostRequest req) {
-        return postService.updatePost(userId, id, req).map(post -> Result.success(post))
+        return postService.updatePost(userId, id, req, permissions).map(post -> Result.success(post))
             .switchIfEmpty(Mono.just(Result.error(404, "Post not found")));
     }
 
     @DeleteMapping("/{id}")
     public Mono<Result<Void>> deletePost(@RequestHeader("X-User-Id") UUID userId,
+                                         @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                          @PathVariable UUID id) {
-        return postService.deletePost(userId, id).thenReturn(Result.success("deleted", null));
+        return postService.deletePost(userId, id, permissions).thenReturn(Result.success("deleted", null));
     }
 
     @GetMapping
@@ -65,7 +68,15 @@ public class PostController {
 
     @PostMapping("/{id}/publish")
     public Mono<Result<Post>> publishPost(@RequestHeader("X-User-Id") UUID userId,
+                                          @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                           @PathVariable UUID id) {
-        return postService.publishPost(userId, id).then(postService.getPost(id)).map(Result::success);
+        return postService.publishPost(userId, id, permissions).then(postService.getPost(id)).map(Result::success);
+    }
+
+    @PostMapping("/{id}/feature")
+    public Mono<Result<Post>> featurePost(@RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
+                                          @PathVariable UUID id) {
+        return postService.featurePost(id, permissions).map(Result::success)
+            .switchIfEmpty(Mono.just(Result.error(404, "Post not found")));
     }
 }

@@ -20,8 +20,9 @@ public class CommentController {
     @PostMapping("/posts/{postId}/comments")
     public Mono<Result<Comment>> createComment(@PathVariable UUID postId,
                                                @RequestHeader("X-User-Id") UUID userId,
+                                               @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                                @RequestBody CommentRequest req) {
-        return commentService.createComment(postId, userId, req).map(Result::success);
+        return commentService.createComment(postId, userId, req, permissions).map(Result::success);
     }
 
     @GetMapping("/posts/{postId}/comments")
@@ -31,7 +32,16 @@ public class CommentController {
 
     @DeleteMapping("/comments/{id}")
     public Mono<Result<Void>> deleteComment(@RequestHeader("X-User-Id") UUID userId,
+                                            @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                             @PathVariable UUID id) {
-        return commentService.deleteComment(userId, id).thenReturn(Result.success("deleted", null));
+        return commentService.deleteComment(userId, id, permissions).thenReturn(Result.success("deleted", null));
+    }
+
+    @PostMapping("/comments/{id}/moderate")
+    public Mono<Result<Comment>> moderateComment(@RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
+                                                 @PathVariable UUID id,
+                                                 @RequestParam(defaultValue = "HIDDEN") String status) {
+        return commentService.moderateComment(id, status, permissions).map(Result::success)
+            .switchIfEmpty(Mono.just(Result.error(404, "Comment not found")));
     }
 }

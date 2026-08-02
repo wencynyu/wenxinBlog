@@ -1,11 +1,15 @@
 package com.wenxinblog.analytics.controller;
 
+import com.wenxinblog.analytics.common.Permissions;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -23,14 +27,21 @@ public class AnalyticsController {
     }
 
     @GetMapping("/count")
-    public Mono<Long> count() {
+    public Mono<Long> count(@RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "analytics:read")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need analytics:read"));
+        }
         return Mono.fromCallable(() ->
                 clickHouse.queryForObject("SELECT count() FROM behavior_events", Long.class))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     @GetMapping("/recent")
-    public Mono<List<Map<String, Object>>> recent(@RequestParam(defaultValue = "10") int limit) {
+    public Mono<List<Map<String, Object>>> recent(@RequestParam(defaultValue = "10") int limit,
+                                                  @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "analytics:read")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need analytics:read"));
+        }
         return Mono.fromCallable(() ->
                 clickHouse.queryForList(
                     "SELECT timestamp, user_id, event_type, experiment_id, variant FROM behavior_events ORDER BY timestamp DESC LIMIT ?",

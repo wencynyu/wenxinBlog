@@ -19,6 +19,7 @@ public class Post {
     private String summary;
     private String coverImage;
     private String status;
+    private Boolean featured = false;
     private Integer viewCount = 0;
     private Integer likeCount = 0;
     private Integer commentCount = 0;

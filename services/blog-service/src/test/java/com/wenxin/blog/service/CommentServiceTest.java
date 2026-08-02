@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -59,7 +60,7 @@ class CommentServiceTest {
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
         when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
+        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest, "comment:create"))
                 .expectNextMatches(comment -> {
                     return postId.equals(comment.getPostId()) &&
                             authorId.equals(comment.getAuthorId()) &&
@@ -88,7 +89,7 @@ class CommentServiceTest {
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
         when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
+        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest, "comment:create"))
                 .expectNextMatches(comment -> {
                     return parentId.equals(comment.getParentId());
                 })
@@ -108,7 +109,7 @@ class CommentServiceTest {
         when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(savedComment));
         when(postRepository.incrementCommentCount(postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest))
+        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest, "comment:create"))
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -172,7 +173,7 @@ class CommentServiceTest {
         when(commentRepository.findById(commentId)).thenReturn(Mono.just(comment));
         when(commentRepository.deleteCommentSubtreeAndDecrementCount(commentId, postId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.deleteComment(authorId, commentId))
+        StepVerifier.create(commentService.deleteComment(authorId, commentId, "comment:delete:own"))
                 .verifyComplete();
 
         verify(commentRepository, times(1)).findById(commentId);
@@ -185,10 +186,95 @@ class CommentServiceTest {
 
         when(commentRepository.findById(commentId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(commentService.deleteComment(authorId, commentId))
+        StepVerifier.create(commentService.deleteComment(authorId, commentId, "comment:delete:own"))
                 .verifyComplete();
 
         verify(commentRepository, times(1)).findById(commentId);
         verify(commentRepository, never()).deleteCommentSubtreeAndDecrementCount(any(), any());
+    }
+
+    @Test
+    void testCreateComment_WithoutPermission_Forbidden() {
+        StepVerifier.create(commentService.createComment(postId, authorId, commentRequest, ""))
+                .expectError(ResponseStatusException.class)
+                .verify();
+
+        verify(commentRepository, never()).save(any(Comment.class));
+    }
+
+    @Test
+    void testDeleteComment_NonOwnerWithoutModerate_Forbidden() {
+        UUID commentId = UUID.randomUUID();
+        Comment comment = new Comment();
+        comment.setId(commentId);
+        comment.setPostId(postId);
+        comment.setAuthorId(UUID.randomUUID());
+
+        when(commentRepository.findById(commentId)).thenReturn(Mono.just(comment));
+
+        StepVerifier.create(commentService.deleteComment(UUID.randomUUID(), commentId, ""))
+                .expectError(ResponseStatusException.class)
+                .verify();
+
+        verify(commentRepository, never()).deleteCommentSubtreeAndDecrementCount(any(), any());
+    }
+
+    @Test
+    void testDeleteComment_NonOwnerWithModerate_Allowed() {
+        UUID commentId = UUID.randomUUID();
+        Comment comment = new Comment();
+        comment.setId(commentId);
+        comment.setPostId(postId);
+        comment.setAuthorId(UUID.randomUUID());
+
+        when(commentRepository.findById(commentId)).thenReturn(Mono.just(comment));
+        when(commentRepository.deleteCommentSubtreeAndDecrementCount(commentId, postId)).thenReturn(Mono.empty());
+
+        StepVerifier.create(commentService.deleteComment(UUID.randomUUID(), commentId, "comment:moderate"))
+                .verifyComplete();
+
+        verify(commentRepository, times(1)).deleteCommentSubtreeAndDecrementCount(commentId, postId);
+    }
+
+    @Test
+    void testModerateComment_WithoutPermission_Forbidden() {
+        UUID commentId = UUID.randomUUID();
+
+        StepVerifier.create(commentService.moderateComment(commentId, "HIDDEN", ""))
+                .expectError(ResponseStatusException.class)
+                .verify();
+
+        verify(commentRepository, never()).save(any(Comment.class));
+    }
+
+    @Test
+    void testModerateComment_Allowed() {
+        UUID commentId = UUID.randomUUID();
+        Comment comment = new Comment();
+        comment.setId(commentId);
+        comment.setPostId(postId);
+        comment.setAuthorId(authorId);
+        comment.setStatus("APPROVED");
+
+        Comment hiddenComment = new Comment();
+        hiddenComment.setId(commentId);
+        hiddenComment.setPostId(postId);
+        hiddenComment.setStatus("HIDDEN");
+
+        when(commentRepository.findById(commentId)).thenReturn(Mono.just(comment));
+        when(commentRepository.save(any(Comment.class))).thenReturn(Mono.just(hiddenComment));
+
+        StepVerifier.create(commentService.moderateComment(commentId, "HIDDEN", "comment:moderate"))
+                .expectNextMatches(c -> "HIDDEN".equals(c.getStatus()))
+                .verifyComplete();
+    }
+
+    @Test
+    void testModerateComment_InvalidStatus_Rejected() {
+        UUID commentId = UUID.randomUUID();
+
+        StepVerifier.create(commentService.moderateComment(commentId, "SPAM", "comment:moderate"))
+                .expectError(ResponseStatusException.class)
+                .verify();
     }
 }

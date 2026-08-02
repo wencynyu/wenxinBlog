@@ -59,12 +59,13 @@ class CommentControllerTest {
         request.setContent("New comment");
         request.setParentId(null);
 
-        when(commentService.createComment(eq(postId), eq(userId), any(CommentRequest.class)))
+        when(commentService.createComment(eq(postId), eq(userId), any(CommentRequest.class), any()))
                 .thenReturn(Mono.just(comment));
 
         client.post()
                 .uri("/api/v1/posts/{postId}/comments", postId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "comment:create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -85,12 +86,13 @@ class CommentControllerTest {
         comment.setParentId(parentId);
         comment.setContent("Reply");
 
-        when(commentService.createComment(eq(postId), eq(userId), any(CommentRequest.class)))
+        when(commentService.createComment(eq(postId), eq(userId), any(CommentRequest.class), any()))
                 .thenReturn(Mono.just(comment));
 
         client.post()
                 .uri("/api/v1/posts/{postId}/comments", postId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "comment:create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .exchange()
@@ -121,15 +123,36 @@ class CommentControllerTest {
 
     @Test
     void testDeleteComment() {
-        when(commentService.deleteComment(userId, commentId)).thenReturn(Mono.empty());
+        when(commentService.deleteComment(eq(userId), eq(commentId), any())).thenReturn(Mono.empty());
 
         client.delete()
                 .uri("/api/v1/comments/{id}", commentId)
                 .header("X-User-Id", userId.toString())
+                .header("X-User-Permissions", "comment:delete:own")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(200)
                 .jsonPath("$.message").isEqualTo("deleted");
+    }
+
+    @Test
+    void testModerateComment() {
+        Comment hiddenComment = new Comment();
+        hiddenComment.setId(commentId);
+        hiddenComment.setPostId(postId);
+        hiddenComment.setStatus("HIDDEN");
+
+        when(commentService.moderateComment(commentId, "HIDDEN", "comment:moderate"))
+                .thenReturn(Mono.just(hiddenComment));
+
+        client.post()
+                .uri("/api/v1/comments/{id}/moderate", commentId)
+                .header("X-User-Permissions", "comment:moderate")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(200)
+                .jsonPath("$.data.status").isEqualTo("HIDDEN");
     }
 }

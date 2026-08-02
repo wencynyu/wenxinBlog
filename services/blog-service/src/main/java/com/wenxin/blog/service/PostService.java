@@ -1,5 +1,6 @@
 package com.wenxin.blog.service;
 
+import com.wenxin.blog.common.Permissions;
 import com.wenxin.blog.dto.PostRequest;
 import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.repository.PostRepository;
@@ -27,7 +28,10 @@ public class PostService {
     private final R2dbcEntityTemplate r2dbc;
     private final BlogEventPublisher blogEventPublisher;
 
-    public Mono<Post> createPost(UUID authorId, PostRequest req) {
+    public Mono<Post> createPost(UUID authorId, PostRequest req, String permissions) {
+        if (!Permissions.has(permissions, "post:create")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:create"));
+        }
         Post post = new Post();
         post.setAuthorId(authorId);
         post.setTitle(req.getTitle());
@@ -55,10 +59,14 @@ public class PostService {
                 });
     }
 
-    public Mono<Post> updatePost(UUID userId, UUID id, PostRequest req) {
+    public Mono<Post> updatePost(UUID userId, UUID id, PostRequest req, String permissions) {
         return postRepository.findById(id).flatMap(post -> {
-            if (!post.getAuthorId().equals(userId)) {
-                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+            boolean owner = post.getAuthorId().equals(userId);
+            boolean allowed = owner
+                    ? Permissions.has(permissions, "post:update:own")
+                    : Permissions.has(permissions, "post:update:any");
+            if (!allowed) {
+                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:update:own or post:update:any"));
             }
 
             if (req.getTitle() != null) post.setTitle(req.getTitle());
@@ -93,11 +101,15 @@ public class PostService {
                 .flatMap(this::fillAuthorAndTags);
     }
 
-    public Mono<Void> deletePost(UUID userId, UUID id) {
+    public Mono<Void> deletePost(UUID userId, UUID id, String permissions) {
         return postRepository.findById(id)
                 .flatMap(post -> {
-                    if (!post.getAuthorId().equals(userId)) {
-                        return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+                    boolean owner = post.getAuthorId().equals(userId);
+                    boolean allowed = owner
+                            ? Permissions.has(permissions, "post:delete:own")
+                            : Permissions.has(permissions, "post:delete:any");
+                    if (!allowed) {
+                        return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:delete:own or post:delete:any"));
                     }
                     return postRepository.deleteById(id)
                             .doOnSuccess(v -> blogEventPublisher.publishDelete(id.toString()));
@@ -169,6 +181,7 @@ public class PostService {
         p.setSummary(row.get("summary", String.class));
         p.setCoverImage(row.get("cover_image", String.class));
         p.setStatus(row.get("status", String.class));
+        p.setFeatured(row.get("featured", Boolean.class));
         p.setViewCount(row.get("view_count", Integer.class));
         p.setLikeCount(row.get("like_count", Integer.class));
         p.setCommentCount(row.get("comment_count", Integer.class));
@@ -237,16 +250,34 @@ public class PostService {
                 .flatMapSequential(this::fillAuthorAndTags);
     }
 
-    public Mono<Void> publishPost(UUID userId, UUID id) {
+    public Mono<Void> publishPost(UUID userId, UUID id, String permissions) {
         return postRepository.findById(id).flatMap(post -> {
-            if (!post.getAuthorId().equals(userId)) {
-                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "Not the author"));
+            boolean owner = post.getAuthorId().equals(userId);
+            boolean allowed = owner
+                    ? Permissions.has(permissions, "post:publish")
+                    : Permissions.has(permissions, "post:publish") && Permissions.has(permissions, "post:update:any");
+            if (!allowed) {
+                return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        owner ? "need post:publish" : "need post:publish and post:update:any"));
             }
             post.setStatus("published");
             post.setPublishedAt(LocalDateTime.now());
             post.setUpdatedAt(LocalDateTime.now());
             return postRepository.save(post).then();
         });
+    }
+
+    /** 设帖子为精华（featured=true），供内容运营使用。 */
+    public Mono<Post> featurePost(UUID id, String permissions) {
+        if (!Permissions.has(permissions, "post:feature")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:feature"));
+        }
+        return postRepository.findById(id)
+                .flatMap(post -> {
+                    post.setFeatured(true);
+                    post.setUpdatedAt(LocalDateTime.now());
+                    return postRepository.save(post);
+                });
     }
 
     /**

@@ -1,12 +1,15 @@
 package com.wenxinblog.ad.controller;
 
+import com.wenxinblog.ad.common.Permissions;
 import com.wenxinblog.ad.dto.CampaignRequest;
 import com.wenxinblog.ad.dto.CampaignStats;
 import com.wenxinblog.ad.dto.Result;
 import com.wenxinblog.ad.entity.AdCampaign;
 import com.wenxinblog.ad.service.AdCampaignService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -20,14 +23,22 @@ public class AdCampaignController {
 
     @PostMapping
     public Mono<Result<AdCampaign>> create(@RequestBody CampaignRequest req,
-                                           @RequestHeader("X-User-Id") String advertiserId) {
+                                           @RequestHeader("X-User-Id") String advertiserId,
+                                           @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "ad:manage")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need ad:manage"));
+        }
         return campaignService.createCampaign(advertiserId, req)
                 .map(Result::success);
     }
 
     @PutMapping("/{id}")
     public Mono<Result<AdCampaign>> update(@RequestHeader("X-User-Id") String advertiserId,
-                                           @PathVariable Long id, @RequestBody CampaignRequest req) {
+                                           @PathVariable Long id, @RequestBody CampaignRequest req,
+                                           @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "ad:manage")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need ad:manage"));
+        }
         return campaignService.updateCampaign(advertiserId, id, req)
                 .map(Result::success);
     }
@@ -50,14 +61,22 @@ public class AdCampaignController {
 
     @PutMapping("/{id}/pause")
     public Mono<Result<AdCampaign>> pause(@RequestHeader("X-User-Id") String advertiserId,
-                                          @PathVariable Long id) {
+                                          @PathVariable Long id,
+                                          @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "ad:manage")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need ad:manage"));
+        }
         return campaignService.pauseCampaign(advertiserId, id)
                 .map(Result::success);
     }
 
     @PutMapping("/{id}/activate")
     public Mono<Result<AdCampaign>> activate(@RequestHeader("X-User-Id") String advertiserId,
-                                             @PathVariable Long id) {
+                                             @PathVariable Long id,
+                                             @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions) {
+        if (!Permissions.has(permissions, "ad:manage")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need ad:manage"));
+        }
         return campaignService.activateCampaign(advertiserId, id)
                 .map(Result::success);
     }
