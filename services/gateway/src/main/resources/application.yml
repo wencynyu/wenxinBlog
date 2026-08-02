@@ -65,14 +65,23 @@ spring:
                 - StripPrefix=0
                 - name: AuthenticationFilter
 
-            # 分析服务（事件 BI 查询）
+            # 分析服务（事件 BI 查询；挂 AuthenticationFilter 使 X-User-Permissions 注入，AuthorizationFilter 校验 analytics:read）
             - id: analytics-service
               uri: http://localhost:8010
               predicates:
                 - Path=/api/v1/analytics/**
               filters:
                 - StripPrefix=0
+                - name: AuthenticationFilter
 
+            # 广告服务（campaign 管理路由——此前缺失，经网关转发才能被鉴权）
+            - id: ad-service
+              uri: http://localhost:8007
+              predicates:
+                - Path=/api/v1/campaigns/**
+              filters:
+                - StripPrefix=0
+                - name: AuthenticationFilter
 
             # A/B 实验服务（管理端点需鉴权，分配端点 GET 公开）
             - id: experiment-service
@@ -106,7 +115,7 @@ spring:
           # 全局过滤器
           default-filters:
             # 全局剥离客户端可能伪造的身份头（下游只信任网关注入的 X-User-*）
-            - RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email
+            - RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email, X-User-Permissions
             - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 
           # CORS 全局配置

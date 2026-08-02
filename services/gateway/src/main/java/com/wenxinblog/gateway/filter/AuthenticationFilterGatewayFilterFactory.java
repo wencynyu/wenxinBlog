@@ -47,6 +47,7 @@ public class AuthenticationFilterGatewayFilterFactory
                         h.remove("X-User-Id");
                         h.remove("X-User-Roles");
                         h.remove("X-User-Email");
+                        h.remove("X-User-Permissions");
                     }))
                     .build();
 
@@ -72,7 +73,8 @@ public class AuthenticationFilterGatewayFilterFactory
                                         ? sanitized.mutate().request(r -> r
                                                 .header("X-User-Id", userInfo.userId())
                                                 .header("X-User-Roles", String.join(",", userInfo.roles()))
-                                                .header("X-User-Email", userInfo.email())).build()
+                                                .header("X-User-Email", userInfo.email())
+                                                .header("X-User-Permissions", String.join(",", userInfo.permissions()))).build()
                                         : sanitized))
                         .onErrorResume(e -> chain.filter(sanitized));
             }
@@ -91,7 +93,8 @@ public class AuthenticationFilterGatewayFilterFactory
                                 sanitized.mutate().request(r -> r
                                         .header("X-User-Id", userInfo.userId())
                                         .header("X-User-Roles", String.join(",", userInfo.roles()))
-                                        .header("X-User-Email", userInfo.email())).build());
+                                        .header("X-User-Email", userInfo.email())
+                                        .header("X-User-Permissions", String.join(",", userInfo.permissions()))).build());
                     })
                     .onErrorResume(e -> {
                         log.error("Auth error for {} {}: {}", method, path, e.getMessage());
@@ -118,8 +121,8 @@ public class AuthenticationFilterGatewayFilterFactory
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .retrieve()
                 .bodyToMono(ValidationResponse.class)
-                .map(r -> new UserInfo(r.getUserId(), r.getEmail(), r.getRoles()))
-                .onErrorReturn(new UserInfo(null, null, List.of()));
+                .map(r -> new UserInfo(r.getUserId(), r.getEmail(), r.getRoles(), r.getPermissions()))
+                .onErrorReturn(new UserInfo(null, null, List.of(), List.of()));
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
@@ -136,7 +139,7 @@ public class AuthenticationFilterGatewayFilterFactory
     public static class Config {
     }
 
-    private record UserInfo(String userId, String email, List<String> roles) {
+    private record UserInfo(String userId, String email, List<String> roles, List<String> permissions) {
         boolean isValid() {
             return userId != null && !userId.isEmpty();
         }
@@ -147,5 +150,6 @@ public class AuthenticationFilterGatewayFilterFactory
         private String userId;
         private String email;
         private List<String> roles;
+        private List<String> permissions;
     }
 }
