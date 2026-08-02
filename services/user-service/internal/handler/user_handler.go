@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"wenxinblog/user-service/internal/config"
 	"wenxinblog/user-service/internal/dto"
@@ -88,10 +89,17 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		return c.Status(400).JSON(dto.Error("invalid user id"))
 	}
 
-	// IDOR 防护：只允许更新本人资料（X-User-Id 由网关注入到 Locals("userID")）
+	// RBAC + IDOR：本人走 user:update:own；他人需 user:update:any（如 admin）。
+	// X-User-Id / X-User-Permissions 由网关注入。
 	callerID, ok := c.Locals("userID").(string)
-	if !ok || callerID != c.Params("id") {
-		return c.Status(403).JSON(dto.Error("forbidden: cannot modify other user's profile"))
+	if !ok {
+		return c.Status(401).JSON(dto.Error("missing identity"))
+	}
+	if callerID != c.Params("id") {
+		perms, _ := c.Locals("permissions").(string)
+		if !hasPermission(perms, "user:update:any") {
+			return c.Status(403).JSON(dto.Error("forbidden: need user:update:any to modify other user's profile"))
+		}
 	}
 
 	var req dto.UpdateProfileRequest
@@ -216,4 +224,17 @@ func parsePagination(c *fiber.Ctx) (int, int) {
 		size = 20
 	}
 	return page, size
+}
+
+// hasPermission 判断逗号分隔的 X-User-Permissions 是否含指定权限。
+func hasPermission(permissions, required string) bool {
+	if permissions == "" {
+		return false
+	}
+	for _, p := range strings.Split(permissions, ",") {
+		if required == strings.TrimSpace(p) {
+			return true
+		}
+	}
+	return false
 }

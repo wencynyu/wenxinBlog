@@ -14,6 +14,7 @@ func AuthMiddleware() fiber.Handler {
 			})
 		}
 		c.Locals("userID", userID)
+		c.Locals("permissions", c.Get("X-User-Permissions"))
 		return c.Next()
 	}
 }

@@ -60,7 +60,7 @@ class RecommendationControllerTest {
     @Test
     void backfill_WithoutAdminRole_Returns403() {
         client.post().uri("/api/v1/recommend/admin/backfill")
-                .header("X-User-Roles", "USER")
+                .header("X-User-Permissions", "post:create")
                 .exchange()
                 .expectStatus().isForbidden();
     }
@@ -69,7 +69,7 @@ class RecommendationControllerTest {
     void backfill_WithAdminRole_CallsService() {
         when(recommendationService.backfill(1000)).thenReturn(Mono.just(5));
         client.post().uri("/api/v1/recommend/admin/backfill")
-                .header("X-User-Roles", "admin,USER")
+                .header("X-User-Permissions", "recommendation:manage,post:create")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(Result.class).value(r -> assertEquals(5, r.getData()));
@@ -133,7 +133,7 @@ class RecommendationControllerTest {
     void backfill_ShouldReturnCount() {
         when(recommendationService.backfill(1000)).thenReturn(Mono.just(14));
         client.post().uri("/api/v1/recommend/admin/backfill")
-                .header("X-User-Roles", "admin")
+                .header("X-User-Permissions", "recommendation:manage")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(Result.class).value(r -> assertEquals(14, r.getData()));

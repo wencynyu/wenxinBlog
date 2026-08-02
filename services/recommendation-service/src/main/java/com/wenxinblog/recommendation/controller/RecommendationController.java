@@ -96,23 +96,23 @@ public class RecommendationController {
                 .thenReturn(Result.success("ok"));
     }
 
-    /** 把已有已发布帖子批量嵌入 Milvus（返回成功 upsert 条数）。仅 admin 可调。 */
+    /** 把已有已发布帖子批量嵌入 Milvus（返回成功 upsert 条数）。需 recommendation:manage 权限（admin 角色经 RBAC 矩阵持有）。 */
     @PostMapping("/admin/backfill")
     public Mono<Result<Integer>> backfill(
-            @RequestHeader(value = "X-User-Roles", defaultValue = "") String roles,
+            @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
             @RequestParam(defaultValue = "1000") int limit) {
-        if (isNotAdmin(roles)) {
-            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "需要管理员权限"));
+        if (!hasPermission(permissions, "recommendation:manage")) {
+            return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "需要 recommendation:manage 权限"));
         }
         return recommendationService.backfill(limit).map(Result::success);
     }
 
-    /** 网关在 JWT 验证后注入的 X-User-Roles 为逗号分隔；未含 admin 则拒绝。 */
-    private boolean isNotAdmin(String roles) {
-        if (roles == null || roles.isBlank()) return true;
-        for (String role : roles.split(",")) {
-            if ("admin".equals(role.trim())) return false;
+    /** 网关注入的 X-User-Permissions 为逗号分隔；含指定权限则放行。 */
+    private boolean hasPermission(String permissions, String required) {
+        if (permissions == null || permissions.isBlank()) return false;
+        for (String p : permissions.split(",")) {
+            if (required.equals(p.trim())) return true;
         }
-        return true;
+        return false;
     }
 }
