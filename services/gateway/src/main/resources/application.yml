@@ -20,6 +20,15 @@ spring:
               filters:
                 - StripPrefix=0
 
+            # 认证管理端点 (RBAC：AuthorizationFilter 按 /admin/users/*/ban 等映射 user:ban / user:assign_role)
+            - id: auth-admin
+              uri: http://localhost:8001
+              predicates:
+                - Path=/api/v1/admin/**
+              filters:
+                - StripPrefix=0
+                - name: AuthenticationFilter
+
             # 用户服务 (需认证)
             - id: user-service
               uri: http://localhost:8002

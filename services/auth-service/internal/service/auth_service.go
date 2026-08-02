@@ -24,6 +24,9 @@ type AuthServicer interface {
 	ValidateToken(token string) (*Claims, error)
 	RefreshToken(ctx context.Context, token string) (*TokenPair, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
+	BanUser(ctx context.Context, userID string) error
+	UnbanUser(ctx context.Context, userID string) error
+	AssignRole(ctx context.Context, userID, roleCode string) error
 }
 
 type AuthService struct {
@@ -163,4 +166,26 @@ func (s *AuthService) GetUserByID(ctx context.Context, id string) (*model.User, 
 		return nil, ErrUserNotFound
 	}
 	return user, nil
+}
+
+// BanUser 封禁用户（admin 端点用，需 user:ban 权限，由 handler/网关校验）。
+func (s *AuthService) BanUser(ctx context.Context, userID string) error {
+	return s.userRepo.UpdateStatus(ctx, userID, "BANNED")
+}
+
+// UnbanUser 解封用户（admin 端点用，需 user:ban 权限）。
+func (s *AuthService) UnbanUser(ctx context.Context, userID string) error {
+	return s.userRepo.UpdateStatus(ctx, userID, "ACTIVE")
+}
+
+// AssignRole 分配角色（admin 端点用，需 user:assign_role 权限）。校验角色存在后幂等分配。
+func (s *AuthService) AssignRole(ctx context.Context, userID, roleCode string) error {
+	role, err := s.roleRepo.FindRoleByCode(ctx, roleCode)
+	if err != nil {
+		return err
+	}
+	if role == nil {
+		return errors.New("role not found: " + roleCode)
+	}
+	return s.roleRepo.AssignRole(ctx, userID, roleCode)
 }

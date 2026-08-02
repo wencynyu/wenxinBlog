@@ -22,6 +22,9 @@ type mockAuthService struct {
 	validateTokenFunc func(token string) (*service.Claims, error)
 	refreshTokenFunc  func(ctx context.Context, token string) (*service.TokenPair, error)
 	getUserByIDFunc   func(ctx context.Context, id string) (*model.User, error)
+	banUserFunc       func(ctx context.Context, userID string) error
+	unbanUserFunc     func(ctx context.Context, userID string) error
+	assignRoleFunc    func(ctx context.Context, userID, roleCode string) error
 }
 
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string) (*model.User, error) {
@@ -57,6 +60,27 @@ func (m *mockAuthService) GetUserByID(ctx context.Context, id string) (*model.Us
 		return m.getUserByIDFunc(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *mockAuthService) BanUser(ctx context.Context, userID string) error {
+	if m.banUserFunc != nil {
+		return m.banUserFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *mockAuthService) UnbanUser(ctx context.Context, userID string) error {
+	if m.unbanUserFunc != nil {
+		return m.unbanUserFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *mockAuthService) AssignRole(ctx context.Context, userID, roleCode string) error {
+	if m.assignRoleFunc != nil {
+		return m.assignRoleFunc(ctx, userID, roleCode)
+	}
+	return nil
 }
 
 func setupApp(svc service.AuthServicer) *fiber.App {

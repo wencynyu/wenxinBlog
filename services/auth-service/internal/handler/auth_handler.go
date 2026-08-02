@@ -149,4 +149,60 @@ func RegisterRoutes(api fiber.Router, authService service.AuthServicer) {
 	auth.Post("/refresh", h.RefreshToken)
 	auth.Post("/logout", h.Logout)
 	auth.Get("/validate", h.ValidateToken)
+
+	// 管理端点：网关 AuthorizationFilter 按路径映射 user:ban / user:assign_role，
+	// handler 再校验一次（纵深防御，防绕过网关直连）。
+	admin := api.Group("/admin/users")
+	admin.Post("/:id/ban", h.BanUser)
+	admin.Post("/:id/unban", h.UnbanUser)
+	admin.Post("/:id/roles", h.AssignRole)
+}
+
+func (h *AuthHandler) BanUser(c *fiber.Ctx) error {
+	if !hasPermission(c.Get("X-User-Permissions"), "user:ban") {
+		return c.Status(403).JSON(dto.ErrorResponse{Code: 403, Message: "forbidden: need user:ban"})
+	}
+	if err := h.authService.BanUser(c.Context(), c.Params("id")); err != nil {
+		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: err.Error()})
+	}
+	return c.JSON(dto.APIResponse{Code: 200, Message: "user banned"})
+}
+
+func (h *AuthHandler) UnbanUser(c *fiber.Ctx) error {
+	if !hasPermission(c.Get("X-User-Permissions"), "user:ban") {
+		return c.Status(403).JSON(dto.ErrorResponse{Code: 403, Message: "forbidden: need user:ban"})
+	}
+	if err := h.authService.UnbanUser(c.Context(), c.Params("id")); err != nil {
+		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: err.Error()})
+	}
+	return c.JSON(dto.APIResponse{Code: 200, Message: "user unbanned"})
+}
+
+func (h *AuthHandler) AssignRole(c *fiber.Ctx) error {
+	if !hasPermission(c.Get("X-User-Permissions"), "user:assign_role") {
+		return c.Status(403).JSON(dto.ErrorResponse{Code: 403, Message: "forbidden: need user:assign_role"})
+	}
+	var req struct {
+		Role string `json:"role"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.Role == "" {
+		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: "role is required"})
+	}
+	if err := h.authService.AssignRole(c.Context(), c.Params("id"), req.Role); err != nil {
+		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: err.Error()})
+	}
+	return c.JSON(dto.APIResponse{Code: 200, Message: "role assigned"})
+}
+
+// hasPermission 判断逗号分隔的 X-User-Permissions 是否含指定权限。
+func hasPermission(permissions, required string) bool {
+	if permissions == "" {
+		return false
+	}
+	for _, p := range strings.Split(permissions, ",") {
+		if required == strings.TrimSpace(p) {
+			return true
+		}
+	}
+	return false
 }
