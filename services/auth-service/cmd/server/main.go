@@ -7,6 +7,7 @@ import (
 
 	"wenxinblog/auth-service/internal/config"
 	"wenxinblog/auth-service/internal/handler"
+	"wenxinblog/auth-service/internal/migrate"
 	"wenxinblog/auth-service/internal/observability"
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
@@ -41,10 +42,25 @@ func main() {
 		log.Fatalf("Database ping failed: %v", err)
 	}
 
+	// 应用 db/migrations 迁移（含 RBAC 表 + 种子）。失败即退出：缺表时后续角色解析无法工作。
+	if err := migrate.Run(db, "db/migrations"); err != nil {
+		log.Fatalf("Database migration failed: %v", err)
+	}
+
+	// admin 引导：若配置了 ADMIN_BOOTSTRAP_EMAIL，为对应用户授予 admin 角色（幂等，可每次启动执行）。
+	if cfg.Admin.BootstrapEmail != "" {
+		if err := bootstrapAdmin(db, cfg.Admin.BootstrapEmail); err != nil {
+			log.Printf("admin bootstrap failed: %v", err)
+		} else {
+			log.Printf("admin role ensured for %s", cfg.Admin.BootstrapEmail)
+		}
+	}
+
 	// Initialize dependencies
 	userRepo := repository.NewUserRepo(db)
+	roleRepo := repository.NewRoleRepo(db)
 	jwtService := service.NewJWTService(cfg.JWT.Secret)
-	authService := service.NewAuthService(userRepo, jwtService, service.NewHTTPUserSyncClient(cfg.UserService.URL))
+	authService := service.NewAuthService(userRepo, roleRepo, jwtService, service.NewHTTPUserSyncClient(cfg.UserService.URL))
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -75,4 +91,14 @@ func main() {
 
 	log.Printf("Auth Service starting on port %s", cfg.Server.Port)
 	log.Fatal(app.Listen(":" + cfg.Server.Port))
+}
+
+// bootstrapAdmin 为指定 email 的用户授予 admin 角色（幂等）。用于首次部署/开发时引导管理员。
+func bootstrapAdmin(db *sql.DB, email string) error {
+	_, err := db.Exec(`
+		INSERT INTO user_roles (user_id, role_id)
+		SELECT u.id, r.id FROM users u, roles r
+		WHERE u.email = $1 AND r.code = 'admin'
+		ON CONFLICT (user_id, role_id) DO NOTHING`, email)
+	return err
 }

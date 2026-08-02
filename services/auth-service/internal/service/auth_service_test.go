@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // MockUserRepository is a mock implementation of UserRepository
@@ -63,6 +64,45 @@ func (m *MockUserRepository) UpdateStatus(ctx context.Context, id, status string
 	return nil
 }
 
+// MockRoleRepository is a mock implementation of RoleRepository
+type MockRoleRepository struct {
+	GetRolesForUserFunc       func(ctx context.Context, userID string) ([]model.Role, error)
+	GetPermissionsForUserFunc func(ctx context.Context, userID string) ([]string, error)
+	AssignRoleFunc            func(ctx context.Context, userID, roleCode string) error
+	FindRoleByCodeFunc        func(ctx context.Context, code string) (*model.Role, error)
+}
+
+func (m *MockRoleRepository) GetRolesForUser(ctx context.Context, userID string) ([]model.Role, error) {
+	if m.GetRolesForUserFunc != nil {
+		return m.GetRolesForUserFunc(ctx, userID)
+	}
+	return []model.Role{}, nil
+}
+
+func (m *MockRoleRepository) GetPermissionsForUser(ctx context.Context, userID string) ([]string, error) {
+	if m.GetPermissionsForUserFunc != nil {
+		return m.GetPermissionsForUserFunc(ctx, userID)
+	}
+	return []string{}, nil
+}
+
+func (m *MockRoleRepository) AssignRole(ctx context.Context, userID, roleCode string) error {
+	if m.AssignRoleFunc != nil {
+		return m.AssignRoleFunc(ctx, userID, roleCode)
+	}
+	return nil
+}
+
+func (m *MockRoleRepository) FindRoleByCode(ctx context.Context, code string) (*model.Role, error) {
+	if m.FindRoleByCodeFunc != nil {
+		return m.FindRoleByCodeFunc(ctx, code)
+	}
+	return nil, nil
+}
+
+// mockRoleRepo 默认空角色/权限 mock（各测试按需注入 Func）。
+var mockRoleRepo = &MockRoleRepository{}
+
 func TestRegister_Success(t *testing.T) {
 	mockRepo := &MockUserRepository{
 		FindByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
@@ -78,7 +118,7 @@ func TestRegister_Success(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	user, err := authService.Register(context.Background(), "test@example.com", "testuser", "password123")
 	require.NoError(t, err)
@@ -98,7 +138,7 @@ func TestRegister_EmailExists(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, err := authService.Register(context.Background(), "existing@example.com", "newuser", "password123")
 	assert.Error(t, err)
@@ -116,7 +156,7 @@ func TestRegister_UsernameExists(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, err := authService.Register(context.Background(), "new@example.com", "existinguser", "password123")
 	assert.Error(t, err)
@@ -136,7 +176,7 @@ func TestRegister_CreateError(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, err := authService.Register(context.Background(), "test@example.com", "testuser", "password123")
 	assert.Error(t, err)
@@ -157,7 +197,7 @@ func TestLogin_Success(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	_ = NewAuthService(mockRepo, jwtService)
+	_ = NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	// Note: This will fail bcrypt validation with the fake hash, so we need a real hash
 	// For testing purposes, we'll use a simpler approach
@@ -170,11 +210,67 @@ func TestLogin_UserNotFound(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, _, err := authService.Login(context.Background(), "nonexistent@example.com", "password")
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidCredentials, err)
+}
+
+func TestLogin_ResolvesRolesAndPermissionsIntoToken(t *testing.T) {
+	realHash, err := bcrypt.GenerateFromPassword([]byte("password123"), 4)
+	require.NoError(t, err)
+	mockRepo := &MockUserRepository{
+		FindByEmailFunc: func(ctx context.Context, email string) (*model.User, error) {
+			return &model.User{
+				ID: "user-123", Email: "test@example.com", Username: "testuser",
+				PasswordHash: string(realHash), Status: "ACTIVE",
+			}, nil
+		},
+	}
+	roleRepo := &MockRoleRepository{
+		GetRolesForUserFunc: func(ctx context.Context, userID string) ([]model.Role, error) {
+			return []model.Role{{Code: "admin"}, {Code: "user"}}, nil
+		},
+		GetPermissionsForUserFunc: func(ctx context.Context, userID string) ([]string, error) {
+			return []string{"post:create", "user:ban"}, nil
+		},
+	}
+	jwtService := NewJWTService("test-secret")
+	authService := NewAuthService(mockRepo, roleRepo, jwtService)
+
+	tokens, user, err := authService.Login(context.Background(), "test@example.com", "password123")
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", user.ID)
+
+	claims, err := jwtService.ParseToken(tokens.AccessToken)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"admin", "user"}, claims.Roles)
+	assert.Equal(t, []string{"post:create", "user:ban"}, claims.Permissions)
+}
+
+func TestRegister_AssignsDefaultUserRole(t *testing.T) {
+	mockRepo := &MockUserRepository{
+		FindByEmailFunc:    func(ctx context.Context, email string) (*model.User, error) { return nil, nil },
+		FindByUsernameFunc: func(ctx context.Context, username string) (*model.User, error) { return nil, nil },
+		CreateFunc: func(ctx context.Context, user *model.User) error {
+			user.ID = "new-user-id"
+			return nil
+		},
+	}
+	assigned := ""
+	roleRepo := &MockRoleRepository{
+		AssignRoleFunc: func(ctx context.Context, userID, roleCode string) error {
+			assigned = roleCode
+			return nil
+		},
+	}
+	jwtService := NewJWTService("test-secret")
+	authService := NewAuthService(mockRepo, roleRepo, jwtService)
+
+	_, err := authService.Register(context.Background(), "test@example.com", "testuser", "password123")
+	require.NoError(t, err)
+	assert.Equal(t, "user", assigned)
 }
 
 func TestLogin_BannedUser(t *testing.T) {
@@ -189,7 +285,7 @@ func TestLogin_BannedUser(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, _, err := authService.Login(context.Background(), "banned@example.com", "password")
 	assert.Error(t, err)
@@ -208,7 +304,7 @@ func TestLogin_InactiveUser(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, _, err := authService.Login(context.Background(), "inactive@example.com", "password")
 	assert.Error(t, err)
@@ -217,9 +313,9 @@ func TestLogin_InactiveUser(t *testing.T) {
 
 func TestValidateToken_Success(t *testing.T) {
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(nil, jwtService)
+	authService := NewAuthService(nil, mockRoleRepo, jwtService)
 
-	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
 	claims, err := authService.ValidateToken(tokens.AccessToken)
@@ -230,7 +326,7 @@ func TestValidateToken_Success(t *testing.T) {
 
 func TestValidateToken_Invalid(t *testing.T) {
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(nil, jwtService)
+	authService := NewAuthService(nil, mockRoleRepo, jwtService)
 
 	_, err := authService.ValidateToken("invalid-token")
 	assert.Error(t, err)
@@ -238,9 +334,9 @@ func TestValidateToken_Invalid(t *testing.T) {
 
 func TestValidateToken_RejectsRefresh(t *testing.T) {
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(nil, jwtService)
+	authService := NewAuthService(nil, mockRoleRepo, jwtService)
 
-	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
 	// refresh token 不能当 access token 用于接口鉴权
@@ -251,12 +347,12 @@ func TestValidateToken_RejectsRefresh(t *testing.T) {
 func TestRefreshToken_Success(t *testing.T) {
 	mockRepo := &MockUserRepository{}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
-	oldTokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	oldTokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
-	newTokens, err := authService.RefreshToken(oldTokens.RefreshToken)
+	newTokens, err := authService.RefreshToken(context.Background(), oldTokens.RefreshToken)
 	require.NoError(t, err)
 	assert.NotEmpty(t, newTokens.AccessToken)
 	assert.NotEmpty(t, newTokens.RefreshToken)
@@ -267,21 +363,21 @@ func TestRefreshToken_Success(t *testing.T) {
 
 func TestRefreshToken_RejectsAccessToken(t *testing.T) {
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(nil, jwtService)
+	authService := NewAuthService(nil, mockRoleRepo, jwtService)
 
-	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, err := jwtService.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
-	_, err = authService.RefreshToken(tokens.AccessToken)
+	_, err = authService.RefreshToken(context.Background(), tokens.AccessToken)
 	assert.Error(t, err)
 }
 
 func TestRefreshToken_Expired(t *testing.T) {
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(nil, jwtService)
+	authService := NewAuthService(nil, mockRoleRepo, jwtService)
 
 	// Create expired token manually
-	_, err := authService.RefreshToken("expired-invalid-token")
+	_, err := authService.RefreshToken(context.Background(), "expired-invalid-token")
 	assert.Error(t, err)
 }
 
@@ -298,7 +394,7 @@ func TestGetUserByID_Success(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	user, err := authService.GetUserByID(context.Background(), "user-123")
 	require.NoError(t, err)
@@ -312,7 +408,7 @@ func TestGetUserByID_NotFound(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, err := authService.GetUserByID(context.Background(), "nonexistent")
 	assert.Error(t, err)
@@ -326,7 +422,7 @@ func TestGetUserByID_DBError(t *testing.T) {
 		},
 	}
 	jwtService := NewJWTService("test-secret")
-	authService := NewAuthService(mockRepo, jwtService)
+	authService := NewAuthService(mockRepo, mockRoleRepo, jwtService)
 
 	_, err := authService.GetUserByID(context.Background(), "user-123")
 	assert.Error(t, err)

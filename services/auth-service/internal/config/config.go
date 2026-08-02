@@ -36,6 +36,11 @@ type Config struct {
 		GitHub OAuthConfig `yaml:"github"`
 		WeChat OAuthConfig `yaml:"wechat"`
 	} `yaml:"oauth"`
+
+	// Admin 引导：启动时为指定 email 的用户授予 admin 角色（幂等）。
+	Admin struct {
+		BootstrapEmail string `yaml:"bootstrapEmail"`
+	} `yaml:"admin"`
 }
 
 type OAuthConfig struct {
@@ -171,6 +176,10 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("WECHAT_APP_SECRET"); v != "" {
 		cfg.OAuth.WeChat.ClientSecret = v
 	}
+	if v := os.Getenv("ADMIN_BOOTSTRAP_EMAIL"); v != "" {
+		cfg.Admin.BootstrapEmail = v
+	}
+
 	if v := os.Getenv("WECHAT_REDIRECT_URL"); v != "" {
 		cfg.OAuth.WeChat.RedirectURL = v
 	}

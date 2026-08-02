@@ -20,7 +20,7 @@ type mockAuthService struct {
 	registerFunc      func(ctx context.Context, email, username, password string) (*model.User, error)
 	loginFunc         func(ctx context.Context, email, password string) (*service.TokenPair, *model.User, error)
 	validateTokenFunc func(token string) (*service.Claims, error)
-	refreshTokenFunc  func(token string) (*service.TokenPair, error)
+	refreshTokenFunc  func(ctx context.Context, token string) (*service.TokenPair, error)
 	getUserByIDFunc   func(ctx context.Context, id string) (*model.User, error)
 }
 
@@ -45,9 +45,9 @@ func (m *mockAuthService) ValidateToken(token string) (*service.Claims, error) {
 	return nil, nil
 }
 
-func (m *mockAuthService) RefreshToken(token string) (*service.TokenPair, error) {
+func (m *mockAuthService) RefreshToken(ctx context.Context, token string) (*service.TokenPair, error) {
 	if m.refreshTokenFunc != nil {
-		return m.refreshTokenFunc(token)
+		return m.refreshTokenFunc(ctx, token)
 	}
 	return nil, nil
 }
@@ -181,7 +181,7 @@ func TestLogin_InvalidBody(t *testing.T) {
 
 func TestLogin_Success(t *testing.T) {
 	jwtSvc := service.NewJWTService("test-secret")
-	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	svc := &mockAuthService{
 		loginFunc: func(ctx context.Context, email, password string) (*service.TokenPair, *model.User, error) {
 			return tokens, &model.User{ID: "user-123", Email: email, Username: "testuser", Status: "ACTIVE"}, nil
@@ -227,9 +227,9 @@ func TestLogin_InvalidEmail(t *testing.T) {
 
 func TestRefreshToken_Success(t *testing.T) {
 	jwtSvc := service.NewJWTService("test-secret")
-	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	svc := &mockAuthService{
-		refreshTokenFunc: func(token string) (*service.TokenPair, error) {
+		refreshTokenFunc: func(ctx context.Context, token string) (*service.TokenPair, error) {
 			return tokens, nil
 		},
 	}
@@ -245,7 +245,7 @@ func TestRefreshToken_Success(t *testing.T) {
 
 func TestRefreshToken_Invalid(t *testing.T) {
 	svc := &mockAuthService{
-		refreshTokenFunc: func(token string) (*service.TokenPair, error) {
+		refreshTokenFunc: func(ctx context.Context, token string) (*service.TokenPair, error) {
 			return nil, errors.New("invalid token")
 		},
 	}

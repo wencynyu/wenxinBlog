@@ -8,9 +8,10 @@ import (
 )
 
 type Claims struct {
-	UserID    string   `json:"userId"`
-	Roles     []string `json:"roles"`
-	TokenType string   `json:"tokenType"`
+	UserID      string   `json:"userId"`
+	Roles       []string `json:"roles"`
+	Permissions []string `json:"permissions"`
+	TokenType   string   `json:"tokenType"`
 	jwt.RegisteredClaims
 }
 
@@ -28,14 +29,15 @@ func NewJWTService(secret string) *JWTService {
 	return &JWTService{secret: []byte(secret)}
 }
 
-func (s *JWTService) GenerateTokenPair(userID string, roles []string) (*TokenPair, error) {
+func (s *JWTService) GenerateTokenPair(userID string, roles, permissions []string) (*TokenPair, error) {
 	now := time.Now()
 
 	// Access Token: 15 minutes
 	accessClaims := Claims{
-		UserID:    userID,
-		Roles:     roles,
-		TokenType: "access",
+		UserID:      userID,
+		Roles:       roles,
+		Permissions: permissions,
+		TokenType:   "access",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -50,9 +52,10 @@ func (s *JWTService) GenerateTokenPair(userID string, roles []string) (*TokenPai
 
 	// Refresh Token: 7 days
 	refreshClaims := Claims{
-		UserID:    userID,
-		Roles:     roles,
-		TokenType: "refresh",
+		UserID:      userID,
+		Roles:       roles,
+		Permissions: permissions,
+		TokenType:   "refresh",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),

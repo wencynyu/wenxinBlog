@@ -54,7 +54,7 @@ func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	jwtSvc := service.NewJWTService("test-secret")
-	tokens, err := jwtSvc.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, err := jwtSvc.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
 	svc := &mockAuthMiddlewareService{}

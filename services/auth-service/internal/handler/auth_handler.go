@@ -64,7 +64,7 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: "invalid request body"})
 	}
-	tokens, err := h.authService.RefreshToken(req.RefreshToken)
+	tokens, err := h.authService.RefreshToken(c.Context(), req.RefreshToken)
 	if err != nil {
 		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "invalid refresh token"})
 	}
@@ -102,9 +102,10 @@ func (h *AuthHandler) ValidateToken(c *fiber.Ctx) error {
 		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "invalid token"})
 	}
 	return c.JSON(fiber.Map{
-		"userId": claims.UserID,
-		"email":  "",
-		"roles":  claims.Roles,
+		"userId":      claims.UserID,
+		"email":       "",
+		"roles":       claims.Roles,
+		"permissions": claims.Permissions,
 	})
 }
 

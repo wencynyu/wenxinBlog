@@ -14,7 +14,7 @@ func TestGenerateTokenPair_ValidTokens(t *testing.T) {
 	userID := "user-123"
 	roles := []string{"USER", "ADMIN"}
 
-	tokens, err := service.GenerateTokenPair(userID, roles)
+	tokens, err := service.GenerateTokenPair(userID, roles, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, tokens.AccessToken)
 	assert.NotEmpty(t, tokens.RefreshToken)
@@ -26,7 +26,7 @@ func TestGenerateTokenPair_AccessTokenExpiry(t *testing.T) {
 	userID := "user-123"
 	roles := []string{"USER"}
 
-	tokens, err := service.GenerateTokenPair(userID, roles)
+	tokens, err := service.GenerateTokenPair(userID, roles, nil)
 	require.NoError(t, err)
 
 	// Parse access token to check expiry
@@ -48,7 +48,7 @@ func TestGenerateTokenPair_RefreshTokenExpiry(t *testing.T) {
 	userID := "user-123"
 	roles := []string{"USER"}
 
-	tokens, err := service.GenerateTokenPair(userID, roles)
+	tokens, err := service.GenerateTokenPair(userID, roles, nil)
 	require.NoError(t, err)
 
 	// Parse refresh token to check expiry
@@ -70,7 +70,7 @@ func TestGenerateTokenPair_ContainsCorrectClaims(t *testing.T) {
 	userID := "user-456"
 	roles := []string{"USER", "MODERATOR"}
 
-	tokens, err := service.GenerateTokenPair(userID, roles)
+	tokens, err := service.GenerateTokenPair(userID, roles, nil)
 	require.NoError(t, err)
 
 	claims := &Claims{}
@@ -90,7 +90,7 @@ func TestParseToken_Valid(t *testing.T) {
 	userID := "user-789"
 	roles := []string{"USER"}
 
-	tokens, err := service.GenerateTokenPair(userID, roles)
+	tokens, err := service.GenerateTokenPair(userID, roles, nil)
 	require.NoError(t, err)
 
 	claims, err := service.ParseToken(tokens.AccessToken)
@@ -150,7 +150,7 @@ func TestParseToken_DifferentSecret(t *testing.T) {
 	service1 := NewJWTService("secret-one")
 	service2 := NewJWTService("secret-two")
 
-	tokens, err := service1.GenerateTokenPair("user-123", []string{"USER"})
+	tokens, err := service1.GenerateTokenPair("user-123", []string{"USER"}, nil)
 	require.NoError(t, err)
 
 	_, err = service2.ParseToken(tokens.AccessToken)
