@@ -1,8 +1,17 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { IconSearch, IconBell, IconUser, IconMoon, IconSun, IconSetting, IconExit } from '@douyinfe/semi-icons';
+import {
+  IconSearch,
+  IconBell,
+  IconUser,
+  IconMoon,
+  IconSun,
+  IconSetting,
+  IconExit,
+} from '@douyinfe/semi-icons';
 import { Button, Input, Dropdown, Avatar, Toast } from '@douyinfe/semi-ui';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -13,11 +22,22 @@ export default function Header() {
   const { user, isAuthenticated } = useAuthStore();
   const { theme, toggleTheme } = useUIStore();
   const logout = useLogout();
-  const isDarkMode = theme === 'dark';
+  // zustand persist 在 SSR 读不到 localStorage（user/isAuthenticated/theme 为初始值），
+  // 客户端首次渲染读到 localStorage 值 → 与 SSR 不一致触发 hydration error。
+  // mounted 标志：SSR 与客户端首次渲染都按"未挂载"渲染一致态，挂载后再渲染真实态。
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const authed = mounted && isAuthenticated;
+  const isDarkMode = mounted && theme === 'dark';
 
+  // 顶部搜索框受控：搜索后清空，避免残留旧词让用户误以为"失效"
+  // （残留时再搜同词 router.push 到相同 URL，Next 不触发导航）。
+  const [search, setSearch] = useState('');
   const handleSearch = (value: string) => {
-    if (value.trim()) {
-      router.push(`/search?q=${encodeURIComponent(value)}`);
+    const v = value.trim();
+    if (v) {
+      router.push(`/search?q=${encodeURIComponent(v)}`);
+      setSearch('');
     }
   };
 
@@ -59,6 +79,8 @@ export default function Header() {
           {/* 搜索框 */}
           <div className="hidden md:flex flex-1 max-w-md mx-8">
             <Input
+              value={search}
+              onChange={(v) => setSearch(v)}
               placeholder="搜索博文..."
               prefix={<IconSearch />}
               onEnterPress={(e: any) => handleSearch(e.target.value)}
@@ -76,17 +98,13 @@ export default function Header() {
             />
 
             {/* 通知 */}
-            {isAuthenticated && (
-              <Button icon={<IconBell />} theme="borderless" />
-            )}
+            {authed && <Button icon={<IconBell />} theme="borderless" />}
 
-            {/* 用户菜单 */}
-            {isAuthenticated && user ? (
-              <Dropdown
-                trigger="click"
-                position="bottomRight"
-                render={userMenu}
-              >
+            {/* 用户菜单：未挂载时出占位，保证 SSR/CSR 一致 */}
+            {!mounted ? (
+              <div className="w-24" />
+            ) : authed && user ? (
+              <Dropdown trigger="click" position="bottomRight" render={userMenu}>
                 <button className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full px-2 py-1 transition-colors">
                   <Avatar size="small" src={user.avatar} alt={user.displayName || user.username}>
                     {(user.displayName || user.username || 'U')[0]}

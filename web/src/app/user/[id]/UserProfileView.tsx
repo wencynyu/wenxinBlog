@@ -142,7 +142,7 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
           <div className="flex gap-8 mt-6 pt-6 border-t border-hairline">
             <div className="text-center">
               <span className="text-xl font-bold text-ink block font-mono">
-                {profile.postsCount || 0}
+                {postsResp?.total ?? 0}
               </span>
               <span className="text-ink-faint text-sm">博文</span>
             </div>

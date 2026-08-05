@@ -30,6 +30,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@douyinfe/semi-next": "^2.65.0",
     "@next/bundle-analyzer": "^16.2.10",
     "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.9.1",

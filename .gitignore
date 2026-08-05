@@ -33,6 +33,8 @@ services/*/coverage.out
 *.exe~
 *.test
 *.out
+# go build -o 产出的服务二进制（如 auth-service/server，31MB），勿提交
+services/*/server
 
 # ===== Java / Maven =====
 **/target/

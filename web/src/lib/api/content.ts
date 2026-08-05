@@ -12,9 +12,9 @@ export interface UploadResponse {
 export interface MediaAsset {
   id: string;
   objectKey: string;
-  originalName: string;
+  originalFilename: string;
   mimeType: string;
-  size: number;
+  sizeBytes: number;
   cdnUrl: string;
   status: string;
   postId?: string;
