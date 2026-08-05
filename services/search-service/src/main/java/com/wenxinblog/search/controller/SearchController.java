@@ -21,7 +21,7 @@ public class SearchController {
     public Mono<Result<PageResult<BlogSearchResponse>>> searchBlogs(
             @RequestParam String q,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(name = "pageSize", defaultValue = "10") int size,
             @RequestParam(defaultValue = "relevance") String sortBy,
             @RequestParam(required = false) List<String> tags,
             @RequestParam(required = false) String category,

@@ -6,7 +6,6 @@ export interface SearchPostResult {
   id: string;
   title: string;
   summary?: string;
-  authorId: string;
   author: {
     id: string;
     username: string;
@@ -14,6 +13,7 @@ export interface SearchPostResult {
     avatar?: string;
   };
   tags: string[];
+  viewCount: number;
   likeCount: number;
   commentCount: number;
   createdAt: string;
@@ -23,10 +23,10 @@ export interface SearchUserResult {
   id: string;
   username: string;
   displayName?: string;
-  avatar?: string;
+  avatarUrl?: string;
   bio?: string;
-  followersCount: number;
-  postsCount: number;
+  followerCount: number;
+  postCount: number;
 }
 
 export interface SuggestResponse {
@@ -51,10 +51,12 @@ export async function searchUsersApi(
   query: string,
   params?: PaginationParams,
 ): Promise<PaginatedResponse<SearchUserResult>> {
+  // 后端 /search/users 只认 size（非 pageSize）；page 是 0-based。
+  const { pageSize, ...rest } = params ?? {};
   const response: ApiResponse<PaginatedResponse<SearchUserResult>> = await client.get(
     '/api/v1/search/users',
     {
-      params: { q: query, ...params },
+      params: { q: query, ...rest, ...(pageSize != null ? { size: pageSize } : {}) },
     },
   );
   return response.data;

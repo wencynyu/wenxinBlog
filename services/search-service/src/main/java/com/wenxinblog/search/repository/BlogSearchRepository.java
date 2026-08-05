@@ -55,7 +55,9 @@ public class BlogSearchRepository {
                         .fields("title^3", "content^2", "summary^2", "tags^2", "author_name^1")
                         .type(TextQueryType.BestFields)));
         // 只返回已发布内容（防草稿/未发布内容泄漏到搜索结果）
-        bb.filter(f -> f.term(t -> t.field("status").value("PUBLISHED")));
+        // 注意：blog-service 索引写入/DB 都是小写 'published'（见 PostService.listSql），这里不能写成大写 'PUBLISHED'，
+        // 否则 term 精确匹配会过滤掉全部文档，搜索结果恒为空。
+        bb.filter(f -> f.term(t -> t.field("status").value("published")));
         // tags 过滤（可选）
         if (request.tags() != null && !request.tags().isEmpty()) {
             bb.filter(f -> f.terms(t -> t.field("tags")

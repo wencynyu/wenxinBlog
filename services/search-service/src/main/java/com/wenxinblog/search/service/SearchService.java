@@ -36,10 +36,10 @@ public class SearchService {
                 List<String> hlContent = hl != null && hl.get("content") != null ? hl.get("content") : List.of();
                 items.add(new BlogSearchResponse(
                         doc.getId(), doc.getTitle(), doc.getContent(), doc.getSummary(),
-                        doc.getAuthorId(), doc.getAuthorName(), doc.getTags(),
-                        doc.getCategory(), doc.getViewCount(), doc.getLikeCount(),
-                        doc.getPublishedAt(), hit.getScore(),
-                        hlTitle, hlContent
+                        new AuthorDto(doc.getAuthorId(), doc.getAuthorName(), doc.getAuthorName(), null),
+                        doc.getTags(), doc.getCategory(), doc.getViewCount(), doc.getLikeCount(),
+                        doc.getCommentCount(), doc.getCreatedAt(),
+                        hit.getScore(), hlTitle, hlContent
                 ));
             }
             long total = page.getTotalElements();
