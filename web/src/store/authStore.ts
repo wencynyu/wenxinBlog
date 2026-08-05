@@ -1,12 +1,22 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { User, AuthState, LoginRequest, RegisterRequest } from '@/types/auth';
+import type {
+  User,
+  AuthState,
+  LoginRequest,
+  RegisterRequest,
+  PhoneLoginRequest,
+  AuthResponse,
+} from '@/types/auth';
 import * as api from '@/lib/api/auth';
 import { setToken, clearToken } from '@/lib/api/client';
 
 interface AuthStore extends AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
+  loginWithPhone: (data: PhoneLoginRequest) => Promise<void>;
+  /** 由 AuthResponse 建立会话（登录/手机号/OAuth 三方复用）。 */
+  setSession: (response: AuthResponse) => void;
   logout: () => void;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
@@ -34,14 +44,29 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true });
         try {
           const response = await api.login(credentials);
-          const accessToken = response.tokens.accessToken;
-          set({
-            user: response.user,
-            token: accessToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          setToken(accessToken);
+          get().setSession(response);
+        } catch (error: any) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      setSession: (response: AuthResponse) => {
+        const accessToken = response.tokens.accessToken;
+        set({
+          user: response.user,
+          token: accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        setToken(accessToken);
+      },
+
+      loginWithPhone: async (data: PhoneLoginRequest) => {
+        set({ isLoading: true });
+        try {
+          const response = await api.loginWithPhone(data);
+          get().setSession(response);
         } catch (error: any) {
           set({ isLoading: false });
           throw error;

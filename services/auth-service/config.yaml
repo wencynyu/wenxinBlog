@@ -13,18 +13,29 @@ jwt:
   expiry: 86400
 
 oauth:
+  # provider 回调必须打到后端（经网关），由后端完成 code→token 换取后再 302 回前端。
+  # 这些 URL 需与 Google Cloud Console「授权回调」里登记的完全一致。
   google:
     clientId: ""
     clientSecret: ""
-    redirectUrl: "http://localhost:3000/auth/callback/google"
+    redirectUrl: "http://localhost:8080/api/v1/auth/callback/google"
   github:
     clientId: ""
     clientSecret: ""
-    redirectUrl: "http://localhost:3000/auth/callback/github"
-  wechat:
-    clientId: ""
-    clientSecret: ""
-    redirectUrl: ""
+    redirectUrl: "http://localhost:8080/api/v1/auth/callback/github"
+
+frontend:
+  # OAuth 回调换取 token 后最终 302 跳转的前端地址（中间码模式）。
+  url: "http://localhost:3000"
+
+sms:
+  # "mock" 本地打印验证码（开发/测试）；"aliyun" 走阿里云短信（需配 accessKey/sign/template）。
+  provider: "mock"
+  aliyun:
+    accessKeyId: ""
+    accessKeySecret: ""
+    signName: ""
+    templateCode: ""
 
 userService:
   url: "http://localhost:8002"

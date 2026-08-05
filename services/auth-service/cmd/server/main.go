@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 
+	"wenxinblog/auth-service/internal/cache"
 	"wenxinblog/auth-service/internal/config"
 	"wenxinblog/auth-service/internal/handler"
 	"wenxinblog/auth-service/internal/migrate"
@@ -62,6 +63,26 @@ func main() {
 	jwtService := service.NewJWTService(cfg.JWT.Secret)
 	authService := service.NewAuthService(userRepo, roleRepo, jwtService, service.NewHTTPUserSyncClient(cfg.UserService.URL))
 
+	// Redis：OAuth state/中间码 + 手机号验证码/限流。Ping fail-fast。
+	rdb, err := cache.NewClient(cfg.Redis.URL)
+	if err != nil {
+		log.Fatalf("Failed to connect redis: %v", err)
+	}
+	cacheClient := cache.New(rdb)
+
+	// OAuth providers：按配置启用（未配 clientID 则跳过）。当前仅支持 Google。
+	providers := make(map[string]service.OAuthProvider)
+	if cfg.OAuth.Google.ClientID != "" {
+		providers["google"] = service.NewGoogleProvider(cfg.OAuth.Google.ClientID, cfg.OAuth.Google.ClientSecret, cfg.OAuth.Google.RedirectURL)
+		log.Println("oauth provider enabled: google")
+	}
+	oauthRepo := repository.NewOAuthAccountRepo(db)
+	oauthService := service.NewOAuthService(authService, oauthRepo, cacheClient, providers)
+
+	// 手机号验证码登录：SmsSender（mock/aliyun）+ PhoneService。
+	smsSender := service.NewSmsSender(cfg.SMS.Provider, cfg.SMS.Aliyun.AccessKeyID, cfg.SMS.Aliyun.AccessKeySecret, cfg.SMS.Aliyun.SignName, cfg.SMS.Aliyun.TemplateCode)
+	phoneService := service.NewPhoneService(authService, cacheClient, smsSender)
+
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      "WenxinBlog Auth Service",
@@ -88,6 +109,8 @@ func main() {
 	// API routes
 	api := app.Group("/api/v1")
 	handler.RegisterRoutes(api, authService)
+	handler.RegisterOAuthRoutes(api, oauthService, cfg.Frontend.URL)
+	handler.RegisterPhoneRoutes(api, phoneService)
 
 	log.Printf("Auth Service starting on port %s", cfg.Server.Port)
 	log.Fatal(app.Listen(":" + cfg.Server.Port))

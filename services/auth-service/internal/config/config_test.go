@@ -60,10 +60,6 @@ func TestLoad_OAuthEnvOverrides(t *testing.T) {
 	os.Setenv("GITHUB_CLIENT_SECRET", "github-secret")
 	os.Setenv("GITHUB_REDIRECT_URL", "https://example.com/github/callback")
 
-	os.Setenv("WECHAT_APP_ID", "wechat-app-id")
-	os.Setenv("WECHAT_APP_SECRET", "wechat-secret")
-	os.Setenv("WECHAT_REDIRECT_URL", "https://example.com/wechat/callback")
-
 	defer func() {
 		os.Unsetenv("GOOGLE_CLIENT_ID")
 		os.Unsetenv("GOOGLE_CLIENT_SECRET")
@@ -71,9 +67,6 @@ func TestLoad_OAuthEnvOverrides(t *testing.T) {
 		os.Unsetenv("GITHUB_CLIENT_ID")
 		os.Unsetenv("GITHUB_CLIENT_SECRET")
 		os.Unsetenv("GITHUB_REDIRECT_URL")
-		os.Unsetenv("WECHAT_APP_ID")
-		os.Unsetenv("WECHAT_APP_SECRET")
-		os.Unsetenv("WECHAT_REDIRECT_URL")
 	}()
 
 	cfg := Load()
@@ -85,10 +78,6 @@ func TestLoad_OAuthEnvOverrides(t *testing.T) {
 	assert.Equal(t, "github-client-id", cfg.OAuth.GitHub.ClientID)
 	assert.Equal(t, "github-secret", cfg.OAuth.GitHub.ClientSecret)
 	assert.Equal(t, "https://example.com/github/callback", cfg.OAuth.GitHub.RedirectURL)
-
-	assert.Equal(t, "wechat-app-id", cfg.OAuth.WeChat.ClientID)
-	assert.Equal(t, "wechat-secret", cfg.OAuth.WeChat.ClientSecret)
-	assert.Equal(t, "https://example.com/wechat/callback", cfg.OAuth.WeChat.RedirectURL)
 }
 
 func TestLoad_YAMLFile(t *testing.T) {
@@ -190,6 +179,6 @@ func TestPartialDefaults(t *testing.T) {
 
 	applyDefaults(cfg)
 
-	assert.Equal(t, "9999", cfg.Server.Port) // Should not override existing
+	assert.Equal(t, "9999", cfg.Server.Port)         // Should not override existing
 	assert.Contains(t, cfg.Database.URL, "postgres") // Should set default
 }

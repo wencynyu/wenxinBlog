@@ -28,6 +28,18 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres-auth:5432/auth_db?sslmode=disable
       REDIS_URL: redis://redis-cache:6379
+      USER_SERVICE_URL: http://user-service:8002
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # OAuth（留空则关闭对应登录方式）
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/v1/auth/callback/google}
+      # 短信（手机号验证码）
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      ALIYUN_SMS_ACCESS_KEY_ID: ${ALIYUN_SMS_ACCESS_KEY_ID:-}
+      ALIYUN_SMS_ACCESS_KEY_SECRET: ${ALIYUN_SMS_ACCESS_KEY_SECRET:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
     depends_on:
       postgres-auth:
         condition: service_healthy

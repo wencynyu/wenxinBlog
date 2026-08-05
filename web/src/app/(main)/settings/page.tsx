@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Form, Input, Button, Toast, TagInput, Skeleton, Typography } from '@douyinfe/semi-ui';
 import MainLayout from '@/components/layout/MainLayout';
 import { useAuthStore } from '@/store/authStore';
-import { useUpdateProfile } from '@/hooks/useUser';
+import { useUpdateProfile, useUserProfile } from '@/hooks/useUser';
 import { getUserInterests, updateUserInterests } from '@/lib/api/recommend';
+import { listOAuthLinks, linkOAuth, unlinkOAuth } from '@/lib/api/auth';
+import type { OAuthAccountItem } from '@/types/auth';
 
 const { Title } = Typography;
 
@@ -13,22 +15,27 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const updateProfile = useUpdateProfile(user?.id || '');
+  // authStore.user 来自登录响应（只有 id/username/email/avatar），缺 displayName/bio/location/website。
+  // 这些字段在 user-service 的 profile 里，必须拉 profile 才能回填表单做修改。
+  const { data: profile } = useUserProfile(user?.id || '');
 
   const [interests, setInterests] = useState<string[]>([]);
   const [interestsLoading, setInterestsLoading] = useState(true);
+  const [oauthLinks, setOauthLinks] = useState<OAuthAccountItem[]>([]);
+  const [oauthLoading, setOauthLoading] = useState(true);
   const formRef = useRef<any>(null);
 
   useEffect(() => {
-    if (user && formRef.current) {
+    if (profile && formRef.current) {
       formRef.current.setValues({
-        displayName: user.displayName || '',
-        bio: user.bio || '',
-        avatar: user.avatar || '',
-        location: '',
-        website: '',
+        displayName: profile.displayName || '',
+        bio: profile.bio || '',
+        avatar: profile.avatar || '',
+        location: profile.location || '',
+        website: profile.website || '',
       });
     }
-  }, [user]);
+  }, [profile]);
 
   useEffect(() => {
     if (user?.id) {
@@ -79,6 +86,41 @@ export default function SettingsPage() {
       Toast.error(error?.message || '更新失败');
     }
   };
+
+  const reloadOAuthLinks = () => {
+    setOauthLoading(true);
+    listOAuthLinks()
+      .then(setOauthLinks)
+      .catch(() => {})
+      .finally(() => setOauthLoading(false));
+  };
+
+  useEffect(() => {
+    if (user?.id) reloadOAuthLinks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const handleBind = async (provider: string) => {
+    try {
+      const { authUrl } = await linkOAuth(provider);
+      window.location.href = authUrl;
+    } catch (error: any) {
+      Toast.error(error?.message || '发起绑定失败');
+    }
+  };
+
+  const handleUnbind = async (provider: string) => {
+    try {
+      await unlinkOAuth(provider);
+      Toast.success('已解绑');
+      reloadOAuthLinks();
+    } catch (error: any) {
+      Toast.error(error?.message || '解绑失败');
+    }
+  };
+
+  const PROVIDER_LABEL: Record<string, string> = { google: 'Google' };
+  const SUPPORTED = ['google'];
 
   if (!user) {
     return (
@@ -159,6 +201,44 @@ export default function SettingsPage() {
                 保存标签
               </Button>
             </>
+          )}
+        </div>
+
+        {/* 第三方账号绑定 */}
+        <div className="bg-surface rounded-xl shadow-card p-6 mt-6">
+          <Title heading={4} className="font-serif text-ink mb-4">
+            第三方账号
+          </Title>
+          <p className="text-ink-muted text-sm mb-4">
+            绑定后可使用对应第三方账号直接登录。每个第三方身份仅可绑定一个本站账号。
+          </p>
+          {oauthLoading ? (
+            <Skeleton.Paragraph style={{ width: '100%' }} />
+          ) : (
+            <div className="space-y-3">
+              {SUPPORTED.map((provider) => {
+                const linked = oauthLinks.find((l) => l.provider === provider);
+                return (
+                  <div
+                    key={provider}
+                    className="flex items-center justify-between border border-line rounded-lg px-4 py-3"
+                  >
+                    <span className="text-ink font-medium">
+                      {PROVIDER_LABEL[provider] || provider}
+                    </span>
+                    {linked ? (
+                      <Button theme="light" type="danger" onClick={() => handleUnbind(provider)}>
+                        解绑
+                      </Button>
+                    ) : (
+                      <Button theme="solid" onClick={() => handleBind(provider)}>
+                        绑定
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

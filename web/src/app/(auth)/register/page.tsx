@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Form, Input, Button, Toast } from '@douyinfe/semi-ui';
+import { Form, Input, Button, Toast, Divider } from '@douyinfe/semi-ui';
 import { useRegister } from '@/hooks/useAuth';
+import { oauthLoginURL } from '@/lib/api/auth';
 
 export default function RegisterPage() {
   const registerMutation = useRegister();
@@ -102,6 +103,18 @@ export default function RegisterPage() {
           注册
         </Button>
       </Form>
+
+      <Divider margin={24}>
+        <span className="text-ink-muted text-sm">或使用 Google 注册</span>
+      </Divider>
+      <Button
+        theme="light"
+        block
+        size="large"
+        onClick={() => (window.location.href = oauthLoginURL('google'))}
+      >
+        Google 注册
+      </Button>
 
       <div className="text-center mt-6 text-sm text-ink-muted">
         已有账号？

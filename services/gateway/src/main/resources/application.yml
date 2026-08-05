@@ -29,6 +29,15 @@ spring:
                 - StripPrefix=0
                 - name: AuthenticationFilter
 
+            # 账号自助端点（第三方账号绑定/解绑等，需登录态：AuthenticationFilter 注入 X-User-Id）
+            - id: auth-account
+              uri: http://localhost:8001
+              predicates:
+                - Path=/api/v1/account/**
+              filters:
+                - StripPrefix=0
+                - name: AuthenticationFilter
+
             # 用户服务 (需认证)
             - id: user-service
               uri: http://localhost:8002

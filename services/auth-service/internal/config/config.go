@@ -34,8 +34,18 @@ type Config struct {
 	OAuth struct {
 		Google OAuthConfig `yaml:"google"`
 		GitHub OAuthConfig `yaml:"github"`
-		WeChat OAuthConfig `yaml:"wechat"`
 	} `yaml:"oauth"`
+
+	// Frontend 是 OAuth 回调最终 302 跳转的前端地址（中间码模式）。
+	Frontend struct {
+		URL string `yaml:"url"`
+	} `yaml:"frontend"`
+
+	// SMS 手机号验证码发送配置（mock 本地打印 / aliyun 阿里云短信）。
+	SMS struct {
+		Provider string          `yaml:"provider"` // "mock" | "aliyun"
+		Aliyun   AliyunSMSConfig `yaml:"aliyun"`
+	} `yaml:"sms"`
 
 	// Admin 引导：启动时为指定 email 的用户授予 admin 角色（幂等）。
 	Admin struct {
@@ -47,6 +57,14 @@ type OAuthConfig struct {
 	ClientID     string `yaml:"clientId"`
 	ClientSecret string `yaml:"clientSecret"`
 	RedirectURL  string `yaml:"redirectUrl"`
+}
+
+// AliyunSMSConfig 阿里云短信（手写签名 HTTP 调用，不引 SDK）。
+type AliyunSMSConfig struct {
+	AccessKeyID     string `yaml:"accessKeyId"`
+	AccessKeySecret string `yaml:"accessKeySecret"`
+	SignName        string `yaml:"signName"`
+	TemplateCode    string `yaml:"templateCode"`
 }
 
 // Load reads config from config.yaml in the project root.
@@ -125,6 +143,12 @@ func applyDefaults(cfg *Config) {
 	if cfg.UserService.URL == "" {
 		cfg.UserService.URL = "http://localhost:8002"
 	}
+	if cfg.Frontend.URL == "" {
+		cfg.Frontend.URL = "http://localhost:3000"
+	}
+	if cfg.SMS.Provider == "" {
+		cfg.SMS.Provider = "mock"
+	}
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -149,6 +173,24 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("USER_SERVICE_URL"); v != "" {
 		cfg.UserService.URL = v
 	}
+	if v := os.Getenv("FRONTEND_URL"); v != "" {
+		cfg.Frontend.URL = v
+	}
+	if v := os.Getenv("SMS_PROVIDER"); v != "" {
+		cfg.SMS.Provider = v
+	}
+	if v := os.Getenv("ALIYUN_SMS_ACCESS_KEY_ID"); v != "" {
+		cfg.SMS.Aliyun.AccessKeyID = v
+	}
+	if v := os.Getenv("ALIYUN_SMS_ACCESS_KEY_SECRET"); v != "" {
+		cfg.SMS.Aliyun.AccessKeySecret = v
+	}
+	if v := os.Getenv("ALIYUN_SMS_SIGN_NAME"); v != "" {
+		cfg.SMS.Aliyun.SignName = v
+	}
+	if v := os.Getenv("ALIYUN_SMS_TEMPLATE_CODE"); v != "" {
+		cfg.SMS.Aliyun.TemplateCode = v
+	}
 
 	if v := os.Getenv("GOOGLE_CLIENT_ID"); v != "" {
 		cfg.OAuth.Google.ClientID = v
@@ -170,17 +212,7 @@ func applyEnvOverrides(cfg *Config) {
 		cfg.OAuth.GitHub.RedirectURL = v
 	}
 
-	if v := os.Getenv("WECHAT_APP_ID"); v != "" {
-		cfg.OAuth.WeChat.ClientID = v
-	}
-	if v := os.Getenv("WECHAT_APP_SECRET"); v != "" {
-		cfg.OAuth.WeChat.ClientSecret = v
-	}
 	if v := os.Getenv("ADMIN_BOOTSTRAP_EMAIL"); v != "" {
 		cfg.Admin.BootstrapEmail = v
-	}
-
-	if v := os.Getenv("WECHAT_REDIRECT_URL"); v != "" {
-		cfg.OAuth.WeChat.RedirectURL = v
 	}
 }

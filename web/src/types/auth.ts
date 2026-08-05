@@ -6,6 +6,8 @@ export interface User {
   displayName?: string;
   avatar?: string;
   bio?: string;
+  location?: string;
+  website?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,4 +38,28 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+// 手机号验证码登录
+export interface PhoneLoginRequest {
+  phone: string;
+  code: string;
+}
+
+// OAuth 中间码兑换结果：login→user+tokens；link→仅 provider
+export interface OAuthExchangeResponse {
+  outcome: 'login' | 'link';
+  user?: User;
+  tokens?: { accessToken: string; refreshToken: string; expiresIn: number };
+  provider?: string;
+}
+
+export interface OAuthLinkResponse {
+  authUrl: string;
+}
+
+export interface OAuthAccountItem {
+  provider: string;
+  providerUserId: string;
+  linkedAt: string;
 }
