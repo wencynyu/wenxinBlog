@@ -20,10 +20,10 @@ public class LikeService {
                 return likeRepository.deleteByUserIdAndPostId(userId, postId)
                     .then(postRepository.decrementLikeCount(postId).thenReturn(false));
             } else {
+                // 注意：addLike 的 @Query INSERT 在 R2DBC 下返回空 Mono（拿不到影响行数），
+                // 不能依赖其值，统一用 then() 串行执行后再返回 true（与 FavoriteService 保持一致）。
                 return likeRepository.addLike(userId, postId)
-                    .flatMap(inserted -> inserted > 0
-                        ? postRepository.incrementLikeCount(postId).thenReturn(true)
-                        : Mono.just(true));
+                    .then(postRepository.incrementLikeCount(postId).thenReturn(true));
             }
         });
     }

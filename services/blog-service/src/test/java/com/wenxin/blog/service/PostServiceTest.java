@@ -251,7 +251,7 @@ class PostServiceTest {
         when(postRepository.incrementViewCount(postId)).thenReturn(Mono.empty());
         when(postRepository.findById(postId)).thenReturn(Mono.just(existingPost));
 
-        StepVerifier.create(postService.getPost(postId))
+        StepVerifier.create(postService.getPost(postId, null))
                 .expectNextMatches(post -> post.getViewCount() == 5)
                 .verifyComplete();
 
@@ -302,7 +302,7 @@ class PostServiceTest {
 
         when(postRepository.findByAuthorId(eq(authorId), any())).thenReturn(Flux.just(post1, post2));
 
-        StepVerifier.create(postService.listPostsByAuthor(authorId, 0, 20))
+        StepVerifier.create(postService.listPostsByAuthor(authorId, 0, 20, null))
                 .expectNextCount(2)
                 .verifyComplete();
 

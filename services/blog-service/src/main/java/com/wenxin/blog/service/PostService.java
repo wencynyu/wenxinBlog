@@ -3,6 +3,8 @@ package com.wenxin.blog.service;
 import com.wenxin.blog.common.Permissions;
 import com.wenxin.blog.dto.PostRequest;
 import com.wenxin.blog.entity.Post;
+import com.wenxin.blog.repository.PostFavoriteRepository;
+import com.wenxin.blog.repository.PostLikeRepository;
 import com.wenxin.blog.repository.PostRepository;
 import io.r2dbc.spi.Row;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,8 @@ import java.util.UUID;
 public class PostService {
 
     private final PostRepository postRepository;
+    private final PostLikeRepository likeRepository;
+    private final PostFavoriteRepository favoriteRepository;
     private final R2dbcEntityTemplate r2dbc;
     private final BlogEventPublisher blogEventPublisher;
 
@@ -95,10 +99,20 @@ public class PostService {
         });
     }
 
-    public Mono<Post> getPost(UUID id) {
+    public Mono<Post> getPost(UUID id, UUID userId) {
         return postRepository.incrementViewCount(id)
                 .then(postRepository.findById(id))
-                .flatMap(this::fillAuthorAndTags);
+                .flatMap(this::fillAuthorAndTags)
+                .flatMap(post -> fillUserState(post, userId));
+    }
+
+    /** 回填当前用户的 isLiked/isFavorited（未登录 userId=null 则保持默认 false）。 */
+    private Mono<Post> fillUserState(Post post, UUID userId) {
+        if (post == null || userId == null) return Mono.just(post);
+        return Mono.zip(
+                likeRepository.existsByUserIdAndPostId(userId, post.getId()).map(c -> c > 0),
+                favoriteRepository.existsByUserIdAndPostId(userId, post.getId()).map(c -> c > 0)
+        ).doOnNext(t -> { post.setLiked(t.getT1()); post.setFavorited(t.getT2()); }).thenReturn(post);
     }
 
     public Mono<Void> deletePost(UUID userId, UUID id, String permissions) {
@@ -121,7 +135,7 @@ public class PostService {
      * 排序列由 {@link #sortColumnOf(String)} 白名单映射，方向只接受 ASC/DESC，杜绝 SQL 注入。
      * pageSize/page 由 controller 传入（前端契约），此处只做防御性规整。
      */
-    public Mono<PostListResult> listPublishedPosts(int page, int size, String sortBy, String sortOrder, String tag) {
+    public Mono<PostListResult> listPublishedPosts(int page, int size, String sortBy, String sortOrder, String tag, UUID userId) {
         String sortColumn = sortColumnOf(sortBy);
         String direction = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
         int safeSize = size <= 0 ? 20 : size;
@@ -152,7 +166,8 @@ public class PostService {
         Mono<Long> total = countSpec.map(row -> row.get("c", Long.class)).one().defaultIfEmpty(0L);
         // 批量填充 author + tags（2 次查询替代 2N 次 N+1）
         Mono<List<Post>> posts = listSpec.map((row, meta) -> mapPost(row)).all()
-                .collectList().flatMap(this::batchFillAuthorsAndTags);
+                .collectList().flatMap(this::batchFillAuthorsAndTags)
+                .flatMap(list -> batchFillUserState(list, userId));
 
         return Mono.zip(posts, total)
                 .map(t -> new PostListResult(t.getT1(), t.getT2()));
@@ -245,9 +260,37 @@ public class PostService {
     /** listPublishedPosts 结果：帖子列表 + 真实总数（供 PaginatedResponse.totalPages 计算）。 */
     public record PostListResult(List<Post> items, long total) {}
 
-    public Flux<Post> listPostsByAuthor(UUID authorId, int page, int size) {
+    public Flux<Post> listPostsByAuthor(UUID authorId, int page, int size, UUID userId) {
         return postRepository.findByAuthorId(authorId, PageRequest.of(page, size))
-                .flatMapSequential(this::fillAuthorAndTags);
+                .flatMapSequential(this::fillAuthorAndTags)
+                .collectList()
+                .flatMap(list -> batchFillUserState(list, userId))
+                .flatMapMany(Flux::fromIterable);
+    }
+
+    /** 批量回填列表里每篇帖子的 isLiked/isFavorited（按 userId；未登录 userId=null 不查）。2 次查询替代 2N 次 N+1。 */
+    private Mono<List<Post>> batchFillUserState(List<Post> posts, UUID userId) {
+        if (userId == null || posts.isEmpty()) return Mono.just(posts);
+        UUID[] postIds = posts.stream().map(Post::getId).toArray(UUID[]::new);
+        Mono<java.util.Set<UUID>> liked = r2dbc.getDatabaseClient()
+                .sql("SELECT post_id FROM post_likes WHERE user_id = :userId AND post_id = ANY(:postIds)")
+                .bind("userId", userId).bind("postIds", postIds)
+                .map((row, meta) -> row.get("post_id", UUID.class))
+                .all().collectList().map(java.util.HashSet::new);
+        Mono<java.util.Set<UUID>> favorited = r2dbc.getDatabaseClient()
+                .sql("SELECT post_id FROM post_favorites WHERE user_id = :userId AND post_id = ANY(:postIds)")
+                .bind("userId", userId).bind("postIds", postIds)
+                .map((row, meta) -> row.get("post_id", UUID.class))
+                .all().collectList().map(java.util.HashSet::new);
+        return Mono.zip(liked, favorited).map(t -> {
+            java.util.Set<UUID> likedIds = t.getT1();
+            java.util.Set<UUID> favoritedIds = t.getT2();
+            for (Post p : posts) {
+                p.setLiked(likedIds.contains(p.getId()));
+                p.setFavorited(favoritedIds.contains(p.getId()));
+            }
+            return posts;
+        });
     }
 
     public Mono<Void> publishPost(UUID userId, UUID id, String permissions) {

@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -78,7 +79,7 @@ class PostControllerTest {
 
     @Test
     void testGetPost() {
-        when(postService.getPost(postId)).thenReturn(Mono.just(post));
+        when(postService.getPost(eq(postId), isNull())).thenReturn(Mono.just(post));
 
         client.get()
                 .uri("/api/v1/posts/{id}", postId)
@@ -92,7 +93,7 @@ class PostControllerTest {
 
     @Test
     void testGetPost_NotFound() {
-        when(postService.getPost(postId)).thenReturn(Mono.empty());
+        when(postService.getPost(eq(postId), isNull())).thenReturn(Mono.empty());
 
         client.get()
                 .uri("/api/v1/posts/{id}", postId)
@@ -141,7 +142,7 @@ class PostControllerTest {
 
     @Test
     void testListPosts_WithPagination() {
-        when(postService.listPublishedPosts(eq(0), eq(20), any(), any(), any()))
+        when(postService.listPublishedPosts(eq(0), eq(20), any(), any(), any(), isNull()))
                 .thenReturn(Mono.just(new PostService.PostListResult(List.of(post), 1L)));
 
         client.get()
@@ -156,7 +157,7 @@ class PostControllerTest {
 
     @Test
     void testListPosts_PassesSortByAndTag() {
-        when(postService.listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go")))
+        when(postService.listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go"), isNull()))
                 .thenReturn(Mono.just(new PostService.PostListResult(List.of(post), 1L)));
 
         client.get()
@@ -166,12 +167,12 @@ class PostControllerTest {
                 .expectBody()
                 .jsonPath("$.data.items[0].id").exists();
 
-        verify(postService).listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go"));
+        verify(postService).listPublishedPosts(eq(0), eq(5), eq("likeCount"), eq("desc"), eq("Go"), isNull());
     }
 
     @Test
     void testListPosts_WithAuthorId() {
-        when(postService.listPostsByAuthor(eq(userId), eq(0), eq(20)))
+        when(postService.listPostsByAuthor(eq(userId), eq(0), eq(20), isNull()))
                 .thenReturn(Flux.just(post));
 
         client.get()
@@ -185,7 +186,7 @@ class PostControllerTest {
     @Test
     void testPublishPost() {
         when(postService.publishPost(eq(userId), eq(postId), any())).thenReturn(Mono.empty());
-        when(postService.getPost(postId)).thenReturn(Mono.just(post));
+        when(postService.getPost(postId, userId)).thenReturn(Mono.just(post));
 
         client.post()
                 .uri("/api/v1/posts/{id}/publish", postId)

@@ -3,15 +3,20 @@ package com.wenxin.blog.service;
 import com.wenxin.blog.common.Permissions;
 import com.wenxin.blog.dto.CommentRequest;
 import com.wenxin.blog.entity.Comment;
+import com.wenxin.blog.entity.Post;
 import com.wenxin.blog.repository.CommentRepository;
 import com.wenxin.blog.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -20,6 +25,7 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
+    private final R2dbcEntityTemplate r2dbc;
 
     public Mono<Comment> createComment(UUID postId, UUID authorId, CommentRequest req, String permissions) {
         if (!Permissions.has(permissions, "comment:create")) {
@@ -38,7 +44,35 @@ public class CommentService {
     }
 
     public Flux<Comment> listComments(UUID postId) {
-        return commentRepository.findByPostIdAndParentIdIsNullOrderByCreatedAtAsc(postId);
+        return commentRepository.findByPostIdAndParentIdIsNullOrderByCreatedAtAsc(postId)
+                .collectList()
+                .flatMapMany(this::batchFillAuthors);
+    }
+
+    /** 批量填充评论 author（一次 ANY(:ids) 查询替代 N+1），仿 PostService.batchFillAuthorsAndTags。 */
+    private Flux<Comment> batchFillAuthors(List<Comment> comments) {
+        if (comments.isEmpty()) return Flux.fromIterable(comments);
+        UUID[] authorIds = comments.stream().map(Comment::getAuthorId)
+                .filter(Objects::nonNull).distinct().toArray(UUID[]::new);
+        if (authorIds.length == 0) return Flux.fromIterable(comments);
+        return r2dbc.getDatabaseClient()
+                .sql("SELECT id, username, display_name, avatar_url FROM authors WHERE id = ANY(:ids)")
+                .bind("ids", authorIds)
+                .map(row -> Map.entry(row.get("id", UUID.class),
+                        new Post.AuthorInfo(
+                                row.get("id", UUID.class).toString(),
+                                row.get("username", String.class),
+                                row.get("display_name", String.class),
+                                row.get("avatar_url", String.class))))
+                .all()
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                .flatMapMany(map -> {
+                    for (Comment c : comments) {
+                        Post.AuthorInfo a = map.get(c.getAuthorId());
+                        if (a != null) c.setAuthor(a);
+                    }
+                    return Flux.fromIterable(comments);
+                });
     }
 
     public Flux<Comment> listReplies(UUID parentId) {

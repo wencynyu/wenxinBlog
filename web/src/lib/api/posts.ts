@@ -1,10 +1,5 @@
 import client from './client';
-import type {
-  Post,
-  CreatePostRequest,
-  UpdatePostRequest,
-  PostQueryParams,
-} from '@/types/post';
+import type { Post, CreatePostRequest, UpdatePostRequest, PostQueryParams } from '@/types/post';
 import type { ApiResponse, PaginatedResponse } from '@/types/common';
 
 /**
@@ -49,29 +44,17 @@ export async function deletePost(id: string): Promise<void> {
 }
 
 /**
- * 点赞博文
+ * 点赞博文（后端 POST /like 是 toggle：切换赞/取消，返回新状态 true=已赞 / false=已取消）
  */
-export async function likePost(id: string): Promise<void> {
-  await client.post(`/api/v1/posts/${id}/like`);
+export async function likePost(id: string): Promise<boolean> {
+  const response: ApiResponse<boolean> = await client.post(`/api/v1/posts/${id}/like`);
+  return response.data;
 }
 
 /**
- * 取消点赞
+ * 收藏博文（后端 POST /favorite 是 toggle：切换收藏/取消，返回新状态）
  */
-export async function unlikePost(id: string): Promise<void> {
-  await client.delete(`/api/v1/posts/${id}/like`);
-}
-
-/**
- * 收藏博文
- */
-export async function favoritePost(id: string): Promise<void> {
-  await client.post(`/api/v1/posts/${id}/favorite`);
-}
-
-/**
- * 取消收藏
- */
-export async function unfavoritePost(id: string): Promise<void> {
-  await client.delete(`/api/v1/posts/${id}/favorite`);
+export async function favoritePost(id: string): Promise<boolean> {
+  const response: ApiResponse<boolean> = await client.post(`/api/v1/posts/${id}/favorite`);
+  return response.data;
 }

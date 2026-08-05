@@ -58,14 +58,8 @@ export function useToggleLike() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, isLiked }: { id: string; isLiked: boolean }) => {
-      if (isLiked) {
-        await postsApi.unlikePost(id);
-      } else {
-        await postsApi.likePost(id);
-      }
-      return { id, isLiked };
-    },
+    // 后端 POST /like 是 toggle（切换），统一走 POST；用返回的新状态校正，避免本地缓存与后端不同步导致 toggle 切错方向
+    mutationFn: ({ id }: { id: string; isLiked: boolean }) => postsApi.likePost(id),
     onMutate: async ({ id, isLiked }) => {
       await queryClient.cancelQueries({ queryKey: ['post', id] });
 
@@ -81,13 +75,16 @@ export function useToggleLike() {
 
       return { previousPost };
     },
+    onSuccess: (liked, { id }) => {
+      // 用后端真实返回校正 isLiked（防乐观方向猜错）
+      queryClient.setQueryData<Post>(['post', id], (old) =>
+        old ? { ...old, isLiked: liked } : old,
+      );
+    },
     onError: (_, __, context) => {
       if (context?.previousPost) {
         queryClient.setQueryData(['post', context.previousPost.id], context.previousPost);
       }
-    },
-    onSettled: (_, __, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['post', id] });
     },
   });
 }
@@ -96,14 +93,8 @@ export function useToggleFavorite() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, isFavorited }: { id: string; isFavorited: boolean }) => {
-      if (isFavorited) {
-        await postsApi.unfavoritePost(id);
-      } else {
-        await postsApi.favoritePost(id);
-      }
-      return { id, isFavorited };
-    },
+    // 后端 POST /favorite 是 toggle（切换），统一走 POST；用返回的新状态校正
+    mutationFn: ({ id }: { id: string; isFavorited: boolean }) => postsApi.favoritePost(id),
     onMutate: async ({ id, isFavorited }) => {
       await queryClient.cancelQueries({ queryKey: ['post', id] });
 
@@ -118,13 +109,15 @@ export function useToggleFavorite() {
 
       return { previousPost };
     },
+    onSuccess: (favorited, { id }) => {
+      queryClient.setQueryData<Post>(['post', id], (old) =>
+        old ? { ...old, isFavorited: favorited } : old,
+      );
+    },
     onError: (_, __, context) => {
       if (context?.previousPost) {
         queryClient.setQueryData(['post', context.previousPost.id], context.previousPost);
       }
-    },
-    onSettled: (_, __, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['post', id] });
     },
   });
 }

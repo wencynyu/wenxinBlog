@@ -25,8 +25,9 @@ public class PostController {
     }
 
     @GetMapping("/{id}")
-    public Mono<Result<Post>> getPost(@PathVariable UUID id) {
-        return postService.getPost(id).map(post -> Result.success(post))
+    public Mono<Result<Post>> getPost(@PathVariable UUID id,
+                                      @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
+        return postService.getPost(id, userId).map(post -> Result.success(post))
             .switchIfEmpty(Mono.just(Result.error(404, "Post not found")));
     }
 
@@ -52,17 +53,18 @@ public class PostController {
         @RequestParam(required = false) String authorId,
         @RequestParam(required = false) String sortBy,
         @RequestParam(defaultValue = "desc") String sortOrder,
-        @RequestParam(required = false) String tag) {
+        @RequestParam(required = false) String tag,
+        @RequestHeader(value = "X-User-Id", required = false) UUID userId) {
         // 前端发 1-based page，Spring Data PageRequest 是 0-based
         int zeroPage = Math.max(0, page - 1);
         if (authorId != null) {
             // 作者主页列表：保持 created_at 倒序（前端恒请求 createdAt），单页展示无需精确 total
-            return postService.listPostsByAuthor(UUID.fromString(authorId), zeroPage, pageSize)
+            return postService.listPostsByAuthor(UUID.fromString(authorId), zeroPage, pageSize, userId)
                 .collectList()
                 .map(list -> Result.success(PaginatedResponse.of(list, page, pageSize, list.size())));
         }
         // 公开列表：支持 sortBy(likeCount/commentCount/createdAt...) / sortOrder / tag，返回真实 total
-        return postService.listPublishedPosts(zeroPage, pageSize, sortBy, sortOrder, tag)
+        return postService.listPublishedPosts(zeroPage, pageSize, sortBy, sortOrder, tag, userId)
             .map(r -> Result.success(PaginatedResponse.of(r.items(), page, pageSize, r.total())));
     }
 
@@ -70,7 +72,7 @@ public class PostController {
     public Mono<Result<Post>> publishPost(@RequestHeader("X-User-Id") UUID userId,
                                           @RequestHeader(value = "X-User-Permissions", defaultValue = "") String permissions,
                                           @PathVariable UUID id) {
-        return postService.publishPost(userId, id, permissions).then(postService.getPost(id)).map(Result::success);
+        return postService.publishPost(userId, id, permissions).then(postService.getPost(id, userId)).map(Result::success);
     }
 
     @PostMapping("/{id}/feature")

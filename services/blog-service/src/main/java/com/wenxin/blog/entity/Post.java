@@ -1,6 +1,8 @@
 package com.wenxin.blog.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
+import lombok.Getter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.relational.core.mapping.Table;
@@ -42,6 +44,17 @@ public class Post {
     // 便于前端序列化（author 嵌套对象）
     @Transient
     private AuthorInfo author;
+
+    // 当前用户视角状态（getPost 时按 X-User-Id 回填，未登录为 false）。
+    // @Getter(onMethod_=@JsonProperty(...)) 给 Lombok 生成的 getter 固定 wire 字段名为 isLiked/isFavorited：
+    // 否则 Jackson 把 isXxx() 的 is 前缀去掉输出成 liked/favorited，与前端 Post 类型不一致，
+    // 导致刷新后点赞/收藏状态丢失。（注解放字段上会产生重复字段，必须放 getter。）
+    @Transient
+    @Getter(onMethod_ = @JsonProperty("isLiked"))
+    private boolean isLiked;
+    @Transient
+    @Getter(onMethod_ = @JsonProperty("isFavorited"))
+    private boolean isFavorited;
 
     @Data
     public static class AuthorInfo {
