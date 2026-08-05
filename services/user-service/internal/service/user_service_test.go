@@ -56,6 +56,10 @@ func (m *MockProfileRepository) CreateUser(userID uuid.UUID, username, email str
 	return nil
 }
 func (m *MockProfileRepository) GetByID(id uuid.UUID) (*model.UserProfile, error) { return nil, nil }
+
+func (m *MockProfileRepository) GetUserinfo(userID uuid.UUID) (string, string, error) {
+	return "", "", nil
+}
 func (m *MockProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
 	if m.GetUsernameFunc != nil {
 		return m.GetUsernameFunc(userID)
@@ -182,7 +186,7 @@ func TestUserService_GetProfile_Success(t *testing.T) {
 	}
 
 	svc := NewUserService(mockProfile, nil, nil)
-	profile, err := svc.GetProfile(userID)
+	profile, err := svc.GetProfile(userID, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, profile)
@@ -201,7 +205,7 @@ func TestUserService_GetProfile_LazyCreatesWhenMissing(t *testing.T) {
 	}
 
 	svc := NewUserService(mockProfile, nil, nil)
-	profile, err := svc.GetProfile(userID)
+	profile, err := svc.GetProfile(userID, nil)
 
 	// 新行为：profile 缺失时懒创建一条默认的并返回，不再返回 nil/404
 	require.NoError(t, err)
@@ -219,7 +223,7 @@ func TestUserService_GetProfile_Error(t *testing.T) {
 	}
 
 	svc := NewUserService(mockProfile, nil, nil)
-	profile, err := svc.GetProfile(userID)
+	profile, err := svc.GetProfile(userID, nil)
 
 	assert.Error(t, err)
 	assert.Nil(t, profile)
@@ -304,7 +308,7 @@ func TestUserService_SearchUsers_Success(t *testing.T) {
 	result, err := svc.SearchUsers("test", 1, 10)
 
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(result.Users))
+	assert.Equal(t, 2, len(result.Items))
 	assert.Equal(t, int64(2), result.Total)
 }
 
@@ -443,7 +447,7 @@ func TestUserService_GetFollowers_Success(t *testing.T) {
 	result, err := svc.GetFollowers(userID, 1, 10)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(result.Users))
+	assert.Equal(t, 1, len(result.Items))
 	assert.Equal(t, int64(1), result.Total)
 }
 
@@ -463,7 +467,7 @@ func TestUserService_GetFollowing_Success(t *testing.T) {
 	result, err := svc.GetFollowing(userID, 1, 10)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(result.Users))
+	assert.Equal(t, 1, len(result.Items))
 }
 
 func TestUserService_IsFollowing_Success(t *testing.T) {
@@ -551,7 +555,7 @@ func TestUserService_Search_EmptyResult(t *testing.T) {
 	result, err := svc.SearchUsers("nonexistent", 1, 10)
 
 	require.NoError(t, err)
-	assert.Equal(t, 0, len(result.Users))
+	assert.Equal(t, 0, len(result.Items))
 	assert.Equal(t, int64(0), result.Total)
 }
 

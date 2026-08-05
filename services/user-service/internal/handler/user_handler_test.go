@@ -16,7 +16,7 @@ import (
 
 // MockUserService implements service.UserServicer for testing
 type MockUserService struct {
-	getProfileFunc      func(userID uuid.UUID) (*dto.UserProfileResponse, error)
+	getProfileFunc      func(userID uuid.UUID, currentUserID *uuid.UUID) (*dto.UserProfileResponse, error)
 	updateProfileFunc   func(userID uuid.UUID, req *dto.UpdateProfileRequest) (*dto.UserProfileResponse, error)
 	getStatsFunc        func(userID uuid.UUID) (*dto.StatsResponse, error)
 	getFollowersFunc    func(userID uuid.UUID, page, size int) (*dto.UserListResponse, error)
@@ -28,9 +28,9 @@ type MockUserService struct {
 	createUserFunc      func(userID uuid.UUID, username, email string) error
 }
 
-func (m *MockUserService) GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, error) {
+func (m *MockUserService) GetProfile(userID uuid.UUID, currentUserID *uuid.UUID) (*dto.UserProfileResponse, error) {
 	if m.getProfileFunc != nil {
-		return m.getProfileFunc(userID)
+		return m.getProfileFunc(userID, currentUserID)
 	}
 	return nil, nil
 }
@@ -122,7 +122,7 @@ func TestHandler_GetProfile_Success(t *testing.T) {
 	}
 
 	mockSvc := &MockUserService{
-		getProfileFunc: func(id uuid.UUID) (*dto.UserProfileResponse, error) {
+		getProfileFunc: func(id uuid.UUID, _ *uuid.UUID) (*dto.UserProfileResponse, error) {
 			if id == userID {
 				return expectedProfile, nil
 			}
@@ -160,7 +160,7 @@ func TestHandler_GetProfile_NotFound(t *testing.T) {
 	userID := uuid.New()
 
 	mockSvc := &MockUserService{
-		getProfileFunc: func(id uuid.UUID) (*dto.UserProfileResponse, error) {
+		getProfileFunc: func(id uuid.UUID, _ *uuid.UUID) (*dto.UserProfileResponse, error) {
 			return nil, nil
 		},
 	}
@@ -179,7 +179,7 @@ func TestHandler_GetProfile_ServiceError(t *testing.T) {
 	userID := uuid.New()
 
 	mockSvc := &MockUserService{
-		getProfileFunc: func(id uuid.UUID) (*dto.UserProfileResponse, error) {
+		getProfileFunc: func(id uuid.UUID, _ *uuid.UUID) (*dto.UserProfileResponse, error) {
 			return nil, assert.AnError
 		},
 	}
@@ -388,7 +388,7 @@ func TestHandler_GetFollowers_Success(t *testing.T) {
 	mockSvc := &MockUserService{
 		getFollowersFunc: func(id uuid.UUID, page, size int) (*dto.UserListResponse, error) {
 			return &dto.UserListResponse{
-				Users: []dto.UserProfileResponse{},
+				Items: []dto.UserProfileResponse{},
 				Total: 0,
 			}, nil
 		},
@@ -444,7 +444,7 @@ func TestHandler_GetFollowers_PaginationDefaults(t *testing.T) {
 			capturedPage = page
 			capturedSize = size
 			return &dto.UserListResponse{
-				Users: []dto.UserProfileResponse{},
+				Items: []dto.UserProfileResponse{},
 				Total: 0,
 			}, nil
 		},
@@ -468,7 +468,7 @@ func TestHandler_GetFollowing_Success(t *testing.T) {
 	mockSvc := &MockUserService{
 		getFollowingFunc: func(id uuid.UUID, page, size int) (*dto.UserListResponse, error) {
 			return &dto.UserListResponse{
-				Users: []dto.UserProfileResponse{},
+				Items: []dto.UserProfileResponse{},
 				Total: 0,
 			}, nil
 		},
@@ -664,7 +664,7 @@ func TestHandler_SearchUsers_Success(t *testing.T) {
 	mockSvc := &MockUserService{
 		searchUsersFunc: func(query string, page, size int) (*dto.UserListResponse, error) {
 			return &dto.UserListResponse{
-				Users: []dto.UserProfileResponse{},
+				Items: []dto.UserProfileResponse{},
 				Total: 0,
 			}, nil
 		},
@@ -717,7 +717,7 @@ func TestHandler_SearchUsers_WithPagination(t *testing.T) {
 			capturedPage = page
 			capturedSize = size
 			return &dto.UserListResponse{
-				Users: []dto.UserProfileResponse{},
+				Items: []dto.UserProfileResponse{},
 				Total: 0,
 			}, nil
 		},
@@ -870,7 +870,7 @@ func TestHandler_Integration_CompleteFlow(t *testing.T) {
 	profiles := make(map[uuid.UUID]*dto.UserProfileResponse)
 
 	mockSvc := &MockUserService{
-		getProfileFunc: func(id uuid.UUID) (*dto.UserProfileResponse, error) {
+		getProfileFunc: func(id uuid.UUID, _ *uuid.UUID) (*dto.UserProfileResponse, error) {
 			if profile, ok := profiles[id]; ok {
 				return profile, nil
 			}

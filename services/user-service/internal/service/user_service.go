@@ -13,7 +13,7 @@ import (
 
 // UserServicer defines the interface for user service operations
 type UserServicer interface {
-	GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, error)
+	GetProfile(userID uuid.UUID, currentUserID *uuid.UUID) (*dto.UserProfileResponse, error)
 	UpdateProfile(userID uuid.UUID, req *dto.UpdateProfileRequest) (*dto.UserProfileResponse, error)
 	SearchUsers(query string, page, size int) (*dto.UserListResponse, error)
 	FollowUser(followerID, followingID uuid.UUID) error
@@ -41,26 +41,58 @@ func (s *UserService) CreateUser(userID uuid.UUID, username, email string) error
 	return s.profileRepo.CreateUser(userID, username, email)
 }
 
-func (s *UserService) GetProfile(userID uuid.UUID) (*dto.UserProfileResponse, error) {
+// GetProfile 返回完整用户主页：profile + username/email + 统计 + isFollowing（当前用户视角）。
+func (s *UserService) GetProfile(userID uuid.UUID, currentUserID *uuid.UUID) (*dto.UserProfileResponse, error) {
 	profile, err := s.profileRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
-	// 懒创建：profile 不存在时建一条默认的。否则注册流程未建 profile 的用户，
-	// 其「我的主页」会恒返回 404（user_profiles 表此前从未被写入）。
+	// 懒创建：profile 不存在时建一条默认的。
 	if profile == nil {
 		if profile, err = s.ensureProfile(userID); err != nil {
 			return nil, err
 		}
 	}
 	resp := dto.ProfileFromModel(*profile)
+	s.enrichProfile(&resp, userID, currentUserID)
 	go s.profileRepo.IncrementViewCount(userID)
 	return &resp, nil
 }
 
-// ensureProfile 为尚无 profile 的用户创建一条默认 profile（首次访问个人主页时触发）。
-// display_name 用 users 表的 username 作默认值（user-service 同库可读）。
-// 并发场景下可能已有另一请求创建成功，此时 Create 会因 user_id 唯一约束失败 → 回退再查一次。
+// enrichProfile 补填 username/email/统计/isFollowing（ProfileFromModel 只填 profile 基础）。
+// statsRepo/followRepo 容错 nil（测试或部分构造场景），enrichment 失败不阻断主流程。
+func (s *UserService) enrichProfile(resp *dto.UserProfileResponse, userID uuid.UUID, currentUserID *uuid.UUID) {
+	if s.profileRepo != nil {
+		if username, email, err := s.profileRepo.GetUserinfo(userID); err == nil {
+			resp.Username = username
+			resp.Email = email
+		}
+	}
+	if s.statsRepo != nil {
+		if stats, err := s.statsRepo.GetStats(userID); err == nil && stats != nil {
+			resp.FollowersCount = stats.FollowerCount
+			resp.FollowingCount = stats.FollowingCount
+			resp.PostsCount = stats.PostCount
+		}
+	}
+	if s.followRepo != nil && currentUserID != nil && *currentUserID != userID {
+		if following, err := s.followRepo.IsFollowing(*currentUserID, userID); err == nil {
+			resp.IsFollowing = following
+		}
+	}
+}
+
+// enrichUsername 列表项补 username（逐个查，pageSize 小可接受）。容错 nil profileRepo。
+func (s *UserService) enrichUsername(resp *dto.UserProfileResponse, userID uuid.UUID) {
+	if s.profileRepo == nil {
+		return
+	}
+	if username, _, err := s.profileRepo.GetUserinfo(userID); err == nil {
+		resp.Username = username
+	}
+}
+
+// ensureProfile 为尚无 profile 的用户创建默认 profile（display_name 用 users.username）。
 func (s *UserService) ensureProfile(userID uuid.UUID) (*model.UserProfile, error) {
 	username, err := s.profileRepo.GetUsername(userID)
 	if err != nil {
@@ -68,7 +100,7 @@ func (s *UserService) ensureProfile(userID uuid.UUID) (*model.UserProfile, error
 	}
 	displayName := username
 	if displayName == "" {
-		displayName = "user" // users.username NOT NULL，正常非空；兜底防 display_name NOT NULL 违约
+		displayName = "user"
 	}
 	now := time.Now()
 	p := &model.UserProfile{
@@ -96,7 +128,7 @@ func (s *UserService) UpdateProfile(userID uuid.UUID, req *dto.UpdateProfileRequ
 		birthday = &t
 	}
 
-	if err := s.profileRepo.Update(userID, req.DisplayName, req.AvatarUrl, req.Bio, req.Website, req.Location, req.Company, birthday); err != nil {
+	if err := s.profileRepo.Update(userID, req.DisplayName, req.Avatar, req.Bio, req.Website, req.Location, req.Company, birthday); err != nil {
 		return nil, err
 	}
 
@@ -108,6 +140,7 @@ func (s *UserService) UpdateProfile(userID uuid.UUID, req *dto.UpdateProfileRequ
 		return nil, nil
 	}
 	resp := dto.ProfileFromModel(*profile)
+	s.enrichProfile(&resp, userID, nil)
 	return &resp, nil
 }
 
@@ -116,32 +149,26 @@ func (s *UserService) SearchUsers(query string, page, size int) (*dto.UserListRe
 	if err != nil {
 		return nil, err
 	}
-
-	var users []dto.UserProfileResponse
+	items := make([]dto.UserProfileResponse, 0, len(profiles))
 	for _, p := range profiles {
-		users = append(users, dto.ProfileFromModel(p))
+		resp := dto.ProfileFromModel(p)
+		s.enrichUsername(&resp, p.UserID)
+		items = append(items, resp)
 	}
-	if users == nil {
-		users = []dto.UserProfileResponse{}
-	}
-	return &dto.UserListResponse{Users: users, Total: total}, nil
+	return paged(items, total, page, size), nil
 }
 
 func (s *UserService) FollowUser(followerID, followingID uuid.UUID) error {
 	if followerID == followingID {
 		return nil
 	}
-
 	inserted, err := s.followRepo.Follow(followerID, followingID)
 	if err != nil {
 		return err
 	}
 	if !inserted {
-		// 重复 follow：未真正插入，计数不变
 		return nil
 	}
-
-	// Update stats async
 	go func() {
 		s.statsRepo.IncrementFollowerCount(followingID)
 		s.statsRepo.IncrementFollowingCount(followerID)
@@ -155,10 +182,8 @@ func (s *UserService) UnfollowUser(followerID, followingID uuid.UUID) error {
 		return err
 	}
 	if !deleted {
-		// 未关注：未真正删除，计数不变
 		return nil
 	}
-
 	go func() {
 		s.statsRepo.DecrementFollowerCount(followingID)
 		s.statsRepo.DecrementFollowingCount(followerID)
@@ -171,15 +196,13 @@ func (s *UserService) GetFollowers(userID uuid.UUID, page, size int) (*dto.UserL
 	if err != nil {
 		return nil, err
 	}
-
-	var users []dto.UserProfileResponse
+	items := make([]dto.UserProfileResponse, 0, len(profiles))
 	for _, p := range profiles {
-		users = append(users, dto.ProfileFromModel(p))
+		resp := dto.ProfileFromModel(p)
+		s.enrichUsername(&resp, p.UserID)
+		items = append(items, resp)
 	}
-	if users == nil {
-		users = []dto.UserProfileResponse{}
-	}
-	return &dto.UserListResponse{Users: users, Total: total}, nil
+	return paged(items, total, page, size), nil
 }
 
 func (s *UserService) GetFollowing(userID uuid.UUID, page, size int) (*dto.UserListResponse, error) {
@@ -187,15 +210,13 @@ func (s *UserService) GetFollowing(userID uuid.UUID, page, size int) (*dto.UserL
 	if err != nil {
 		return nil, err
 	}
-
-	var users []dto.UserProfileResponse
+	items := make([]dto.UserProfileResponse, 0, len(profiles))
 	for _, p := range profiles {
-		users = append(users, dto.ProfileFromModel(p))
+		resp := dto.ProfileFromModel(p)
+		s.enrichUsername(&resp, p.UserID)
+		items = append(items, resp)
 	}
-	if users == nil {
-		users = []dto.UserProfileResponse{}
-	}
-	return &dto.UserListResponse{Users: users, Total: total}, nil
+	return paged(items, total, page, size), nil
 }
 
 func (s *UserService) IsFollowing(followerID, followingID uuid.UUID) (bool, error) {
@@ -219,5 +240,13 @@ func (s *UserService) GetStats(userID uuid.UUID) (*dto.StatsResponse, error) {
 	}, nil
 }
 
-// Suppress unused import
-var _ = model.UserProfile{}
+// paged 构造分页响应（对齐前端 PaginatedResponse）。
+func paged(items []dto.UserProfileResponse, total int64, page, size int) *dto.UserListResponse {
+	totalPages := 0
+	if size > 0 && total > 0 {
+		totalPages = int((total + int64(size) - 1) / int64(size))
+	}
+	return &dto.UserListResponse{
+		Items: items, Total: total, Page: page, PageSize: size, TotalPages: totalPages,
+	}
+}

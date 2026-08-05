@@ -50,7 +50,15 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 		return c.Status(400).JSON(dto.Error("invalid user id"))
 	}
 
-	profile, err := h.svc.GetProfile(id)
+	// 当前用户（可选，未登录时为 nil）→ 用于 isFollowing。网关在已登录时注入 X-User-Id。
+	var currentUserID *uuid.UUID
+	if hid := c.Get("X-User-Id"); hid != "" {
+		if uid, err := uuid.Parse(hid); err == nil {
+			currentUserID = &uid
+		}
+	}
+
+	profile, err := h.svc.GetProfile(id, currentUserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
 			return c.Status(404).JSON(dto.Error("user not found"))

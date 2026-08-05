@@ -33,8 +33,8 @@ func TestDTO_ProfileFromModel_FullProfile(t *testing.T) {
 	profileID := uuid.New()
 
 	m := model.UserProfile{
-		ID:        profileID,
-		UserID:    userID,
+		ID:          profileID,
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Test User", Valid: true},
 		AvatarUrl:   sql.NullString{String: "http://example.com/avatar.jpg", Valid: true},
 		Bio:         sql.NullString{String: "Test bio", Valid: true},
@@ -51,7 +51,7 @@ func TestDTO_ProfileFromModel_FullProfile(t *testing.T) {
 	assert.Equal(t, profileID, result.ID)
 	assert.Equal(t, userID, result.UserID)
 	assert.Equal(t, "Test User", result.DisplayName)
-	assert.Equal(t, "http://example.com/avatar.jpg", result.AvatarUrl)
+	assert.Equal(t, "http://example.com/avatar.jpg", result.Avatar)
 	assert.Equal(t, "Test bio", result.Bio)
 	assert.Equal(t, "http://example.com", result.Website)
 	assert.Equal(t, "New York", result.Location)
@@ -65,8 +65,8 @@ func TestDTO_ProfileFromModel_NullFields(t *testing.T) {
 	profileID := uuid.New()
 
 	m := model.UserProfile{
-		ID:        profileID,
-		UserID:    userID,
+		ID:          profileID,
+		UserID:      userID,
 		DisplayName: sql.NullString{Valid: false},
 		AvatarUrl:   sql.NullString{Valid: false},
 		Bio:         sql.NullString{Valid: false},
@@ -83,7 +83,7 @@ func TestDTO_ProfileFromModel_NullFields(t *testing.T) {
 	assert.Equal(t, profileID, result.ID)
 	assert.Equal(t, userID, result.UserID)
 	assert.Empty(t, result.DisplayName) // Should be empty string for NULL
-	assert.Empty(t, result.AvatarUrl)
+	assert.Empty(t, result.Avatar)
 	assert.Empty(t, result.Bio)
 	assert.Empty(t, result.Website)
 	assert.Empty(t, result.Location)
@@ -96,25 +96,25 @@ func TestDTO_ProfileFromModel_PartialFields(t *testing.T) {
 	profileID := uuid.New()
 
 	m := model.UserProfile{
-		ID:        profileID,
-		UserID:    userID,
+		ID:          profileID,
+		UserID:      userID,
 		DisplayName: sql.NullString{String: "Partial User", Valid: true},
 		Bio:         sql.NullString{String: "Has bio", Valid: true},
 		// Other fields are NULL
-		AvatarUrl:   sql.NullString{Valid: false},
-		Website:     sql.NullString{Valid: false},
-		Location:    sql.NullString{Valid: false},
-		Company:     sql.NullString{Valid: false},
-		Birthday:    sql.NullTime{Valid: false},
-		ViewCount:   50,
-		CreatedAt:   time.Now(),
+		AvatarUrl: sql.NullString{Valid: false},
+		Website:   sql.NullString{Valid: false},
+		Location:  sql.NullString{Valid: false},
+		Company:   sql.NullString{Valid: false},
+		Birthday:  sql.NullTime{Valid: false},
+		ViewCount: 50,
+		CreatedAt: time.Now(),
 	}
 
 	result := ProfileFromModel(m)
 
 	assert.Equal(t, "Partial User", result.DisplayName)
 	assert.Equal(t, "Has bio", result.Bio)
-	assert.Empty(t, result.AvatarUrl)
+	assert.Empty(t, result.Avatar)
 	assert.Empty(t, result.Website)
 	assert.Empty(t, result.Location)
 	assert.Empty(t, result.Company)
@@ -152,11 +152,11 @@ func TestDTO_UserListResponse(t *testing.T) {
 	}
 
 	resp := UserListResponse{
-		Users: users,
+		Items: users,
 		Total: 2,
 	}
 
-	assert.Equal(t, 2, len(resp.Users))
+	assert.Equal(t, 2, len(resp.Items))
 	assert.Equal(t, int64(2), resp.Total)
 }
 
@@ -167,13 +167,13 @@ func TestDTO_UpdateProfileRequest_PointerFields(t *testing.T) {
 	req := UpdateProfileRequest{
 		DisplayName: &name,
 		Bio:         &bio,
-		AvatarUrl:   nil, // Not updating
+		Avatar:      nil, // Not updating
 		Website:     nil,
 	}
 
 	assert.Equal(t, "Updated Name", *req.DisplayName)
 	assert.Equal(t, "Updated bio", *req.Bio)
-	assert.Nil(t, req.AvatarUrl)
+	assert.Nil(t, req.Avatar)
 	assert.Nil(t, req.Website)
 }
 

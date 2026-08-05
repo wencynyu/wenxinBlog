@@ -18,6 +18,7 @@ type ProfileRepositoryInterface interface {
 	GetByUserID(userID uuid.UUID) (*model.UserProfile, error)
 	GetByID(id uuid.UUID) (*model.UserProfile, error)
 	GetUsername(userID uuid.UUID) (string, error)
+	GetUserinfo(userID uuid.UUID) (username, email string, err error)
 	Update(userID uuid.UUID, displayName, avatarUrl, bio, website, location, company *string, birthday *time.Time) error
 	Search(query string, limit, offset int) ([]model.UserProfile, int64, error)
 	IncrementViewCount(userID uuid.UUID) error
@@ -53,11 +54,12 @@ func (r *ProfileRepository) Create(profile *model.UserProfile) error {
 }
 
 // CreateUser 幂等把注册用户插入 users 表（auth-service 注册成功后跨库调用）。
-// user_db.users.email/password_hash 为 NOT NULL：email 由 auth 传入；
+// email/password_hash 在本库已改为可空：社交/手机号用户无邮箱，空串经 NULLIF 转为 NULL，
+// 配合部分唯一索引（users_email_unique WHERE email IS NOT NULL）允许多个无邮箱用户。
 // password_hash 在本库永不被校验，置空串占位即可。status/two_fa_enabled 走 DB 默认值。
 func (r *ProfileRepository) CreateUser(userID uuid.UUID, username, email string) error {
 	query := `INSERT INTO users (id, username, email, password_hash, created_at, updated_at)
-		VALUES ($1, $2, $3, '', $4, $5)
+		VALUES ($1, $2, NULLIF($3, ''), '', $4, $5)
 		ON CONFLICT (id) DO NOTHING`
 	_, err := r.db.Exec(query, userID, username, email, time.Now(), time.Now())
 	return err
@@ -71,6 +73,16 @@ func (r *ProfileRepository) GetUsername(userID uuid.UUID) (string, error) {
 		return "", ErrUserNotFound
 	}
 	return username, err
+}
+
+// GetUserinfo 取 username + email（同库 users 表），供 profile 响应补字段。
+func (r *ProfileRepository) GetUserinfo(userID uuid.UUID) (string, string, error) {
+	var username, email string
+	err := r.db.QueryRow(`SELECT username, email FROM users WHERE id = $1`, userID).Scan(&username, &email)
+	if err == sql.ErrNoRows {
+		return "", "", ErrUserNotFound
+	}
+	return username, email, err
 }
 
 func (r *ProfileRepository) GetByUserID(userID uuid.UUID) (*model.UserProfile, error) {

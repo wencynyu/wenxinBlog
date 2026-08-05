@@ -29,8 +29,8 @@ CREATE TABLE public.user_stats (
 CREATE TABLE public.users (
     id uuid NOT NULL,
     username character varying(255) NOT NULL,
-    email character varying(255) NOT NULL,
-    password_hash character varying(255) NOT NULL,
+    email character varying(255),
+    password_hash character varying(255),
     avatar_url character varying(500),
     status character varying(50) DEFAULT 'ACTIVE'::character varying NOT NULL,
     two_fa_enabled boolean DEFAULT false NOT NULL,
@@ -45,8 +45,8 @@ ALTER TABLE ONLY public.user_profiles
     ADD CONSTRAINT user_profiles_user_id_key UNIQUE (user_id);
 ALTER TABLE ONLY public.user_stats
     ADD CONSTRAINT user_stats_pkey PRIMARY KEY (user_id);
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_email_key UNIQUE (email);
+-- email 改为部分唯一索引：允许多个 NULL（社交/手机号用户无邮箱），非 NULL 仍唯一。
+CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (email) WHERE email IS NOT NULL;
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.users
