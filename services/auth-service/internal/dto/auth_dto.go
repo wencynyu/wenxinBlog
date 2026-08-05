@@ -19,13 +19,13 @@ type UserResponse struct {
 	ID           string `json:"id"`
 	Username     string `json:"username"`
 	Email        string `json:"email"`
-	AvatarURL    string `json:"avatarUrl,omitempty"`
+	AvatarURL    string `json:"avatar,omitempty"`
 	Status       string `json:"status"`
 	TwoFAEnabled bool   `json:"twoFAEnabled"`
 }
 
 type AuthResponse struct {
-	User   *UserResponse `json:"user"`
+	User   *UserResponse  `json:"user"`
 	Tokens *TokenResponse `json:"tokens"`
 }
 
@@ -44,4 +44,13 @@ type APIResponse struct {
 type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+// PaginatedData 分页响应，字段对齐前端 PaginatedResponse。
+type PaginatedData struct {
+	Items      interface{} `json:"items"`
+	Total      int64       `json:"total"`
+	Page       int         `json:"page"`
+	PageSize   int         `json:"pageSize"`
+	TotalPages int         `json:"totalPages"`
 }

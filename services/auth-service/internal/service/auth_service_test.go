@@ -14,12 +14,15 @@ import (
 
 // MockUserRepository is a mock implementation of UserRepository
 type MockUserRepository struct {
-	CreateFunc         func(ctx context.Context, user *model.User) error
-	FindByIDFunc       func(ctx context.Context, id string) (*model.User, error)
-	FindByEmailFunc    func(ctx context.Context, email string) (*model.User, error)
-	FindByUsernameFunc func(ctx context.Context, username string) (*model.User, error)
-	UpdatePasswordFunc func(ctx context.Context, id, hash string) error
-	UpdateStatusFunc   func(ctx context.Context, id, status string) error
+	CreateFunc           func(ctx context.Context, user *model.User) error
+	CreateNoPasswordFunc func(ctx context.Context, user *model.User) error
+	FindByIDFunc         func(ctx context.Context, id string) (*model.User, error)
+	FindByEmailFunc      func(ctx context.Context, email string) (*model.User, error)
+	FindByUsernameFunc   func(ctx context.Context, username string) (*model.User, error)
+	FindByPhoneFunc      func(ctx context.Context, phone string) (*model.User, error)
+	UpdatePasswordFunc   func(ctx context.Context, id, hash string) error
+	UpdateStatusFunc     func(ctx context.Context, id, status string) error
+	ListUsersFunc        func(ctx context.Context, page, pageSize int, search string) ([]model.User, int64, error)
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error {
@@ -27,6 +30,20 @@ func (m *MockUserRepository) Create(ctx context.Context, user *model.User) error
 		return m.CreateFunc(ctx, user)
 	}
 	return nil
+}
+
+func (m *MockUserRepository) CreateNoPassword(ctx context.Context, user *model.User) error {
+	if m.CreateNoPasswordFunc != nil {
+		return m.CreateNoPasswordFunc(ctx, user)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) FindByPhone(ctx context.Context, phone string) (*model.User, error) {
+	if m.FindByPhoneFunc != nil {
+		return m.FindByPhoneFunc(ctx, phone)
+	}
+	return nil, nil
 }
 
 func (m *MockUserRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
@@ -64,12 +81,29 @@ func (m *MockUserRepository) UpdateStatus(ctx context.Context, id, status string
 	return nil
 }
 
+func (m *MockUserRepository) ListUsers(ctx context.Context, page, pageSize int, search string) ([]model.User, int64, error) {
+	if m.ListUsersFunc != nil {
+		return m.ListUsersFunc(ctx, page, pageSize, search)
+	}
+	return []model.User{}, 0, nil
+}
+
 // MockRoleRepository is a mock implementation of RoleRepository
 type MockRoleRepository struct {
-	GetRolesForUserFunc       func(ctx context.Context, userID string) ([]model.Role, error)
-	GetPermissionsForUserFunc func(ctx context.Context, userID string) ([]string, error)
-	AssignRoleFunc            func(ctx context.Context, userID, roleCode string) error
-	FindRoleByCodeFunc        func(ctx context.Context, code string) (*model.Role, error)
+	GetRolesForUserFunc          func(ctx context.Context, userID string) ([]model.Role, error)
+	GetPermissionsForUserFunc    func(ctx context.Context, userID string) ([]model.Permission, error)
+	AssignRoleFunc               func(ctx context.Context, userID, roleCode string) error
+	FindRoleByCodeFunc           func(ctx context.Context, code string) (*model.Role, error)
+	GetRoleByIDFunc              func(ctx context.Context, id int64) (*model.Role, error)
+	GetAllPermissionsFunc        func(ctx context.Context) ([]model.Permission, error)
+	CreatePermissionFunc         func(ctx context.Context, perm *model.Permission) error
+	DeletePermissionFunc         func(ctx context.Context, code string) error
+	GetAllRolesFunc              func(ctx context.Context) ([]model.Role, error)
+	GetPermissionsForRoleFunc    func(ctx context.Context, roleID int64) ([]model.Permission, error)
+	CreateRoleFunc               func(ctx context.Context, code, name, description, parentCode string) (int64, error)
+	DeleteRoleFunc               func(ctx context.Context, id int64) error
+	GrantPermissionToRoleFunc    func(ctx context.Context, roleID int64, permCode string) error
+	RevokePermissionFromRoleFunc func(ctx context.Context, roleID int64, permCode string) error
 }
 
 func (m *MockRoleRepository) GetRolesForUser(ctx context.Context, userID string) ([]model.Role, error) {
@@ -79,11 +113,11 @@ func (m *MockRoleRepository) GetRolesForUser(ctx context.Context, userID string)
 	return []model.Role{}, nil
 }
 
-func (m *MockRoleRepository) GetPermissionsForUser(ctx context.Context, userID string) ([]string, error) {
+func (m *MockRoleRepository) GetPermissionsForUser(ctx context.Context, userID string) ([]model.Permission, error) {
 	if m.GetPermissionsForUserFunc != nil {
 		return m.GetPermissionsForUserFunc(ctx, userID)
 	}
-	return []string{}, nil
+	return []model.Permission{}, nil
 }
 
 func (m *MockRoleRepository) AssignRole(ctx context.Context, userID, roleCode string) error {
@@ -98,6 +132,76 @@ func (m *MockRoleRepository) FindRoleByCode(ctx context.Context, code string) (*
 		return m.FindRoleByCodeFunc(ctx, code)
 	}
 	return nil, nil
+}
+
+func (m *MockRoleRepository) GetRoleByID(ctx context.Context, id int64) (*model.Role, error) {
+	if m.GetRoleByIDFunc != nil {
+		return m.GetRoleByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *MockRoleRepository) GetAllPermissions(ctx context.Context) ([]model.Permission, error) {
+	if m.GetAllPermissionsFunc != nil {
+		return m.GetAllPermissionsFunc(ctx)
+	}
+	return []model.Permission{}, nil
+}
+
+func (m *MockRoleRepository) CreatePermission(ctx context.Context, perm *model.Permission) error {
+	if m.CreatePermissionFunc != nil {
+		return m.CreatePermissionFunc(ctx, perm)
+	}
+	return nil
+}
+
+func (m *MockRoleRepository) DeletePermission(ctx context.Context, code string) error {
+	if m.DeletePermissionFunc != nil {
+		return m.DeletePermissionFunc(ctx, code)
+	}
+	return nil
+}
+
+func (m *MockRoleRepository) GetAllRoles(ctx context.Context) ([]model.Role, error) {
+	if m.GetAllRolesFunc != nil {
+		return m.GetAllRolesFunc(ctx)
+	}
+	return []model.Role{}, nil
+}
+
+func (m *MockRoleRepository) GetPermissionsForRole(ctx context.Context, roleID int64) ([]model.Permission, error) {
+	if m.GetPermissionsForRoleFunc != nil {
+		return m.GetPermissionsForRoleFunc(ctx, roleID)
+	}
+	return []model.Permission{}, nil
+}
+
+func (m *MockRoleRepository) CreateRole(ctx context.Context, code, name, description, parentCode string) (int64, error) {
+	if m.CreateRoleFunc != nil {
+		return m.CreateRoleFunc(ctx, code, name, description, parentCode)
+	}
+	return 0, nil
+}
+
+func (m *MockRoleRepository) DeleteRole(ctx context.Context, id int64) error {
+	if m.DeleteRoleFunc != nil {
+		return m.DeleteRoleFunc(ctx, id)
+	}
+	return nil
+}
+
+func (m *MockRoleRepository) GrantPermissionToRole(ctx context.Context, roleID int64, permCode string) error {
+	if m.GrantPermissionToRoleFunc != nil {
+		return m.GrantPermissionToRoleFunc(ctx, roleID, permCode)
+	}
+	return nil
+}
+
+func (m *MockRoleRepository) RevokePermissionFromRole(ctx context.Context, roleID int64, permCode string) error {
+	if m.RevokePermissionFromRoleFunc != nil {
+		return m.RevokePermissionFromRoleFunc(ctx, roleID, permCode)
+	}
+	return nil
 }
 
 // mockRoleRepo 默认空角色/权限 mock（各测试按需注入 Func）。
@@ -232,8 +336,8 @@ func TestLogin_ResolvesRolesAndPermissionsIntoToken(t *testing.T) {
 		GetRolesForUserFunc: func(ctx context.Context, userID string) ([]model.Role, error) {
 			return []model.Role{{Code: "admin"}, {Code: "user"}}, nil
 		},
-		GetPermissionsForUserFunc: func(ctx context.Context, userID string) ([]string, error) {
-			return []string{"post:create", "user:ban"}, nil
+		GetPermissionsForUserFunc: func(ctx context.Context, userID string) ([]model.Permission, error) {
+			return []model.Permission{{Code: "post:create"}, {Code: "user:ban"}}, nil
 		},
 	}
 	jwtService := NewJWTService("test-secret")

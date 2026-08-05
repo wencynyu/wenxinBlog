@@ -27,6 +27,23 @@ type AuthServicer interface {
 	BanUser(ctx context.Context, userID string) error
 	UnbanUser(ctx context.Context, userID string) error
 	AssignRole(ctx context.Context, userID, roleCode string) error
+
+	// 权限注册表管理（需 role:manage）。
+	ListPermissions(ctx context.Context) ([]model.Permission, error)
+	CreatePermission(ctx context.Context, perm *model.Permission) error
+	DeletePermission(ctx context.Context, code string) error
+	// 角色管理（需 role:manage）。
+	ListRoles(ctx context.Context) ([]model.Role, error)
+	GetRoleByID(ctx context.Context, id int64) (*model.Role, error)
+	GetRolePermissions(ctx context.Context, roleID int64) ([]model.Permission, error)
+	CreateRole(ctx context.Context, code, name, description, parentCode string) (int64, error)
+	DeleteRole(ctx context.Context, id int64) error
+	// 角色↔权限动态配置（需 role:manage）。
+	GrantRolePermission(ctx context.Context, roleID int64, permCode string) error
+	RevokeRolePermission(ctx context.Context, roleID int64, permCode string) error
+	// 用户管理（需 role:manage）。
+	ListUsers(ctx context.Context, page, pageSize int, search string) ([]model.AdminUser, int64, error)
+	GetUserDetail(ctx context.Context, userID string) (*model.AdminUser, []string, error)
 }
 
 type AuthService struct {
@@ -50,7 +67,7 @@ func (s *AuthService) resolveRolesAndPermissions(ctx context.Context, userID str
 	if err != nil {
 		return nil, nil, err
 	}
-	perms, err := s.roleRepo.GetPermissionsForUser(ctx, userID)
+	perms, err := s.roleRepo.GetPermissionsForUser(ctx, userID) // []model.Permission
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,13 +75,11 @@ func (s *AuthService) resolveRolesAndPermissions(ctx context.Context, userID str
 	for _, r := range roles {
 		roleCodes = append(roleCodes, r.Code)
 	}
-	if roleCodes == nil {
-		roleCodes = []string{}
+	permCodes := make([]string, 0, len(perms))
+	for _, p := range perms {
+		permCodes = append(permCodes, p.Code)
 	}
-	if perms == nil {
-		perms = []string{}
-	}
-	return roleCodes, perms, nil
+	return roleCodes, permCodes, nil
 }
 
 func (s *AuthService) Register(ctx context.Context, email, username, password string) (*model.User, error) {
@@ -115,16 +130,23 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Token
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
-	roles, perms, err := s.resolveRolesAndPermissions(ctx, user.ID)
-	if err != nil {
-		log.Printf("resolve roles for %s failed: %v", user.ID, err)
-		roles, perms = []string{"user"}, []string{}
-	}
-	tokens, err := s.jwtService.GenerateTokenPair(user.ID, roles, perms)
+	tokens, err := s.issueTokens(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
 	return tokens, user, nil
+}
+
+// issueTokens 解析用户角色/权限（含继承）并签发 access+refresh token 对。
+// 登录/社交登录/手机号登录三方复用：密码校验或第三方身份确认通过后调用。
+// 角色解析失败时降级为 ["user"]（与原 Login 行为一致）。
+func (s *AuthService) issueTokens(ctx context.Context, userID string) (*TokenPair, error) {
+	roles, perms, err := s.resolveRolesAndPermissions(ctx, userID)
+	if err != nil {
+		log.Printf("resolve roles for %s failed: %v", userID, err)
+		roles, perms = []string{"user"}, []string{}
+	}
+	return s.jwtService.GenerateTokenPair(userID, roles, perms)
 }
 
 func (s *AuthService) ValidateToken(token string) (*Claims, error) {
@@ -188,4 +210,112 @@ func (s *AuthService) AssignRole(ctx context.Context, userID, roleCode string) e
 		return errors.New("role not found: " + roleCode)
 	}
 	return s.roleRepo.AssignRole(ctx, userID, roleCode)
+}
+
+// --- 角色/权限管理（admin 端点用，需 role:manage，由 handler/网关校验） ---
+
+func (s *AuthService) ListPermissions(ctx context.Context) ([]model.Permission, error) {
+	return s.roleRepo.GetAllPermissions(ctx)
+}
+
+func (s *AuthService) CreatePermission(ctx context.Context, perm *model.Permission) error {
+	return s.roleRepo.CreatePermission(ctx, perm)
+}
+
+func (s *AuthService) DeletePermission(ctx context.Context, code string) error {
+	return s.roleRepo.DeletePermission(ctx, code)
+}
+
+func (s *AuthService) ListRoles(ctx context.Context) ([]model.Role, error) {
+	return s.roleRepo.GetAllRoles(ctx)
+}
+
+func (s *AuthService) GetRoleByID(ctx context.Context, id int64) (*model.Role, error) {
+	return s.roleRepo.GetRoleByID(ctx, id)
+}
+
+func (s *AuthService) GetRolePermissions(ctx context.Context, roleID int64) ([]model.Permission, error) {
+	return s.roleRepo.GetPermissionsForRole(ctx, roleID)
+}
+
+func (s *AuthService) CreateRole(ctx context.Context, code, name, description, parentCode string) (int64, error) {
+	return s.roleRepo.CreateRole(ctx, code, name, description, parentCode)
+}
+
+func (s *AuthService) DeleteRole(ctx context.Context, id int64) error {
+	return s.roleRepo.DeleteRole(ctx, id)
+}
+
+func (s *AuthService) GrantRolePermission(ctx context.Context, roleID int64, permCode string) error {
+	return s.roleRepo.GrantPermissionToRole(ctx, roleID, permCode)
+}
+
+func (s *AuthService) RevokeRolePermission(ctx context.Context, roleID int64, permCode string) error {
+	return s.roleRepo.RevokePermissionFromRole(ctx, roleID, permCode)
+}
+
+// --- 用户管理（admin 端点用，需 role:manage） ---
+
+// ListUsers 分页返回用户列表，每项含角色 code（量小，逐用户解析可接受）。
+func (s *AuthService) ListUsers(ctx context.Context, page, pageSize int, search string) ([]model.AdminUser, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	users, total, err := s.userRepo.ListUsers(ctx, page, pageSize, search)
+	if err != nil {
+		return nil, 0, err
+	}
+	items := make([]model.AdminUser, 0, len(users))
+	for _, u := range users {
+		roles, err := s.roleRepo.GetRolesForUser(ctx, u.ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		items = append(items, toAdminUser(u, roleCodes(roles)))
+	}
+	return items, total, nil
+}
+
+// GetUserDetail 返回单用户视图（含角色）+ 权限 code 列表。
+func (s *AuthService) GetUserDetail(ctx context.Context, userID string) (*model.AdminUser, []string, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if user == nil {
+		return nil, nil, ErrUserNotFound
+	}
+	roles, err := s.roleRepo.GetRolesForUser(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	perms, err := s.roleRepo.GetPermissionsForUser(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	permCodes := make([]string, 0, len(perms))
+	for _, p := range perms {
+		permCodes = append(permCodes, p.Code)
+	}
+	au := toAdminUser(*user, roleCodes(roles))
+	return &au, permCodes, nil
+}
+
+func toAdminUser(u model.User, roles []string) model.AdminUser {
+	return model.AdminUser{
+		ID: u.ID, Username: u.Username, Email: u.Email,
+		AvatarURL: u.AvatarURL, Status: u.Status, CreatedAt: u.CreatedAt,
+		Roles: roles,
+	}
+}
+
+func roleCodes(roles []model.Role) []string {
+	codes := make([]string, 0, len(roles))
+	for _, r := range roles {
+		codes = append(codes, r.Code)
+	}
+	return codes
 }

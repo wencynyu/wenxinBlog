@@ -45,7 +45,20 @@ public class AuthorizationFilter implements GlobalFilter, Ordered {
             new Rule(HttpMethod.POST, "/api/v1/admin/users/*/roles", "user:assign_role"),
             new Rule(HttpMethod.POST, "/api/v1/categories/**", "category:manage"),
             new Rule(HttpMethod.PUT, "/api/v1/categories/**", "category:manage"),
-            new Rule(HttpMethod.DELETE, "/api/v1/categories/**", "category:manage")
+            new Rule(HttpMethod.DELETE, "/api/v1/categories/**", "category:manage"),
+            // 角色/权限管理（role:manage）
+            new Rule(HttpMethod.GET, "/api/v1/admin/permissions", "role:manage"),
+            new Rule(HttpMethod.POST, "/api/v1/admin/permissions", "role:manage"),
+            new Rule(HttpMethod.DELETE, "/api/v1/admin/permissions/*", "role:manage"),
+            new Rule(HttpMethod.GET, "/api/v1/admin/roles", "role:manage"),
+            new Rule(HttpMethod.GET, "/api/v1/admin/roles/*", "role:manage"),
+            new Rule(HttpMethod.POST, "/api/v1/admin/roles", "role:manage"),
+            new Rule(HttpMethod.DELETE, "/api/v1/admin/roles/*", "role:manage"),
+            new Rule(HttpMethod.POST, "/api/v1/admin/roles/*/permissions", "role:manage"),
+            new Rule(HttpMethod.DELETE, "/api/v1/admin/roles/*/permissions/*", "role:manage"),
+            // 用户管理（role:manage）
+            new Rule(HttpMethod.GET, "/api/v1/admin/users", "role:manage"),
+            new Rule(HttpMethod.GET, "/api/v1/admin/users/*", "role:manage")
     );
 
     private final AntPathMatcher matcher = new AntPathMatcher();

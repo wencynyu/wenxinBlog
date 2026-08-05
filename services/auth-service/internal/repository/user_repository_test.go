@@ -186,3 +186,26 @@ func TestUserRepository_UpdateStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestUserRepository_ListUsers(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewUserRepo(db)
+
+	now := time.Now()
+	mock.ExpectQuery("SELECT id, username, email, avatar_url").
+		WithArgs("test", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "username", "email", "avatar_url", "status", "two_fa_enabled", "created_at", "updated_at"}).
+			AddRow("u1", "alice", "a@t.com", "", "ACTIVE", false, now, now))
+	mock.ExpectQuery("SELECT count").
+		WithArgs("test").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	users, total, err := repo.ListUsers(context.Background(), 1, 20, "test")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, users, 1)
+	assert.Equal(t, "alice", users[0].Username)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

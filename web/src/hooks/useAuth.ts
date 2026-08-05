@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import * as authApi from '@/lib/api/auth';
+import { getTokenRoles } from '@/lib/auth/jwt';
 import type { LoginRequest, RegisterRequest } from '@/types/auth';
 
 export function useLogin() {
@@ -38,4 +39,10 @@ export function useLogout() {
       router.push('/');
     },
   });
+}
+
+// 是否管理员：decode access token 的 roles 是否含 admin。
+export function useIsAdmin(): boolean {
+  const token = useAuthStore((state) => state.token);
+  return getTokenRoles(token).includes('admin');
 }
