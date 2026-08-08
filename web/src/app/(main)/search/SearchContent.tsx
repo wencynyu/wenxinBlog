@@ -2,13 +2,13 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Input, Typography, Empty } from '@douyinfe/semi-ui';
+import { Input, Typography, Empty, Skeleton, Card } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import Link from 'next/link';
 import MainLayout from '@/components/layout/MainLayout';
 import { useSearchPosts } from '@/hooks/useSearch';
 
-const { Text } = Typography;
+const { Text, Title, Paragraph } = Typography;
 
 export default function SearchContent() {
   const searchParams = useSearchParams();
@@ -55,10 +55,9 @@ export default function SearchContent() {
           <div className="py-8">
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
-                  <div className="h-4 bg-gray-100 rounded w-full mb-1" />
-                  <div className="h-4 bg-gray-100 rounded w-2/3" />
+                <div key={i}>
+                  <Skeleton.Title style={{ width: '60%', height: 20, marginBottom: 8 }} />
+                  <Skeleton.Paragraph rows={2} />
                 </div>
               ))}
             </div>
@@ -73,22 +72,28 @@ export default function SearchContent() {
               找到 {data.total} 条结果
             </Text>
             {data.items.map((post: any) => (
-              <Link
-                key={post.id}
-                href={`/posts/${post.id}`}
-                className="block p-4 rounded-xl border border-hairline hover:shadow-card transition-all bg-surface"
-              >
-                <h3 className="text-lg font-semibold text-ink mb-1 line-clamp-1 hover:text-primary-700">
-                  {post.title}
-                </h3>
-                {post.summary && (
-                  <p className="text-ink-muted text-sm line-clamp-2 mb-2">{post.summary}</p>
-                )}
-                <div className="flex items-center gap-3 text-ink-faint text-xs font-mono">
-                  <span>{post.author?.displayName || post.author?.username || '未知'}</span>
-                  <span>{post.likeCount} 赞</span>
-                  <span>{post.viewCount} 阅读</span>
-                </div>
+              <Link key={post.id} href={`/posts/${post.id}`}>
+                <Card shadows="hover" bodyStyle={{ padding: 16 }}>
+                  <Title heading={5} ellipsis={{ rows: 1 }} style={{ marginBottom: 4 }}>
+                    {post.title}
+                  </Title>
+                  {post.summary && (
+                    <Paragraph type="tertiary" ellipsis={{ rows: 2 }} style={{ marginBottom: 8 }}>
+                      {post.summary}
+                    </Paragraph>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <Text type="tertiary" size="small">
+                      {post.author?.displayName || post.author?.username || '未知'}
+                    </Text>
+                    <Text type="tertiary" size="small">
+                      {post.likeCount} 赞
+                    </Text>
+                    <Text type="tertiary" size="small">
+                      {post.viewCount} 阅读
+                    </Text>
+                  </div>
+                </Card>
               </Link>
             ))}
           </div>

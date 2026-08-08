@@ -4,6 +4,8 @@
 
 > 最近更新：2026-08-02（对照实际代码核对）
 
+> ⚠️ **本文档部分内容已过时**（2026-08-06 复核）：此后 auth-service 新增了 **RBAC**（`roles`/`permissions`/`role_permissions`/`user_roles` 表 + `/api/v1/admin/**`、`/api/v1/account/**` 管理端，均落在 auth_db）、**Google OAuth + 手机号短信登录**（详见 `services/auth-service/docs/social-login-setup.md`）、**Redis 接入**（OAuth state/中间码 + 短信验证码/限流），`/api/v1/auth/validate` 现回传 `{userId, roles, permissions}`（email 仍占位为空）。因此下表中 **OAuth「❌ 未实现」、Redis「❌ 未接入」、「实际只有一张表」「不使用 Redis」等描述均已失效**——请以代码（`cmd/server/main.go`、`db/migrations/000001~000004`、`internal/handler/*`）为准。**仍准确**：2FA 未实现、logout 无状态、GitHub 仅有 config 占位不实例化。
+
 ## 实现现状（体检）
 
 | 模块                                | 状态        | 说明                                                                                  |

@@ -6,16 +6,12 @@
    设计 Token —— 与 tailwind.config 对齐
    ===================================================== */
 :root {
-  /* Semi Design 主色覆盖（靛蓝，替换原 sky #0ea5e9）*/
-  --semi-color-primary: #4f46e5;
-  --semi-color-primary-hover: #3930d8;
-  --semi-color-primary-active: #312e81;
-  --semi-color-focus: #4f46e5;
-
+  /* 主色用 Semi 原生蓝 #0077FA（不覆盖 --semi-color-primary，Semi 组件走原生品牌蓝）*/
   --color-canvas: #f7f8fa;
   --color-surface: #ffffff;
   --color-ink: #1e2026;
   --color-ink-muted: #5b6470;
+  --color-ink-faint: #8a94a6;
   --color-hairline: #e6e8ec;
   --radius: 0.625rem;
 
@@ -23,6 +19,20 @@
   --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --font-serif: 'Source Serif 4', 'Songti SC', 'STSong', 'SimSun', serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+}
+
+/* =====================================================
+   暗色模式 —— 同步 Semi 的 body[theme-mode=dark]（ThemeProvider 设置）
+   覆盖同一组语义变量，Tailwind 的 bg-surface/text-ink 等随之自动翻转；
+   品牌靛蓝在暗色下提亮一档以保证对比度。
+   ===================================================== */
+body[theme-mode='dark'] {
+  --color-canvas: #0f172a;
+  --color-surface: #1e293b;
+  --color-ink: #e2e8f0;
+  --color-ink-muted: #94a3b8;
+  --color-ink-faint: #64748b;
+  --color-hairline: #334155;
 }
 
 /* 全局 reset（preflight 已为 Semi 关闭，这里手动保留必要 reset）*/
@@ -84,6 +94,16 @@ body {
   line-height: 1.75;
   color: var(--color-ink);
   font-size: 15px;
+  /* 防止超长无空格文本（长 URL / 单词）撑破布局 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 代码块/图片/表格绝不超出正文宽度（长代码行横向滚动而非撑破） */
+.markdown-body pre,
+.markdown-body img,
+.markdown-body table {
+  max-width: 100%;
 }
 
 .markdown-body h1,

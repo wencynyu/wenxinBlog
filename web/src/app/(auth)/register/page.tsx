@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Form, Input, Button, Toast, Divider } from '@douyinfe/semi-ui';
+import { Form, Input, Button, Toast, Divider, Card, Typography } from '@douyinfe/semi-ui';
 import { useRegister } from '@/hooks/useAuth';
 import { oauthLoginURL } from '@/lib/api/auth';
+import BrandLogo from '@/components/common/BrandLogo';
 
 export default function RegisterPage() {
   const registerMutation = useRegister();
@@ -27,15 +28,10 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="bg-surface rounded-2xl shadow-card p-8">
+    <Card bodyStyle={{ padding: 32 }} style={{ borderRadius: 16 }}>
       {/* Logo */}
       <div className="text-center mb-8">
-        <Link href="/" className="inline-flex items-center space-x-2">
-          <div className="h-10 w-10 rounded-xl bg-primary-600 flex items-center justify-center">
-            <span className="text-white font-bold text-xl font-mono">W</span>
-          </div>
-          <span className="font-serif font-bold text-2xl text-ink">WenxinBlog</span>
-        </Link>
+        <BrandLogo size="md" />
         <p className="eyebrow mt-3">{'// create account'}</p>
       </div>
 
@@ -116,12 +112,12 @@ export default function RegisterPage() {
         Google 注册
       </Button>
 
-      <div className="text-center mt-6 text-sm text-ink-muted">
-        已有账号？
-        <Link href="/login" className="text-primary-700 hover:text-primary-700 ml-1 font-medium">
+      <div className="text-center mt-6">
+        <Typography.Text type="tertiary">已有账号？</Typography.Text>{' '}
+        <Link href="/login" className="ml-1 font-medium">
           立即登录
         </Link>
       </div>
-    </div>
+    </Card>
   );
 }

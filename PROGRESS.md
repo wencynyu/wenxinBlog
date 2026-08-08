@@ -38,17 +38,19 @@
   - "WenxinBlog 服务监控"：JVM + HTTP + CPU + 健康（8 面板）
   - "WenxinBlog API + 推荐指标"：QPS/P90/P99 + embedding/Milvus/推荐来源/缓存（12 面板）
 
-### 3. 微服务架构（8 服务 + 独立 embedding 服务）
+### 3. 微服务架构（10 服务 + 独立 embedding 服务）
 
 | 服务                   | 语言                           | 端口      | 状态                                 | 测试数 |
 | ---------------------- | ------------------------------ | --------- | ------------------------------------ | ------ |
-| auth-service           | Go + Fiber                     | 8001      | ✅ JWT 认证 + 2FA 基础               | 57     |
+| auth-service           | Go + Fiber                     | 8001      | ✅ JWT + RBAC + Google OAuth/短信    | 57     |
 | user-service           | Go + Fiber                     | 8002      | ✅ 用户 CRUD + profile 懒创建 + 关注 | 107    |
 | blog-service           | Java 25 + Spring Boot 4        | 8003      | ✅ 博文 CRUD + Kafka 事件 + 批量填充 | 44     |
 | content-service        | Java 25 + Spring Boot 4        | 8004      | ✅ 文件上传（MinIO/OSS）             | —      |
-| search-service         | Java 25 + Spring Boot 4        | 8005      | ✅ OpenSearch 全文检索 + IK 分词     | 76     |
+| search-service         | Java 25 + Spring Boot 4        | 8005      | ✅ Elasticsearch 全文检索 + IK 分词  | 76     |
 | recommendation-service | Java 25 + Spring Boot 4        | 8006      | ✅ Milvus 向量推荐 + 行为画像        | 38     |
 | ad-service             | Java 25 + Spring Boot 4        | 8007      | ✅ 广告追踪（Kafka）                 | —      |
+| experiment-service     | Java 25 + Spring Boot 4        | 8009      | ✅ A/B 实验（分层正交）              | —      |
+| analytics-service      | Java 25 + Spring Boot 4        | 8010      | ✅ 行为分析 BI（ClickHouse）         | —      |
 | gateway                | Java 25 + Spring Cloud Gateway | 8080/8081 | ✅ 路由 + JWT 鉴权 + 限流 + 熔断     | 49     |
 | **embedding-service**  | Python + MLX                   | 8008      | ✅ Qwen3-VL-Embedding-2B（mxfp8）    | —      |
 
@@ -58,7 +60,7 @@
 | ------------- | --------------------------------------------- |
 | PostgreSQL ×3 | auth_db / user_db / blog_db                   |
 | Redis         | 推荐缓存 + 用户已看去重                       |
-| OpenSearch    | 全文搜索 + 自动补全                           |
+| Elasticsearch | 全文搜索 + 自动补全                           |
 | Milvus 2.6    | 向量检索（blog_embeddings + user_embeddings） |
 | Kafka         | 博文生命周期事件 + 用户行为事件               |
 | MinIO         | 对象存储（封面图/附件）                       |

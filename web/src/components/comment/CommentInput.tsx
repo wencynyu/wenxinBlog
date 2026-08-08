@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Input, Button, Toast } from '@douyinfe/semi-ui';
+import { TextArea, Button, Toast, Banner } from '@douyinfe/semi-ui';
 import { IconSend } from '@douyinfe/semi-icons';
+import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as commentsApi from '@/lib/api/comments';
@@ -39,24 +40,29 @@ export default function CommentInput({ postId }: CommentInputProps) {
 
   if (!isAuthenticated) {
     return (
-      <div className="bg-canvas rounded-xl p-4 text-center text-ink-muted text-sm">
-        <a href="/login" className="text-primary-700 font-medium">
-          登录
-        </a>{' '}
-        后参与评论
-      </div>
+      <Banner
+        type="info"
+        description={
+          <>
+            登录后参与评论，
+            <Link href="/login" className="text-primary-600 font-medium">
+              去登录
+            </Link>
+          </>
+        }
+      />
     );
   }
 
   return (
-    <div className="flex gap-3">
-      <Input
+    <div className="flex gap-3 items-end">
+      <TextArea
         value={content}
         onChange={setContent}
         onEnterPress={handleSubmit}
         placeholder="写下你的评论..."
-        maxLength={500}
-        showClear
+        maxCount={500}
+        autosize={{ minRows: 1, maxRows: 4 }}
         disabled={mutation.isPending}
       />
       <Button

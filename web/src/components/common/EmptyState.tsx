@@ -21,7 +21,7 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <Empty title={<span className="text-gray-700">{title}</span>} description={description} />
+      <Empty title={<span>{title}</span>} description={description} />
       {actionText && onAction && (
         <Button theme="solid" className="mt-4" onClick={onAction}>
           {actionText}

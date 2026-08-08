@@ -2,6 +2,8 @@
 
 博文平台 Web 前端 (Next.js 14 + Semi-Design)
 
+> ⚠️ 本 README 为早期版本，目录结构（`app/api/`、`components/blog` 等）已过时。**权威现状见 `docs/frontend/web.md`**。
+
 ## 功能特性
 
 - 📝 博文阅读/发布

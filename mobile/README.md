@@ -2,6 +2,8 @@
 
 博文平台 iOS 客户端 (React Native + Expo)
 
+> ⚠️ 当前为**早期脚手架 / POC**：仅 5 个依赖、多数页面未实现，且 `package.json` 缺 `zustand`/`expo-secure-store`/`@expo/vector-icons`（代码已 import → 当前无法直接 `npm install && npm start`）。Semi-Design Mobile / Flash List / Axios / 推送均未引入。**权威现状见 `docs/frontend/mobile.md`**。
+
 ## 功能特性
 
 - 📱 iOS原生体验
@@ -49,7 +51,7 @@ export default {
       ossUrl: process.env.OSS_URL || 'http://localhost:9000',
     },
   },
-}
+};
 ```
 
 ## 开发
@@ -78,6 +80,7 @@ expo run:ios
 ## 推送通知
 
 配置APNs证书后，使用Expo Notifications:
+
 ```bash
 npx expo install expo-notifications
 ```

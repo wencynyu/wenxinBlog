@@ -3,7 +3,7 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Avatar, Button, Toast, Skeleton, Empty, Popconfirm } from '@douyinfe/semi-ui';
+import { Avatar, Button, Toast, Skeleton, Empty, Popconfirm, Typography } from '@douyinfe/semi-ui';
 import { IconDelete } from '@douyinfe/semi-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
@@ -71,12 +71,12 @@ export default function CommentList({ postId }: CommentListProps) {
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center mb-1">
-              <span className="text-sm font-medium text-ink">
+              <Typography.Text size="small" strong>
                 {comment.author?.displayName || comment.author?.username}
-              </span>
-              <span className="text-ink-faint text-xs ml-2 font-mono">
+              </Typography.Text>
+              <Typography.Text type="tertiary" size="small" className="ml-2 font-mono">
                 {dayjs(comment.createdAt).fromNow()}
-              </span>
+              </Typography.Text>
               {currentUser && currentUser.id === comment.authorId && (
                 <Popconfirm
                   title="确定要删除这条评论吗？"
@@ -86,14 +86,16 @@ export default function CommentList({ postId }: CommentListProps) {
                   <Button
                     icon={<IconDelete />}
                     theme="borderless"
+                    type="tertiary"
                     size="small"
                     className="ml-auto"
-                    style={{ color: '#94a3b8' }}
                   />
                 </Popconfirm>
               )}
             </div>
-            <p className="text-ink-muted text-sm">{comment.content}</p>
+            <Typography.Paragraph type="tertiary" style={{ fontSize: 14, marginBottom: 0 }}>
+              {comment.content}
+            </Typography.Paragraph>
           </div>
         </div>
       ))}

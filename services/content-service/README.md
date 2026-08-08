@@ -2,6 +2,8 @@
 
 内容服务 - 负责图片/视频上传、审核、CDN管理
 
+> ⚠️ 本文件为早期设计稿。当前实际**仅实现简单文件上传**（MinIO 存取 + `media_assets` 记录）；图片处理/视频转码/内容审核/CDN 分发/**RabbitMQ 异步队列均未实现**（无 amqp 依赖）。服务端口 **8004**（非下方 8003）。权威现状见 `docs/backend/content-service.md`。
+
 ## 功能
 
 - 文件上传 (图片/视频)
@@ -22,6 +24,7 @@
 ## 数据库
 
 ### media_assets 表
+
 ```sql
 CREATE TABLE media_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,6 +62,7 @@ CREATE INDEX idx_media_assets_status ON media_assets(status);
 ```
 
 ### media_variants 表 (图片变体)
+
 ```sql
 CREATE TABLE media_variants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -74,6 +78,7 @@ CREATE TABLE media_variants (
 ```
 
 ### video_thumbnails 表 (视频缩略图)
+
 ```sql
 CREATE TABLE video_thumbnails (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,6 +93,7 @@ CREATE TABLE video_thumbnails (
 ## API
 
 ### 上传
+
 ```
 POST   /api/v1/content/upload             - 上传文件
 POST   /api/v1/content/upload/url         - 从URL上传
@@ -95,6 +101,7 @@ POST   /api/v1/content/upload/batch       - 批量上传
 ```
 
 ### 文件管理
+
 ```
 GET    /api/v1/content/:id               - 获取文件信息
 DELETE /api/v1/content/:id               - 删除文件
@@ -102,6 +109,7 @@ GET    /api/v1/content/post/:postId      - 获取博文的所有文件
 ```
 
 ### 图片处理
+
 ```
 POST   /api/v1/content/:id/resize        - 调整尺寸
 POST   /api/v1/content/:id/crop          - 裁剪
@@ -110,6 +118,7 @@ GET    /api/v1/content/:id/variants      - 获取所有变体
 ```
 
 ### 视频处理
+
 ```
 POST   /api/v1/content/:id/transcode     - 转码
 POST   /api/v1/content/:id/screenshot    - 截图
@@ -118,6 +127,7 @@ GET    /api/v1/content/:id/playback      - 获取播放信息
 ```
 
 ### 处理状态
+
 ```
 GET    /api/v1/content/:id/status        - 获取处理状态
 WebSocket /ws/content/:id/status         - 实时状态更新
@@ -126,6 +136,7 @@ WebSocket /ws/content/:id/status         - 实时状态更新
 ## RabbitMQ队列
 
 ### 上传处理队列
+
 ```
 Queue: content.upload.pending
 Exchange: content.upload
@@ -140,6 +151,7 @@ Payload:
 ```
 
 ### 图片处理队列
+
 ```
 Queue: content.image.process
 Exchange: content.image
@@ -154,6 +166,7 @@ Payload:
 ```
 
 ### 视频处理队列
+
 ```
 Queue: content.video.transcode
 Exchange: content.video
@@ -170,6 +183,7 @@ Payload:
 ## 存储策略
 
 ### MinIO (本地开发)
+
 ```
 Bucket: wenxinblog-content
 结构:
@@ -183,6 +197,7 @@ Bucket: wenxinblog-content
 ```
 
 ### 阿里云OSS (生产)
+
 ```
 Bucket: wenxinblog
 CDN域名: https://cdn.wenxinblog.com
@@ -247,16 +262,16 @@ image:
     large: { width: 1200, quality: 95 }
   watermark:
     enabled: true
-    image: "classpath:watermark.png"
-    position: "bottom-right"
+    image: 'classpath:watermark.png'
+    position: 'bottom-right'
     opacity: 0.5
 
 # 视频处理配置
 video:
   transcode:
-    formats: ["mp4", "webm"]
+    formats: ['mp4', 'webm']
     resolutions: [480, 720, 1080]
-    bitrate: "2000k"
+    bitrate: '2000k'
   thumbnails:
     count: 5
     interval: 10
@@ -265,6 +280,7 @@ video:
 ## 内容审核
 
 ### 阿里云AI审核
+
 ```yaml
 aliyun:
   green:
@@ -275,11 +291,11 @@ aliyun:
 
 # 审核场景
 scenes:
-  - porn          # 色情
-  - terrorism     # 暴恐
-  - politics      # 政治
-  - ad            # 广告
-  - spam          # 垃圾信息
+  - porn # 色情
+  - terrorism # 暴恐
+  - politics # 政治
+  - ad # 广告
+  - spam # 垃圾信息
 ```
 
 ## 运行

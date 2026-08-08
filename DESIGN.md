@@ -6,6 +6,48 @@
 
 ---
 
+> ## ⚠️ 实现偏差勘误（2026-08-06 核对实际代码）
+>
+> 本文档为 **v1.0 原始设计稿（2026-03-25）**，保留作设计意图存档。实际实现已大幅演进，**以 `docs/` 下文档为权威现状**。主要偏差：
+>
+> **架构与服务（§2）**
+>
+> - §2.2 微服务表过期：实际 **10 个服务 + 独立 embedding-service**（非 5 个），端口全部不同——auth:8001 / user:8002 / blog:8003 / content:8004 / search:8005 / recommendation:8006 / ad:8007 / experiment:8009 / analytics:8010 / gateway:8080（管理端点 8081）/ embedding:8008。
+> - **analytics-service 实为 Java + Spring Boot**（非 §2.2 所写 Python + FastAPI:8084）。
+> - §2.1「Python RabbitMQ/Kafka 消费者」框不存在——Kafka 消费由各 Java 服务承担；Python 仅 embedding-service（被 recommendation 同步调用）。
+>
+> **基础设施选型（§1.2 / §11）**
+>
+> - 搜索引擎：实际 **Elasticsearch 9.3.8**（非 OpenSearch），索引名 `wenxinblog-blog` / `wenxinblog-user`。
+> - 消息队列：**仅 Kafka，无 RabbitMQ**（§7.1 已注明移除，§1.2/2.1/2.3/11.x 仍按旧规划列）。
+> - 对象存储：本地 **MinIO**（非阿里云 OSS；OSS 仅生产目标）。
+> - Milvus：dim=**1024**（非 768）、collection=`blog_embeddings`/`user_embeddings`（非 post_embeddings）、度量=**Inner Product**（非 COSINE）。
+> - PostgreSQL 实际 **4 库**：5432/5433/5434/5435（auth/user/blog/experiment）。
+>
+> **Kafka Topics（§7.2 过期）**：实际为 `wenxinblog.blog.events`、`wenxinblog.user.events`、`user-behavior-events`、`ad-events`、`wenxinblog.access-log`。§7.2 列的 `post-created-events`/`post-published-events`/`comment-created-events` 均不存在。详见 `docs/api/events.md`。
+>
+> **数据库（§4）**
+>
+> - RBAC 四表（roles/permissions/role_permissions/user_roles）实际在 **auth_db**（§3 批注已更正，§4.2 正文未改→以批注为准）。
+> - auth_db 实际无 `user_2fa`/`refresh_tokens`/`push_tokens`；OAuth 表名为 `oauth_accounts`（非 oauth_providers）；`users.id` 为 VARCHAR(36)、email 可空。
+> - blog_db 无 `categories`；posts 无 slug/content_type/visibility/meta_*/vector_id；实际多 `post_likes`/`post_favorites`；`media_assets` 由 content-service 管理。
+>
+> **安全（§12 / §3）**
+>
+> - OAuth 实际仅 **Google + 手机号短信**；GitHub 仅 config 占位、Apple/WeChat/Alipay 未实现；微信已移除。
+> - **2FA 未实现**（仅 users 表两列占位，无端点）。
+> - 权限码补齐到 21 个，走 JWT claims + 网关注入 `X-User-Permissions` 头（共注入 4 个 X-User-* 头）。
+>
+> **前端（§9 / §10）**
+>
+> - 实际**无 monorepo**：目录为 `web/`、`mobile/`（非 `packages/*`）。
+> - Web：博文路径 `posts/[id]`（非 [slug]）；sitemap/robots 未实现；React Query v5。详见 `docs/frontend/web.md`。
+> - Mobile：用 **Expo Router**（非 React Navigation）；未装 Semi-Design Mobile / Flash List / Expo Notifications；当前为早期 POC。详见 `docs/frontend/mobile.md`。
+>
+> 权威现状文档：`docs/architecture/overview.md`、`docs/architecture/microservices.md`、`docs/api/rest-api.md`、`docs/api/events.md`、`docs/infrastructure/*`、各服务 `docs/backend/*.md`。
+
+---
+
 ## 目录
 
 1. [项目概述](#1-项目概述)

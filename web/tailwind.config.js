@@ -9,19 +9,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // 主色「关键字」靛蓝（替换原 Ant-Blue sky）
+        // 主色：Semi 标志蓝 #0077FA（与 Semi 组件原生品牌蓝一致）
         primary: {
-          50: '#eef0ff',
-          100: '#e0e3ff',
-          200: '#c7ccfe',
-          300: '#a5acfc',
-          400: '#8189f8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#3930d8',
-          800: '#3730a3',
-          900: '#312e81',
-          DEFAULT: '#4f46e5',
+          50: '#e8f3ff',
+          100: '#c7e1ff',
+          200: '#97c6ff',
+          300: '#6baeff',
+          400: '#3d95ff',
+          500: '#1b80ff',
+          600: '#0077fa',
+          700: '#0060d4',
+          800: '#004eae',
+          900: '#003c88',
+          DEFAULT: '#0077fa',
         },
         // 强调「字面量」琥珀（仅用于最关键的 CTA / 精选标记）
         accent: {
@@ -37,15 +37,15 @@ module.exports = {
           900: '#663000',
           DEFAULT: '#e08600',
         },
-        // 中性「墨」色阶
+        // 中性语义色：引用 CSS 变量，随 body[theme-mode] 自动暗色翻转（globals.css 定义）
         ink: {
-          DEFAULT: '#1e2026',
-          muted: '#5b6470',
-          faint: '#8a94a6',
+          DEFAULT: 'var(--color-ink)',
+          muted: 'var(--color-ink-muted)',
+          faint: 'var(--color-ink-faint)',
         },
-        canvas: '#f7f8fa',
-        surface: '#ffffff',
-        hairline: '#e6e8ec',
+        canvas: 'var(--color-canvas)',
+        surface: 'var(--color-surface)',
+        hairline: 'var(--color-hairline)',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'PingFang SC', 'Microsoft YaHei', 'system-ui', 'sans-serif'],

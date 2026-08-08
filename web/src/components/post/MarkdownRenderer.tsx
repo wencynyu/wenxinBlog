@@ -43,10 +43,9 @@ function escapeHtml(s: string) {
 }
 
 // Custom renderer for code blocks with highlight.js
+// marked v12 调用签名是位置参数 (code, infostring, escaped)，不是 token 对象
 const renderer = new marked.Renderer();
-renderer.code = (token: any) => {
-  const code = token.text || '';
-  const lang = token.lang || '';
+renderer.code = (code: string, lang: string | undefined) => {
   let highlighted: string;
   if (lang && hljs.getLanguage(lang)) {
     try {
@@ -57,7 +56,7 @@ renderer.code = (token: any) => {
   } else {
     highlighted = escapeHtml(code);
   }
-  return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+  return `<pre><code class="hljs language-${lang || 'plain'}">${highlighted}</code></pre>`;
 };
 
 marked.setOptions({

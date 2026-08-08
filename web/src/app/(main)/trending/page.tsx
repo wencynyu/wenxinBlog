@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { Card, Typography, Skeleton } from '@douyinfe/semi-ui';
 import MainLayout from '@/components/layout/MainLayout';
 import EmptyState from '@/components/common/EmptyState';
+import PageHeader from '@/components/common/PageHeader';
 import { useTrendingPosts } from '@/hooks/useRecommendations';
 
 export default function TrendingPage() {
@@ -14,7 +16,10 @@ export default function TrendingPage() {
       <MainLayout>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-surface rounded-xl p-4 animate-pulse h-16" />
+            <Card key={i} bodyStyle={{ padding: 16 }}>
+              <Skeleton.Title style={{ width: '60%', marginBottom: 8 }} />
+              <Skeleton.Paragraph style={{ width: '40%' }} />
+            </Card>
           ))}
         </div>
       </MainLayout>
@@ -23,8 +28,7 @@ export default function TrendingPage() {
 
   return (
     <MainLayout>
-      <p className="eyebrow mb-3">{'// trending'}</p>
-      <h2 className="font-serif text-2xl font-semibold text-ink mb-6">热门博文</h2>
+      <PageHeader eyebrow="// trending" title="热门博文" />
 
       {posts.length === 0 ? (
         <EmptyState title="暂无热门内容" description="还没有发布任何博文" />
@@ -34,24 +38,38 @@ export default function TrendingPage() {
             <Link
               key={post.id}
               href={`/posts/${post.id}`}
-              className="flex items-center gap-4 bg-surface rounded-xl shadow-card hover:shadow-card-hover p-4 transition-all"
+              style={{ display: 'block', textDecoration: 'none' }}
             >
-              <span
-                className={`text-2xl font-bold w-8 text-center flex-shrink-0 font-mono ${
-                  index < 3 ? 'text-accent-500' : 'text-ink-faint'
-                }`}
-              >
-                {index + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-ink line-clamp-1">{post.title}</h3>
-                <div className="flex items-center gap-3 mt-1 text-ink-faint text-sm font-mono">
-                  <span>{post.author?.displayName || post.author?.username || '匿名'}</span>
-                  <span>{post.viewsCount || 0} 浏览</span>
-                  <span>{post.likeCount || 0} 赞</span>
-                  <span>{post.commentCount || 0} 评论</span>
+              <Card shadows="hover" bodyStyle={{ padding: 16 }}>
+                <div className="flex items-center gap-4">
+                  <Typography.Text
+                    strong
+                    className={`flex-shrink-0 ${index < 3 ? 'text-accent-500' : 'text-ink-faint'}`}
+                    style={{ fontSize: 22, width: 28, textAlign: 'center' }}
+                  >
+                    {index + 1}
+                  </Typography.Text>
+                  <div className="flex-1 min-w-0">
+                    <Typography.Text className="font-semibold line-clamp-1">
+                      {post.title}
+                    </Typography.Text>
+                    <div className="flex items-center gap-3 mt-1 font-mono">
+                      <Typography.Text type="tertiary" size="small">
+                        {post.author?.displayName || post.author?.username || '匿名'}
+                      </Typography.Text>
+                      <Typography.Text type="tertiary" size="small">
+                        {post.viewsCount || 0} 浏览
+                      </Typography.Text>
+                      <Typography.Text type="tertiary" size="small">
+                        {post.likeCount || 0} 赞
+                      </Typography.Text>
+                      <Typography.Text type="tertiary" size="small">
+                        {post.commentCount || 0} 评论
+                      </Typography.Text>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </Card>
             </Link>
           ))}
         </div>

@@ -2,7 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Tabs, TabPane, Avatar, Button, Toast } from '@douyinfe/semi-ui';
+import {
+  Tabs,
+  TabPane,
+  Avatar,
+  Button,
+  Toast,
+  Card,
+  Typography,
+  Skeleton,
+} from '@douyinfe/semi-ui';
 import { IconUserAdd, IconDelete } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
@@ -45,17 +54,15 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
     return (
       <MainLayout showSidebar={false}>
         <div className="max-w-3xl mx-auto">
-          <div className="animate-pulse">
-            <div className="bg-surface rounded-xl shadow-card p-8 mb-6">
-              <div className="flex items-center gap-6">
-                <div className="w-20 h-20 bg-gray-200 rounded-full" />
-                <div className="space-y-2">
-                  <div className="h-6 bg-gray-200 rounded w-32" />
-                  <div className="h-4 bg-gray-100 rounded w-24" />
-                </div>
+          <Card shadows="hover" bodyStyle={{ padding: 32 }} style={{ marginBottom: 24 }}>
+            <div className="flex items-center gap-6">
+              <Skeleton.Avatar size="extra-large" />
+              <div className="space-y-2">
+                <Skeleton.Title style={{ width: 128, height: 24 }} />
+                <Skeleton.Title style={{ width: 96, height: 16 }} />
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </MainLayout>
     );
@@ -104,7 +111,7 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
     <MainLayout showSidebar={false}>
       <div className="max-w-3xl mx-auto">
         {/* 用户信息卡片 */}
-        <div className="bg-surface rounded-xl shadow-card p-8 mb-6">
+        <Card shadows="hover" bodyStyle={{ padding: 32 }} style={{ marginBottom: 24 }}>
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
               <Avatar
@@ -115,13 +122,25 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
                 {(profile.displayName || profile.username || 'U')[0]}
               </Avatar>
               <div>
-                <h3 className="font-serif text-2xl font-bold text-ink mb-1">
+                <Typography.Title heading={3} style={{ marginBottom: 4 }}>
                   {profile.displayName || profile.username}
-                </h3>
-                <span className="text-ink-faint font-mono">@{profile.username}</span>
-                {profile.bio && <p className="text-ink-muted mt-2">{profile.bio}</p>}
+                </Typography.Title>
+                <Typography.Text type="tertiary" className="font-mono">
+                  @{profile.username}
+                </Typography.Text>
+                {profile.bio && (
+                  <Typography.Paragraph type="tertiary" style={{ marginTop: 8, marginBottom: 0 }}>
+                    {profile.bio}
+                  </Typography.Paragraph>
+                )}
                 {profile.location && (
-                  <p className="text-ink-faint text-sm mt-1">{profile.location}</p>
+                  <Typography.Text
+                    type="tertiary"
+                    size="small"
+                    style={{ display: 'block', marginTop: 4 }}
+                  >
+                    {profile.location}
+                  </Typography.Text>
                 )}
               </div>
             </div>
@@ -141,25 +160,25 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
           {/* 统计 */}
           <div className="flex gap-8 mt-6 pt-6 border-t border-hairline">
             <div className="text-center">
-              <span className="text-xl font-bold text-ink block font-mono">
+              <Typography.Text strong style={{ fontSize: 24, display: 'block' }}>
                 {postsResp?.total ?? 0}
-              </span>
-              <span className="text-ink-faint text-sm">博文</span>
+              </Typography.Text>
+              <Typography.Text type="tertiary">博文</Typography.Text>
             </div>
             <div className="text-center">
-              <span className="text-xl font-bold text-ink block font-mono">
+              <Typography.Text strong style={{ fontSize: 24, display: 'block' }}>
                 {profile.followersCount || 0}
-              </span>
-              <span className="text-ink-faint text-sm">粉丝</span>
+              </Typography.Text>
+              <Typography.Text type="tertiary">粉丝</Typography.Text>
             </div>
             <div className="text-center">
-              <span className="text-xl font-bold text-ink block font-mono">
+              <Typography.Text strong style={{ fontSize: 24, display: 'block' }}>
                 {profile.followingCount || 0}
-              </span>
-              <span className="text-ink-faint text-sm">关注</span>
+              </Typography.Text>
+              <Typography.Text type="tertiary">关注</Typography.Text>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Tab 切换 */}
         <div className="bg-surface rounded-xl shadow-card">

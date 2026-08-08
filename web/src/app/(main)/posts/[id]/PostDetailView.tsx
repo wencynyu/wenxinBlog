@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Avatar, Tag, Button, Toast, Typography, Divider } from '@douyinfe/semi-ui';
+import { Avatar, Tag, Button, Toast, Typography, Divider, Skeleton } from '@douyinfe/semi-ui';
 import {
   IconLikeHeart,
   IconStar,
@@ -75,19 +75,13 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     return (
       <MainLayout showSidebar={false}>
         <div className="max-w-3xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-16 mb-6" />
-            <div className="h-8 bg-gray-200 rounded w-4/5 mb-4" />
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-gray-200 rounded-full" />
-              <div className="h-4 bg-gray-200 rounded w-24" />
-            </div>
-            <div className="space-y-3">
-              <div className="h-4 bg-gray-100 rounded w-full" />
-              <div className="h-4 bg-gray-100 rounded w-full" />
-              <div className="h-4 bg-gray-100 rounded w-3/4" />
-            </div>
+          <Skeleton.Title style={{ width: 120, height: 28, marginBottom: 24 }} />
+          <Skeleton.Title style={{ width: '80%', height: 32, marginBottom: 16 }} />
+          <div className="flex items-center gap-3 mb-6">
+            <Skeleton.Avatar />
+            <Skeleton.Title style={{ width: 96, height: 16 }} />
           </div>
+          <Skeleton.Paragraph rows={3} />
         </div>
       </MainLayout>
     );
@@ -114,16 +108,19 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
     <MainLayout showSidebar={false}>
       <div className="max-w-3xl mx-auto">
         {/* 返回按钮 */}
-        <button
+        <Button
+          theme="borderless"
+          icon={<IconArrowLeft />}
           onClick={() => router.back()}
-          className="flex items-center text-ink-muted hover:text-ink mb-6 text-sm"
+          className="mb-6"
         >
-          <IconArrowLeft className="mr-1" />
           返回
-        </button>
+        </Button>
 
         <article>
-          <h1 className="text-3xl font-bold text-ink dark:text-gray-100 mb-4">{post.title}</h1>
+          <Title heading={1} className="mb-4">
+            {post.title}
+          </Title>
 
           {/* 作者信息 */}
           <div className="flex items-center justify-between mb-6">
@@ -177,7 +174,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
             <div className="flex flex-wrap gap-2 mb-6">
               {post.tags.map((tag: string) => (
                 <Link key={tag} href={`/posts?tag=${encodeURIComponent(tag)}`}>
-                  <Tag color="violet" size="large">
+                  <Tag color="blue" size="large">
                     #{tag}
                   </Tag>
                 </Link>

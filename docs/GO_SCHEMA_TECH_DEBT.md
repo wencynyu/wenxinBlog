@@ -2,11 +2,11 @@
 
 > 最近更新：2026-08-02（对照实际代码核对）
 >
-> 记录于 2026-07-31。auth-service / user-service 的数据库 schema 暂时手动管理，待后续补齐自动化。2026-08-02 复核：现状不变——Go 侧仍无 migration 工具、Java 侧仍用 Flyway，本文档内容仍然准确。
+> 记录于 2026-07-31。2026-08-06 复核：**auth-service 已落地自研迁移器**（`internal/migrate/migrate.go` + `db/migrations/000001~000004_*.up.sql` + `schema_migrations` 表，启动时按序应用），**仅 user-service 仍手动管理**。本文档其余内容（user-service 技术债、Java 侧 Flyway 全景）仍然准确。
 
 ## 现状
 
-auth-service、user-service（Go）目前**没有任何 schema 版本化机制**：
+user-service（Go）目前**没有任何 schema 版本化机制**（auth-service 已于 2026-08 迁移化，见文末全景表）：
 
 - 无 migration 工具（仅 `database/sql` + `github.com/lib/pq`）
 - 代码里无建表逻辑（无 `CREATE TABLE`、无 ORM AutoMigrate）
@@ -41,7 +41,8 @@ docker exec -i wenxinblog-postgres-user  psql -U postgres -d user_db  < services
 | 服务                                              | 语言   | schema 管理方式                                                                                                  |
 | ------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------- |
 | blog / content / recommendation / ad / experiment | Java   | **Flyway**（显式 FlywayConfig，独立 history table；共享 blog_db 的 4 服务用 `flyway_schema_history_<svc>` 隔离） |
-| **auth / user**                                   | **Go** | **手动（本文档所述技术债）**，schema.sql 进仓库兜底                                                              |
+| **auth**                                          | **Go** | **自研迁移器**（`migrate.go` + `db/migrations/000001~000004` + `schema_migrations` 表，启动时应用）              |
+| **user**                                          | **Go** | **手动（本文档所述技术债）**，schema.sql 进仓库兜底                                                              |
 | search                                            | Java   | Elasticsearch 索引（无 PG schema）                                                                               |
 | analytics                                         | Java   | ClickHouse 表（事件存储）                                                                                        |
 

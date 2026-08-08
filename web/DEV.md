@@ -2,20 +2,22 @@
 
 Web前端架构文档 - Next.js 14 + Semi-Design
 
+> ⚠️ 本文档为早期规划，与当前实现有较大出入（如 React Query 实为 **v5**（非 v3.39）、无 (blog)/(user) 路由组与 `app/api/` BFF、无 sitemap/SSG、store 仅 authStore/uiStore）。**权威现状见 `docs/frontend/web.md`**。
+
 ## 技术栈
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Next.js | 14.2 | React框架 (App Router) |
-| React | 18.3 | UI库 |
-| Semi-Design | 2.65 | UI组件库 |
-| Zustand | 5.0 | 状态管理 |
-| React Query | 3.39 | 数据请求/缓存 |
-| Axios | 1.7 | HTTP客户端 |
-| Tailwind CSS | 3.4 | CSS框架 |
-| Day.js | 1.11 | 日期处理 |
-| Marked | 12.0 | Markdown渲染 |
-| Highlight.js | 11.9 | 代码高亮 |
+| 技术         | 版本 | 用途                   |
+| ------------ | ---- | ---------------------- |
+| Next.js      | 14.2 | React框架 (App Router) |
+| React        | 18.3 | UI库                   |
+| Semi-Design  | 2.65 | UI组件库               |
+| Zustand      | 5.0  | 状态管理               |
+| React Query  | 3.39 | 数据请求/缓存          |
+| Axios        | 1.7  | HTTP客户端             |
+| Tailwind CSS | 3.4  | CSS框架                |
+| Day.js       | 1.11 | 日期处理               |
+| Marked       | 12.0 | Markdown渲染           |
+| Highlight.js | 11.9 | 代码高亮               |
 
 ## 项目结构
 
@@ -118,6 +120,7 @@ src/
 ## 核心页面
 
 ### 首页 (/)
+
 ```tsx
 // app/(main)/page.tsx
 export default function HomePage() {
@@ -127,18 +130,19 @@ export default function HomePage() {
       fetchFn={() => api.posts.getFeed()}
       renderItem={(post) => <PostCard post={post} />}
     />
-  )
+  );
 }
 ```
 
 ### 博文详情 (/blog/[id])
+
 ```tsx
 // app/(blog)/[id]/page.tsx
 export default function PostPage({ params }) {
   const { data: post } = useQuery({
     queryKey: ['post', params.id],
-    queryFn: () => api.posts.get(params.id)
-  })
+    queryFn: () => api.posts.get(params.id),
+  });
 
   return (
     <div>
@@ -146,15 +150,16 @@ export default function PostPage({ params }) {
       <CommentList postId={params.id} />
       <RelatedPosts postId={params.id} />
     </div>
-  )
+  );
 }
 ```
 
 ### 用户主页 (/user/[id])
+
 ```tsx
 // app/(user)/[id]/page.tsx
 export default function UserPage({ params }) {
-  const [activeTab, setActiveTab] = useState('posts')
+  const [activeTab, setActiveTab] = useState('posts');
 
   return (
     <div>
@@ -171,22 +176,23 @@ export default function UserPage({ params }) {
         </TabPane>
       </Tabs>
     </div>
-  )
+  );
 }
 ```
 
 ## 状态管理
 
 ### AuthStore (Zustand)
+
 ```typescript
 // store/authStore.ts
 interface AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
-  setUser: (user: User) => void
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -195,124 +201,121 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   login: async (email, password) => {
-    const { user, token } = await api.auth.login(email, password)
-    set({ user, token, isAuthenticated: true })
-    storage.set('token', token)
+    const { user, token } = await api.auth.login(email, password);
+    set({ user, token, isAuthenticated: true });
+    storage.set('token', token);
   },
 
   logout: () => {
-    set({ user: null, token: null, isAuthenticated: false })
-    storage.remove('token')
+    set({ user: null, token: null, isAuthenticated: false });
+    storage.remove('token');
   },
 
-  setUser: (user) => set({ user })
-}))
+  setUser: (user) => set({ user }),
+}));
 ```
 
 ### UIStore
+
 ```typescript
 // store/uiStore.ts
 interface UIState {
-  theme: 'light' | 'dark'
-  sidebarOpen: boolean
-  notifications: Notification[]
-  setTheme: (theme: string) => void
-  toggleSidebar: () => void
-  addNotification: (notification: Notification) => void
+  theme: 'light' | 'dark';
+  sidebarOpen: boolean;
+  notifications: Notification[];
+  setTheme: (theme: string) => void;
+  toggleSidebar: () => void;
+  addNotification: (notification: Notification) => void;
 }
 ```
 
 ## API层设计
 
 ### Axios配置
+
 ```typescript
 // lib/api/client.ts
-import axios from 'axios'
-import { useAuthStore } from '@/store/authStore'
+import axios from 'axios';
+import { useAuthStore } from '@/store/authStore';
 
 const client = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   timeout: 10000,
-})
+});
 
 // 请求拦截器
 client.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token
+  const token = useAuthStore.getState().token;
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+    config.headers.Authorization = `Bearer ${token}`;
   }
-  return config
-})
+  return config;
+});
 
 // 响应拦截器
 client.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
     }
-    return Promise.reject(error)
-  }
-)
+    return Promise.reject(error);
+  },
+);
 
-export default client
+export default client;
 ```
 
 ### API模块
+
 ```typescript
 // lib/api/posts.ts
-import client from './client'
+import client from './client';
 
 export const posts = {
   // 获取推荐流
-  getFeed: (params: PaginationParams) =>
-    client.get('/posts/feed', { params }),
+  getFeed: (params: PaginationParams) => client.get('/posts/feed', { params }),
 
   // 获取博文详情
-  get: (id: string) =>
-    client.get(`/posts/${id}`),
+  get: (id: string) => client.get(`/posts/${id}`),
 
   // 创建博文
-  create: (data: CreatePostDto) =>
-    client.post('/posts', data),
+  create: (data: CreatePostDto) => client.post('/posts', data),
 
   // 更新博文
-  update: (id: string, data: UpdatePostDto) =>
-    client.put(`/posts/${id}`, data),
+  update: (id: string, data: UpdatePostDto) => client.put(`/posts/${id}`, data),
 
   // 删除博文
-  delete: (id: string) =>
-    client.delete(`/posts/${id}`),
+  delete: (id: string) => client.delete(`/posts/${id}`),
 
   // 点赞
-  like: (id: string) =>
-    client.post(`/posts/${id}/like`),
+  like: (id: string) => client.post(`/posts/${id}/like`),
 
   // 收藏
-  favorite: (id: string) =>
-    client.post(`/posts/${id}/favorite`),
-}
+  favorite: (id: string) => client.post(`/posts/${id}/favorite`),
+};
 ```
 
 ## 路由设计
 
 ### 页面路由表
-| 路径 | 页面 | 布局 | 认证 |
-|------|------|------|------|
-| `/` | 首页 | main | 否 |
-| `/feed` | 推荐流 | main | 是 |
-| `/trending` | 热门 | main | 否 |
-| `/notifications` | 通知 | main | 是 |
-| `/login` | 登录 | auth | 否 |
-| `/register` | 注册 | auth | 否 |
-| `/blog/[id]` | 博文详情 | blog | 否 |
-| `/blog/new` | 发布博文 | blog | 是 |
-| `/blog/[id]/edit` | 编辑博文 | blog | 是 |
-| `/user/[id]` | 用户主页 | user | 否 |
-| `/user/[id]/posts` | 用户博文 | user | 否 |
-| `/settings` | 个人设置 | main | 是 |
-| `/search` | 搜索 | main | 否 |
+
+| 路径               | 页面     | 布局 | 认证 |
+| ------------------ | -------- | ---- | ---- |
+| `/`                | 首页     | main | 否   |
+| `/feed`            | 推荐流   | main | 是   |
+| `/trending`        | 热门     | main | 否   |
+| `/notifications`   | 通知     | main | 是   |
+| `/login`           | 登录     | auth | 否   |
+| `/register`        | 注册     | auth | 否   |
+| `/blog/[id]`       | 博文详情 | blog | 否   |
+| `/blog/new`        | 发布博文 | blog | 是   |
+| `/blog/[id]/edit`  | 编辑博文 | blog | 是   |
+| `/user/[id]`       | 用户主页 | user | 否   |
+| `/user/[id]/posts` | 用户博文 | user | 否   |
+| `/settings`        | 个人设置 | main | 是   |
+| `/search`          | 搜索     | main | 否   |
 
 ## 无限滚动
 
@@ -362,8 +365,9 @@ function PostFeed() {
 ## 性能优化
 
 ### 图片优化
+
 ```tsx
-import Image from 'next/image'
+import Image from 'next/image';
 
 <Image
   src={post.coverImage}
@@ -373,42 +377,45 @@ import Image from 'next/image'
   loading="lazy"
   placeholder="blur"
   blurDataURL="/placeholder.jpg"
-/>
+/>;
 ```
 
 ### 代码分割
+
 ```tsx
 // 动态导入重型组件
 const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
   loading: () => <Loading />,
   ssr: false,
-})
+});
 
 // 路由级代码分割 (Next.js自动)
 ```
 
 ### 缓存策略
+
 ```typescript
 // React Query配置
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,     // 5分钟内数据视为新鲜
-      cacheTime: 30 * 60 * 1000,    // 缓存30分钟
-      refetchOnWindowFocus: false,   // 窗口聚焦时不自动刷新
+      staleTime: 5 * 60 * 1000, // 5分钟内数据视为新鲜
+      cacheTime: 30 * 60 * 1000, // 缓存30分钟
+      refetchOnWindowFocus: false, // 窗口聚焦时不自动刷新
       retry: 1,
     },
   },
-})
+});
 ```
 
 ## SEO优化
 
 ### Metadata API
+
 ```tsx
 // app/(blog)/[id]/page.tsx
 export async function generateMetadata({ params }): Promise<Metadata> {
-  const post = await api.posts.get(params.id)
+  const post = await api.posts.get(params.id);
 
   return {
     title: `${post.title} - WenxinBlog`,
@@ -427,11 +434,12 @@ export async function generateMetadata({ params }): Promise<Metadata> {
       description: post.summary,
       images: [post.coverImage],
     },
-  }
+  };
 }
 ```
 
 ### 结构化数据
+
 ```tsx
 // 博文结构化数据
 const jsonLd = {
@@ -453,10 +461,11 @@ const jsonLd = {
 ```
 
 ### Sitemap
+
 ```tsx
 // app/sitemap.ts
 export default async function sitemap() {
-  const posts = await api.posts.getAll()
+  const posts = await api.posts.getAll();
 
   return [
     {
@@ -467,7 +476,7 @@ export default async function sitemap() {
       url: `https://wenxinblog.com/blog/${post.id}`,
       lastModified: post.updatedAt,
     })),
-  ]
+  ];
 }
 ```
 
@@ -501,11 +510,13 @@ npm start
 ## 部署
 
 ### Vercel (推荐)
+
 ```bash
 vercel deploy
 ```
 
 ### 阿里云OSS + CDN
+
 ```bash
 # 静态资源上传
 npm run build:oss

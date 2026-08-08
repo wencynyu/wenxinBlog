@@ -10,6 +10,16 @@ JWT_SECRET="wenxinblog-mvp-jwt-secret-dev-only"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# 加载本地 .env（若有）：拿 GOOGLE_CLIENT_ID/SECRET、SMS_*、FRONTEND_URL 等（auth-service 需要）。
+# .env 已被 gitignore，不存在则跳过。
+if [ -f "$ROOT_DIR/.env" ]; then
+  set -a; . "$ROOT_DIR/.env"; set +a
+fi
+
+# 自动探测系统 HTTP 代理（macOS scutil；GFW 下 auth-service 调 Google 走它，离线/无代理环境为空）。
+DEV_PROXY="$(scutil --proxy 2>/dev/null | awk '/HTTPEnable : 1/{e=1} e && /HTTPProxy/{p=$3} e && /HTTPPort/{print "http://"p":"$3; exit}')"
+DEV_PROXY="${DEV_PROXY:-${HTTPS_PROXY:-}}"
+
 # --- OTel 配置（原生模式）---
 # Java 服务用 -javaagent 注入 OTel Java Agent；Go 用 OTel SDK；Python 用 opentelemetry-instrument。
 # 原生模式下 collector 暴露在宿主机 localhost:4317。
@@ -72,9 +82,25 @@ start_service() {
   export_otel_env "$name"
 
   if [ -f "cmd/server/main.go" ]; then
-    # Go service（OTel SDK 读 OTEL_* env）
-    JWT_SECRET="$JWT_SECRET" DATABASE_URL="postgres://postgres:postgres@localhost:$(echo $name | grep -q auth && echo 5432 || echo 5433)/${name}_db?sslmode=disable" \
-      nohup go run ./cmd/server > "/tmp/svc-$name.log" 2>&1 &
+    # Go service（OTel SDK 读 OTEL_* env；OTel Logs 经 stdlib log 桥接也走 OTLP）。
+    # 注意：auth 现强依赖 redis（OAuth state/中间码、短信码、限流），密码 redis。
+    case "$name" in
+      auth) DB_PORT=5432; DB_NAME=auth_db ;;
+      *)    DB_PORT=5433; DB_NAME=user_db ;;
+    esac
+    local launch_env=(
+      "JWT_SECRET=$JWT_SECRET"
+      "DATABASE_URL=postgres://postgres:postgres@localhost:${DB_PORT}/${DB_NAME}?sslmode=disable"
+      "REDIS_URL=redis://:redis@localhost:6379"
+      "FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}"
+      "AUTH_SERVICE_URL=http://localhost:8001"
+      "NO_PROXY=localhost,127.0.0.1,::1"
+    )
+    # auth-service 调 Google OAuth 出网走系统代理（GFW）；redis/postgres/collector 是本地不走。
+    if [ "$name" = "auth" ] && [ -n "$DEV_PROXY" ]; then
+      launch_env+=("HTTPS_PROXY=$DEV_PROXY" "HTTP_PROXY=$DEV_PROXY")
+    fi
+    env "${launch_env[@]}" nohup go run ./cmd/server > "/tmp/svc-$name.log" 2>&1 &
   elif [ -f "requirements.txt" ] || [ -f "app/main.py" ]; then
     # Python service（opentelemetry-instrument 自动注入；读 OTEL_* env）
     # Python 用 http/protobuf（免 grpcio）→ collector :4318

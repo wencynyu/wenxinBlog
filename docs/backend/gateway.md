@@ -6,18 +6,18 @@ API 网关 - 负责路由、JWT 鉴权注入、安全头剥离、熔断降级、
 
 ## 实现现状（体检）
 
-| 模块                              | 状态              | 说明                                                                               |
-| --------------------------------- | ----------------- | ---------------------------------------------------------------------------------- |
-| 路由转发（直连各服务）            | ✅                | 10 条路由，`http://localhost:NNNN`（**不走 lb://，无注册中心**）                   |
-| 安全头剥离（防伪造身份）          | ✅                | `default-filters` 全局 `RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email` |
-| AuthenticationFilter              | ✅                | JWT 校验（委托 auth-service `/validate`）后才注入真实身份                          |
-| FallbackHandler                   | ✅                | `@Order(-2)`，5xx/超时/熔断/限流 → 503/504，按路径给中文提示                       |
-| 健康聚合（7 服务 UP/DEGRADED）    | ✅                | `GET /health` 扇出探活 8001-8007                                                   |
-| RateLimitFilter（Redis 滑动窗口） | ⚠️ 已实现但未挂载 | Lua 脚本真实存在，但**无任何路由引用它**，当前休眠                                 |
-| Resilience4j 熔断                 | ⚠️ 半成           | 声明了 blog/recommendation 两个实例，但无路由接入 `CircuitBreaker` 算子            |
-| 服务发现（Eureka/Nacos/Consul）   | ❌ 未使用         | 无依赖，`discovery.locator.enabled: false`，旧文档整段是虚构的                     |
-| AccessLogFilter（Kafka 访问日志） | ⚠️ 已实现但未挂载 | 10% 采样，无路由引用，休眠                                                         |
-| `/internal/ads/**` + InternalOnly | ❌ 未配置         | predicate 类存在但无路由用                                                         |
+| 模块                              | 状态              | 说明                                                                                                   |
+| --------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| 路由转发（直连各服务）            | ✅                | 13 条路由，`http://localhost:NNNN`（**不走 lb://，无注册中心**）                                       |
+| 安全头剥离（防伪造身份）          | ✅                | `default-filters` 全局 `RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email, X-User-Permissions` |
+| AuthenticationFilter              | ✅                | JWT 校验（委托 auth-service `/validate`）后才注入真实身份                                              |
+| FallbackHandler                   | ✅                | `@Order(-2)`，5xx/超时/熔断/限流 → 503/504，按路径给中文提示                                           |
+| 健康聚合（7 服务 UP/DEGRADED）    | ✅                | `GET /health` 扇出探活 8001-8007                                                                       |
+| RateLimitFilter（Redis 滑动窗口） | ⚠️ 已实现但未挂载 | Lua 脚本真实存在，但**无任何路由引用它**，当前休眠                                                     |
+| Resilience4j 熔断                 | ⚠️ 半成           | 声明了 blog/recommendation 两个实例，但无路由接入 `CircuitBreaker` 算子                                |
+| 服务发现（Eureka/Nacos/Consul）   | ❌ 未使用         | 无依赖，`discovery.locator.enabled: false`，旧文档整段是虚构的                                         |
+| AccessLogFilter（Kafka 访问日志） | ⚠️ 已实现但未挂载 | 10% 采样，无路由引用，休眠                                                                             |
+| `/internal/ads/**` + InternalOnly | ❌ 未配置         | predicate 类存在但无路由用                                                                             |
 
 ## 技术栈
 
@@ -38,13 +38,16 @@ API 网关 - 负责路由、JWT 鉴权注入、安全头剥离、熔断降级、
 | id                     | uri  | Path 谓词                                                | 过滤器                                  |
 | ---------------------- | ---- | -------------------------------------------------------- | --------------------------------------- |
 | auth-service           | 8001 | `/api/v1/auth/**`                                        | StripPrefix=0                           |
+| auth-admin             | 8001 | `/api/v1/admin/**`                                       | StripPrefix=0, **AuthenticationFilter** |
+| auth-account           | 8001 | `/api/v1/account/**`                                     | StripPrefix=0, **AuthenticationFilter** |
 | user-service           | 8002 | `/api/v1/users/**, /api/v1/me/**`                        | StripPrefix=0, **AuthenticationFilter** |
 | blog-service           | 8003 | `/api/v1/posts/**, /api/v1/comments/**, /api/v1/tags/**` | StripPrefix=0, **AuthenticationFilter** |
 | content-service        | 8004 | `/api/v1/content/**`                                     | StripPrefix=0, **AuthenticationFilter** |
 | search-service         | 8005 | `/api/v1/search/**`                                      | StripPrefix=0, **AuthenticationFilter** |
 | recommendation-service | 8006 | `/api/v1/recommend/**`                                   | StripPrefix=0, **AuthenticationFilter** |
 | experiment-service     | 8009 | `/api/v1/experiments/**, /api/v1/layers/**`              | StripPrefix=0, **AuthenticationFilter** |
-| analytics-service      | 8010 | `/api/v1/analytics/**`                                   | StripPrefix=0（无 AuthFilter）          |
+| analytics-service      | 8010 | `/api/v1/analytics/**`                                   | StripPrefix=0, **AuthenticationFilter** |
+| ad-service             | 8007 | `/api/v1/campaigns/**`                                   | StripPrefix=0, **AuthenticationFilter** |
 | ad-tracking            | 8007 | `/api/v1/ads/t/**`                                       | StripPrefix=0                           |
 | health                 | 8001 | `/health/**`                                             | StripPrefix=0                           |
 
@@ -55,7 +58,7 @@ API 网关 - 负责路由、JWT 鉴权注入、安全头剥离、熔断降级、
 ```yaml
 default-filters:
   # 全局剥离客户端可能伪造的身份头（下游只信任网关注入的 X-User-*）
-  - RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email
+  - RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email, X-User-Permissions
   - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 ```
 
@@ -124,7 +127,7 @@ spring:
       server:
         webflux:
           discovery: { locator: { enabled: false } }
-          default-filters: [ RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email, ... ]
+          default-filters: [ RemoveRequestHeader=X-User-Id, X-User-Roles, X-User-Email, X-User-Permissions, ... ]
           globalcors:
             cors-configurations:
               '[/**]':

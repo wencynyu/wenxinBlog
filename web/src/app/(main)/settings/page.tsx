@@ -221,7 +221,7 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={provider}
-                    className="flex items-center justify-between border border-line rounded-lg px-4 py-3"
+                    className="flex items-center justify-between border border-hairline rounded-lg px-4 py-3"
                   >
                     <span className="text-ink font-medium">
                       {PROVIDER_LABEL[provider] || provider}

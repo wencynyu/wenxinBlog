@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Card } from '@douyinfe/semi-ui';
 import { IconStarStroked } from '@douyinfe/semi-icons';
 import { useTrendingPosts } from '@/hooks/useRecommendations';
 
@@ -13,7 +14,7 @@ export default function Sidebar() {
 
   return (
     <aside className="w-full space-y-6">
-      <div className="bg-surface rounded-xl shadow-card p-5">
+      <Card bodyStyle={{ padding: 20 }}>
         <h5 className="eyebrow mb-4 flex items-center gap-2">
           <IconStarStroked className="text-accent-500" />
           {'// popular posts'}
@@ -23,7 +24,7 @@ export default function Sidebar() {
             <Link
               key={post.id}
               href={`/posts/${post.id}`}
-              className="block w-full px-2 -mx-2 py-1 rounded-md hover:bg-canvas transition-colors"
+              className="block w-full px-2 -mx-2 py-1 rounded-md hover:bg-canvas transition-colors no-underline"
             >
               <div className="flex items-start gap-2">
                 <span
@@ -41,7 +42,7 @@ export default function Sidebar() {
             </Link>
           ))}
         </div>
-      </div>
+      </Card>
     </aside>
   );
 }

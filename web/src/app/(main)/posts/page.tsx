@@ -2,13 +2,13 @@
 
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Button } from '@douyinfe/semi-ui';
-import { IconSort } from '@douyinfe/semi-icons';
+import { Button, Radio } from '@douyinfe/semi-ui';
 import Link from 'next/link';
 import { IconPlus } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
+import PageHeader from '@/components/common/PageHeader';
 import { useAuthStore } from '@/store/authStore';
 import { usePosts } from '@/hooks/usePosts';
 
@@ -39,33 +39,32 @@ function PostsContent() {
 
   return (
     <MainLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="eyebrow mb-2">{'// posts' + (tag ? ` · #${tag}` : '')}</p>
-          <h1 className="font-serif text-2xl font-bold text-ink">博文列表</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            {sortOptions.map((opt) => (
-              <Button
-                key={opt.key}
-                size="small"
-                theme={sortBy === opt.key ? 'solid' : 'borderless'}
-                onClick={() => setSortBy(opt.key)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
-          {isAuthenticated && (
-            <Link href="/editor">
-              <Button theme="solid" icon={<IconPlus />} size="small">
-                写博文
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={'// posts' + (tag ? ` · #${tag}` : '')}
+        title="博文列表"
+        extra={
+          <>
+            <Radio.Group
+              type="button"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortKey)}
+            >
+              {sortOptions.map((opt) => (
+                <Radio key={opt.key} value={opt.key}>
+                  {opt.label}
+                </Radio>
+              ))}
+            </Radio.Group>
+            {isAuthenticated && (
+              <Link href="/editor">
+                <Button theme="solid" icon={<IconPlus />} size="small">
+                  写博文
+                </Button>
+              </Link>
+            )}
+          </>
+        }
+      />
 
       {loadError && allPosts.length === 0 ? (
         <EmptyState title="暂时无法加载内容" description="后端服务暂不可用，请稍后再试" />

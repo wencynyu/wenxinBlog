@@ -72,7 +72,7 @@
 ├───────────────────────────────────────────────────────────────────┤
 │ 可观测性: OTel Agent/SDK → Collector:4317/4318                    │
 │           → Elasticsearch(traces+logs) + Prometheus:9090(metrics) │
-│           → Grafana:3000(overview / logs / traces / api)          │
+│           → Grafana:3001(overview / logs / traces / api)          │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -114,7 +114,7 @@
 | ClickHouse     | 24.8-alpine      | 行为分析 OLAP                                | 8123                   |
 | OTel Collector | 0.157.0          | 可观测性数据聚合                             | 4317, 4318, 8889       |
 | Prometheus     | v3.13.1          | 指标采集                                     | 9090                   |
-| Grafana        | 13.1             | 可视化看板                                   | 3000                   |
+| Grafana        | 13.1             | 可视化看板                                   | 3001                   |
 
 ## 架构特点
 

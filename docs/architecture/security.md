@@ -54,9 +54,9 @@
 │          │                                                   │
 │          v                                                   │
 │     ┌─────────────┐                                        │
-│     │auth-service │ -> 验证密码                             │
-│     │             │    - 生成JWT Token                       │
-│     │             │    - 存储Session (Redis)                 │
+│     │auth-service │ -> 验证密码 (bcrypt)                    │
+│     │             │    - 签发 access/refresh JWT（无状态，  │
+│     │             │      不入库 session；logout 即空操作）   │
 │     └──────┬──────┘                                        │
 │            │                                                │
 │            v                                                │
@@ -76,31 +76,34 @@
 ### JWT设计
 
 ```
-JWT Payload (access token):
+JWT Payload (access token)，HS256 签名:
 {
-  "iss": "wenxinblog",           // 签发者
   "sub": "user-id",               // 用户ID
-  "email": "user@example.com",    // 邮箱
   "iat": 1234567890,              // 签发时间
   "exp": 1234567890,              // 过期时间 (随 token 类型不同)
   "type": "access" | "refresh",   // Token 类型，区分访问/刷新
-  "roles": ["user"]               // 用户角色（由 auth-service 校验后透传给网关）
+  "roles": ["user"],              // 用户角色
+  "permissions": ["post:create", "post:update:own", ...]  // RBAC 权限码，网关据此鉴权
 }
+
+> ⚠️ **无 email claim**：`/api/v1/auth/validate` 回传的 `email` 字段当前恒为空字符串（占位，待补）。
+> refresh token **不入库、不可吊销**，logout 为无状态空操作。
 
 Token 刷新（access / refresh 双 token）:
 - Access Token: 15 分钟有效
 - Refresh Token: 7 天有效
 - 刷新接口: POST /api/v1/auth/refresh（携带 refreshToken，返回新的 access/refresh）
-- 网关通过 GET /api/v1/auth/validate 校验 access token，换取 userId/email/roles
+- 网关通过 GET /api/v1/auth/validate 校验 access token，换取 userId/roles/permissions（email 占位为空）
 ```
 
 ### OAuth2.0
 
 ```
-支持的OAuth提供商:
-- Google
-- GitHub
-- 微信
+支持的登录方式（详见 services/auth-service/docs/social-login-setup.md）:
+- Google OAuth2.0        ← 完整实现（按 GOOGLE_CLIENT_ID 启用）
+- 手机号 + 短信验证码    ← 完整实现（mock / 阿里云短信，验证码走 Redis）
+- GitHub                 ← ⚠️ 仅有 config 解析、无 Provider 实现，填了 env 也不会启用
+- 微信 / Apple / Alipay  ← 未实现（微信已移除）
 
 流程:
 1. 前端: 重定向到OAuth授权页面
@@ -118,11 +121,11 @@ Token 刷新（access / refresh 双 token）:
 
 1. 全局过滤器 (default-filters):
    - 进入路由前先 RemoveRequestHeader 剥离客户端可能伪造的
-     X-User-Id / X-User-Roles / X-User-Email
+     X-User-Id / X-User-Roles / X-User-Email / X-User-Permissions（共 4 个）
 
 2. AuthenticationFilter:
    - 提取 Bearer token → 调 auth-service 的 /api/v1/auth/validate 校验
-   - 校验通过后才把真实的 X-User-Id / X-User-Roles / X-User-Email 注入下游
+   - 校验通过后才把真实的 X-User-Id / X-User-Roles / X-User-Email / X-User-Permissions 注入下游
    - GET + 白名单 (/api/v1/auth, /health) 放行；匿名 GET 不注入（降级为公开读）
    - POST/PUT/DELETE 无有效 token 直接 401
 
@@ -141,58 +144,44 @@ Token 刷新（access / refresh 双 token）:
 │                                                              │
 │  用户 (User)                                                 │
 │    │                                                         │
-│    ├── 角色 (Role)                                          │
+│    ├── 角色 (Role) —— 5 级、支持继承（auth_db: roles 表）   │
 │    │    │                                                    │
-│    │    ├── 普通用户 (USER)                                 │
-│    │    │    ├── post:read (读博文)                         │
-│    │    │    ├── post:write (写博文)                        │
-│    │    │    └── comment:write (写评论)                     │
-│    │    │                                                    │
-│    │    ├── VIP用户 (VIP)                                   │
-│    │    │    ├── 继承 USER 权限                             │
-│    │    │    ├── post:pin (置顶)                            │
-│    │    │    └── content:upload (上传更多)                  │
-│    │    │                                                    │
-│    │    ├── 管理员 (ADMIN)                                  │
-│    │    │    ├── post:delete (删除博文)                     │
-│    │    │    ├── user:manage (管理用户)                     │
-│    │    │    └── ad:manage (管理广告)                       │
-│    │    │                                                    │
-│    │    └── 超级管理员 (SUPER_ADMIN)                        │
-│    │         ├── 所有权限                                    │
-│    │         └── system:config (系统配置)                   │
+│    │    ├── guest (访客, level 0)                           │
+│    │    ├── user (普通用户, level 1, 继承 guest)            │
+│    │    │    └── post:create / post:update:own ...          │
+│    │    ├── author (作者, level 2, 继承 user)              │
+│    │    │    └── + post:publish                             │
+│    │    ├── moderator (版主, level 3, 继承 author)         │
+│    │    │    └── + post:update:any / comment:moderate ...  │
+│    │    └── admin (管理员, level 4, 继承 moderator)        │
+│    │         └── + user:ban / user:assign_role ...         │
 │    │                                                         │
-│    └── 权限 (Permission)                                    │
-│         - 资源:操作 (resource:action)                       │
-│         - 细粒度控制                                         │
+│    └── 权限 (Permission) —— 共 21 个权限码（auth_db 表）    │
+│         - 格式 资源:操作[:范围]，如 post:create / user:ban │
+│         - 走 JWT claims（permissions），网关注入            │
+│           X-User-Permissions 头做粗粒度鉴权                 │
+│                                                              │
+│  完整角色-权限矩阵见 DESIGN.md §3.4；表结构见 §4.1（auth_db）│
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### 权限验证
 
-```java
-// Gateway权限过滤器
-@Component
-public class AuthorizationFilter implements WebFilter {
+```
+Gateway 粗粒度鉴权：AuthorizationFilter 是 GlobalFilter(@Order(20))，运行在
+AuthenticationFilter 之后。它读 AuthenticationFilter 注入的 X-User-Permissions 头，
+按 (HTTP METHOD, path 模式) → 所需权限码 做映射；命中且权限不足 → 403 FORBIDDEN。
 
-    @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String path = exchange.getRequest().getPath().value();
-        String userId = extractUserId(exchange);
+特点:
+- 不自己查库/查 Redis——权限已在 JWT claims 里由 auth-service 签发、validate 回传。
+- 只做"粗粒度"资源级鉴权（如 POST /posts/{id}/publish 需 post:publish）。
+- "细粒度" own/any 属主校验由各业务服务做（见下节 IDOR 防护）。
 
-        // 检查用户权限
-        List<String> permissions = getPermissions(userId);
-        String requiredPermission = getRequiredPermission(path);
-
-        if (!permissions.contains(requiredPermission)) {
-            exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
-            return exchange.getResponse().setComplete();
-        }
-
-        return chain.filter(exchange);
-    }
-}
+示例映射:
+- POST   /api/v1/posts/{id}/publish  → 需 "post:publish"
+- DELETE /api/v1/comments/{id}        → 需 "comment:moderate"
+- POST   /api/v1/admin/users/{id}/ban → 需 "user:ban"
 ```
 
 ### 数据权限 (IDOR 防护)
@@ -396,10 +385,10 @@ public class SecurityConfig {
 ### 等级保护
 
 ```
-等保三级要求:
+等保三级要求（目标态；⚠️ 当前实现差距见括号）:
 1. 身份鉴别
-   - 双因素认证
-   - 密码复杂度
+   - 双因素认证（❌ 当前 2FA 未实现，仅 users 表占位列）
+   - 密码复杂度（⚠️ 当前仅校验 len>=8，无大小写/数字/符号要求）
 
 2. 访问控制
    - 最小权限原则

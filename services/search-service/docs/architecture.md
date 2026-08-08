@@ -2,6 +2,8 @@
 
 搜索服务 - 负责全文搜索、智能补全、搜索分析
 
+> ⚠️ 本文件为早期设计稿，部分内容（端口、事件 topic 模型）已过时。**权威现状见 `docs/backend/search-service.md`**。搜索引擎已从 OpenSearch 迁移至 **Elasticsearch 9.3.8**，服务端口 **8005**。
+
 ## 功能
 
 - 全文搜索 (博文、用户)
@@ -15,13 +17,14 @@
 
 - Java 25
 - Spring Boot 4.0.4 (WebFlux)
-- OpenSearch 2.11
+- Elasticsearch 9.3.8
 - Kafka (监听博文变更事件)
 - Redis (缓存搜索结果)
 
-## OpenSearch索引
+## Elasticsearch 索引
 
 ### blog_index (博文索引)
+
 ```json
 {
   "settings": {
@@ -87,6 +90,7 @@
 ```
 
 ### user_index (用户索引)
+
 ```json
 {
   "mappings": {
@@ -119,6 +123,7 @@
 ## API
 
 ### 博文搜索
+
 ```
 GET    /api/v1/search/blog?q=xxx&page=1&pageSize=20
        ?sort=latest | popular | relevant
@@ -152,11 +157,13 @@ Response:
 ```
 
 ### 用户搜索
+
 ```
 GET    /api/v1/search/user?q=xxx&page=1&pageSize=20
 ```
 
 ### 搜索建议
+
 ```
 GET    /api/v1/search/suggest?q=jav&type=blog|user
 
@@ -171,12 +178,14 @@ Response:
 ```
 
 ### 搜索历史
+
 ```
 GET    /api/v1/search/history        - 获取搜索历史
 DELETE /api/v1/search/history        - 清空搜索历史
 ```
 
 ### 热门搜索
+
 ```
 GET    /api/v1/search/trending       - 热门搜索词
 
@@ -191,6 +200,7 @@ Response:
 ## Kafka事件监听
 
 ### 博文事件
+
 ```yaml
 Topics:
   - wenxinblog.blog.created  -> 创建索引
@@ -201,6 +211,7 @@ Group: search-service
 ```
 
 ### 用户事件
+
 ```yaml
 Topics:
   - wenxinblog.user.registered -> 创建用户索引
@@ -212,6 +223,7 @@ Group: search-service-user
 ## Redis缓存设计
 
 ### 搜索结果缓存
+
 ```
 Key: search:blog:{query_hash}
 Type: JSON
@@ -220,6 +232,7 @@ Value: { results, total, aggregations }
 ```
 
 ### 热门搜索词缓存
+
 ```
 Key: search:trending:daily
 Key: search:trending:weekly
@@ -229,6 +242,7 @@ TTL: 3600
 ```
 
 ### 搜索历史
+
 ```
 Key: search:history:{userId}
 Type: LIST
@@ -239,6 +253,7 @@ Max Length: 50
 ## 搜索相关性配置
 
 ### BM25参数
+
 ```yaml
 search:
   similarity:
@@ -249,6 +264,7 @@ search:
 ```
 
 ### 字段权重
+
 ```yaml
 search:
   fields:
@@ -266,7 +282,7 @@ search:
 
 ```yaml
 server:
-  port: 8004
+  port: 8005
 
 spring:
   kafka:
@@ -274,10 +290,10 @@ spring:
     consumer:
       group-id: search-service
 
-opensearch:
+elasticsearch:
   uris: http://localhost:9200
-  username: ${OPENSEARCH_USERNAME:}
-  password: ${OPENSEARCH_PASSWORD:}
+  username: ${ELASTICSEARCH_USERNAME:}
+  password: ${ELASTICSEARCH_PASSWORD:}
   index:
     blog: wenxinblog-blog
     user: wenxinblog-user

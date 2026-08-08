@@ -77,7 +77,7 @@ export default function PostList({
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {Array.from({ length: 3 }).map((_, i) => (
           <PostCardSkeleton key={i} />
         ))}
@@ -103,7 +103,7 @@ export default function PostList({
 
   return (
     <div>
-      <div className="space-y-4">
+      <div className="space-y-6">
         {posts.map((post) => (
           <PostCard key={post.id} post={post} />
         ))}

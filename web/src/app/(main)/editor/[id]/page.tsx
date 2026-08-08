@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Input, Button, TagInput, Toast, Switch, Skeleton } from '@douyinfe/semi-ui';
+import {
+  Input,
+  Button,
+  TagInput,
+  Toast,
+  Switch,
+  Skeleton,
+  TextArea,
+  Card,
+  Typography,
+  Tag,
+} from '@douyinfe/semi-ui';
 import { IconArrowLeft } from '@douyinfe/semi-icons';
 import MainLayout from '@/components/layout/MainLayout';
 import dynamic from 'next/dynamic';
@@ -68,7 +79,7 @@ export default function EditPostPage() {
   if (isLoading) {
     return (
       <MainLayout showSidebar={false}>
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto overflow-x-hidden">
           <Skeleton.Title style={{ width: 200, height: 36, marginBottom: 24 }} />
           <Skeleton.Title style={{ width: '60%', height: 40, marginBottom: 16 }} />
           <Skeleton.Paragraph style={{ width: '100%' }} />
@@ -92,14 +103,16 @@ export default function EditPostPage() {
 
   return (
     <MainLayout showSidebar={false}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto overflow-x-hidden">
         {/* 顶部操作栏 */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Button icon={<IconArrowLeft />} theme="borderless" onClick={() => router.back()}>
               返回
             </Button>
-            <h1 className="font-serif text-xl font-bold text-ink">编辑博文</h1>
+            <Typography.Title heading={2} style={{ marginBottom: 0 }}>
+              编辑博文
+            </Typography.Title>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -126,11 +139,12 @@ export default function EditPostPage() {
 
         {/* 编辑区 */}
         <div className="grid grid-cols-1 gap-4">
-          <input
+          <Input
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(value) => setTitle(value)}
             placeholder="请输入博文标题..."
-            className="w-full font-serif text-3xl font-bold text-ink placeholder-ink-faint outline-none border-none bg-transparent"
+            borderless
+            style={{ fontSize: '1.875rem', fontWeight: 600 }}
           />
 
           <TagInput
@@ -144,38 +158,39 @@ export default function EditPostPage() {
           <Input value={coverImage} onChange={setCoverImage} placeholder="封面图链接（可选）" />
 
           {showPreview ? (
-            <div className="bg-surface rounded-xl shadow-card p-6">
+            <Card bodyStyle={{ padding: 24 }}>
               <h1 className="font-serif text-2xl font-bold text-ink mb-4">{title || '标题预览'}</h1>
               {tags.length > 0 && (
                 <div className="flex gap-2 mb-4">
                   {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-mono bg-primary-50 text-primary-700"
-                    >
+                    <Tag key={tag} size="small" color="blue">
                       {tag}
-                    </span>
+                    </Tag>
                   ))}
                 </div>
               )}
               <MarkdownRenderer content={content || '* 内容预览区域...'} />
-            </div>
+            </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="relative">
-                <textarea
+            <div className="grid grid-cols-2 gap-4 overflow-hidden">
+              <div className="relative min-w-0">
+                <TextArea
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(value) => setContent(value)}
                   placeholder="使用 Markdown 编写博文内容..."
-                  className="w-full h-[600px] p-4 border border-hairline rounded-xl bg-surface text-ink-muted font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  autosize={{ minRows: 24 }}
+                  className="font-mono text-sm"
                 />
               </div>
-              <div className="bg-surface rounded-xl shadow-card p-4 overflow-y-auto h-[600px]">
+              <Card
+                bodyStyle={{ padding: 16 }}
+                className="h-[600px] overflow-y-auto overflow-x-hidden min-w-0"
+              >
                 <h1 className="font-serif text-xl font-bold text-ink mb-3">
                   {title || '标题预览'}
                 </h1>
                 <MarkdownRenderer content={content || '* 内容预览区域...'} />
-              </div>
+              </Card>
             </div>
           )}
         </div>

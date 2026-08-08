@@ -12,13 +12,16 @@
 | Path 前缀                                                    | 转发到                       | 鉴权                  | route id               |
 | ------------------------------------------------------------ | ---------------------------- | --------------------- | ---------------------- |
 | `/api/v1/auth/**`                                            | auth-service :8001           | 公开                  | auth-service           |
+| `/api/v1/admin/**`                                           | auth-service :8001           | AuthenticationFilter  | auth-admin             |
+| `/api/v1/account/**`                                         | auth-service :8001           | AuthenticationFilter  | auth-account           |
 | `/api/v1/users/**`、`/api/v1/me/**`                          | user-service :8002           | AuthenticationFilter  | user-service           |
 | `/api/v1/posts/**`、`/api/v1/comments/**`、`/api/v1/tags/**` | blog-service :8003           | AuthenticationFilter  | blog-service           |
 | `/api/v1/content/**`                                         | content-service :8004        | AuthenticationFilter  | content-service        |
 | `/api/v1/search/**`                                          | search-service :8005         | AuthenticationFilter  | search-service         |
 | `/api/v1/recommend/**`                                       | recommendation-service :8006 | AuthenticationFilter  | recommendation-service |
-| `/api/v1/analytics/**`                                       | analytics-service :8010      | 公开                  | analytics-service      |
+| `/api/v1/analytics/**`                                       | analytics-service :8010      | AuthenticationFilter  | analytics-service      |
 | `/api/v1/experiments/**`、`/api/v1/layers/**`                | experiment-service :8009     | AuthenticationFilter  | experiment-service     |
+| `/api/v1/campaigns/**`                                       | ad-service :8007             | AuthenticationFilter  | ad-service             |
 | `/api/v1/ads/t/**`                                           | ad-service :8007             | 公开（广告追踪/上报） | ad-tracking            |
 | `/health/**`                                                 | auth-service :8001           | 公开                  | health                 |
 

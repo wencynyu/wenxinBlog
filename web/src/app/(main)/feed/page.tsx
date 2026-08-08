@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
 import EmptyState from '@/components/common/EmptyState';
+import PageHeader from '@/components/common/PageHeader';
 import RecommendationCard from '@/components/recommend/RecommendationCard';
 import { useAuthStore } from '@/store/authStore';
 import { useFeedRecommendations } from '@/hooks/useRecommendations';
@@ -40,21 +41,19 @@ export default function FeedPage() {
 
   return (
     <MainLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="eyebrow mb-2">{hasUser ? '// for you' : '// feed'}</p>
-          <h1 className="font-serif text-2xl font-bold text-ink">
-            {hasUser ? '为你推荐' : '最新博文'}
-          </h1>
-        </div>
-        {isAuthenticated && (
-          <Link href="/editor">
-            <Button theme="solid" icon={<IconPlus />} size="small">
-              写博文
-            </Button>
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        eyebrow={hasUser ? '// for you' : '// feed'}
+        title={hasUser ? '为你推荐' : '最新博文'}
+        extra={
+          isAuthenticated && (
+            <Link href="/editor">
+              <Button theme="solid" icon={<IconPlus />} size="small">
+                写博文
+              </Button>
+            </Link>
+          )
+        }
+      />
 
       {loading ? (
         <PostList posts={[]} isLoading={true} hasMore={false} />

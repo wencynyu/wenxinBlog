@@ -43,7 +43,7 @@ export default function Navbar() {
   const visibleItems = navItems.filter((item) => !item.adminOnly || showAdmin);
 
   return (
-    <nav className="border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700">
+    <nav className="border-b border-hairline bg-surface">
       <div className="container-custom">
         <Nav mode="horizontal" activeKey={activeKey} header={{ text: null }} footer={null}>
           {visibleItems.map((item) => (
@@ -53,7 +53,7 @@ export default function Navbar() {
               text={
                 <Link href={item.path} className="flex items-center space-x-1">
                   {item.icon}
-                  <span className="dark:text-gray-300">{item.label}</span>
+                  <span>{item.label}</span>
                 </Link>
               }
             />

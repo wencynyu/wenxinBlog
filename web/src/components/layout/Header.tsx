@@ -65,15 +65,15 @@ export default function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:bg-gray-900/95 dark:border-gray-700">
+    <header className="sticky top-0 z-50 w-full border-b border-hairline bg-surface/95 backdrop-blur">
       <div className="container-custom">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-sky-500 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-primary-600 flex items-center justify-center">
               <span className="text-white font-bold text-lg">W</span>
             </div>
-            <span className="font-bold text-xl text-gray-900 dark:text-white">WenxinBlog</span>
+            <span className="font-bold text-xl text-ink">WenxinBlog</span>
           </Link>
 
           {/* 搜索框 */}
@@ -105,11 +105,11 @@ export default function Header() {
               <div className="w-24" />
             ) : authed && user ? (
               <Dropdown trigger="click" position="bottomRight" render={userMenu}>
-                <button className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full px-2 py-1 transition-colors">
+                <button className="flex items-center gap-2 hover:bg-canvas rounded-full px-2 py-1 transition-colors">
                   <Avatar size="small" src={user.avatar} alt={user.displayName || user.username}>
                     {(user.displayName || user.username || 'U')[0]}
                   </Avatar>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+                  <span className="text-sm font-medium text-ink-muted hidden sm:block">
                     {user.displayName || user.username}
                   </span>
                 </button>
