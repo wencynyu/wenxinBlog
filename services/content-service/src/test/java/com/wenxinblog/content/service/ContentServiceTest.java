@@ -42,6 +42,9 @@ class ContentServiceTest {
         contentService = new ContentService(mediaRepo, minioClient);
         org.springframework.test.util.ReflectionTestUtils.setField(contentService, "bucket", "wenxinblog-content");
         org.springframework.test.util.ReflectionTestUtils.setField(contentService, "endpoint", "http://localhost:9000");
+        // file.upload.max-size 大小校验后来加入（0811f28），非 Spring 构造时需手动注入
+        org.springframework.test.util.ReflectionTestUtils.setField(contentService, "maxFileSize",
+                org.springframework.util.unit.DataSize.ofBytes(10 * 1024 * 1024));
     }
 
     private void stubFilePart(String filename, MediaType contentType) {
