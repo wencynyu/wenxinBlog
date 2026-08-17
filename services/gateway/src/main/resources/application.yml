@@ -110,13 +110,18 @@ spring:
                 - StripPrefix=0
                 - name: AuthenticationFilter
 
-            # 广告追踪 (公开)
-            - id: ad-tracking
+            # 广告决策/追踪 (公开；decision 每次调用都计费，按 IP 限流防刷)
+            - id: ad-public
               uri: http://localhost:8007
               predicates:
-                - Path=/api/v1/ads/t/**
+                - Path=/api/v1/ads/**
               filters:
                 - StripPrefix=0
+                - name: RateLimitFilter
+                  args:
+                    limit: 60
+                    window: 60
+                    type: ip
 
             # 健康检查 (公开)
             - id: health
