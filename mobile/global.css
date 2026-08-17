@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 语义色与 web 端 globals.css 对齐（--color-ink / --color-canvas / ...）。
+ * NativeWind 通过 prefers-color-scheme 跟随系统深色模式（app.json: automatic）。
+ */
+:root {
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-ink: #1c1e21;
+  --color-ink-muted: #5c6470;
+  --color-ink-faint: #8a919c;
+  --color-hairline: #e5e7eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #101214;
+    --color-surface: #1a1d21;
+    --color-ink: #e8eaed;
+    --color-ink-muted: #9aa3ad;
+    --color-ink-faint: #6b7280;
+    --color-hairline: #2a2e33;
+  }
+}

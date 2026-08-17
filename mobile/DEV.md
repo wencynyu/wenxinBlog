@@ -1,516 +1,62 @@
-# iOS Mobile
+# Mobile 开发文档
 
-iOS客户端架构文档 - React Native + Expo
+面向本仓库贡献者的实现说明。功能现状见 `docs/frontend/mobile.md`，快速上手见 `README.md`。
 
-> ⚠️ 本文档为早期规划/理想态，与当前实现出入很大（Semi-Design Mobile / Flash List / Axios / 推送 / 生物识别均未引入，`src/` 为空目录）。导航用 **Expo Router**（非 React Navigation）。**权威现状见 `docs/frontend/mobile.md`**。
+## 与 web 端的复用关系
 
-## 技术栈
+逻辑层四层从 `web/src/` 移植，端点、信封（`ApiResponse{code,message,data}` / `PaginatedResponse`）、token key（`auth_token`）与 web 完全一致：
 
-| 技术               | 版本 | 用途                  |
-| ------------------ | ---- | --------------------- |
-| React Native       | 0.74 | 移动框架              |
-| Expo               | 51.0 | 开发工具链            |
-| Expo Router        | 3.5  | 文件路由 (File-based) |
-| Semi-Design Mobile | 2.12 | UI组件库 (Halation)   |
-| Zustand            | 5.0  | 状态管理              |
-| TanStack Query     | 5.0  | 数据请求              |
-| Axios              | 1.7  | HTTP客户端            |
-| Flash List         | 1.6  | 高性能列表            |
-| Day.js             | 1.11 | 日期处理              |
-| Expo SecureStore   | 1.12 | 安全存储              |
+| 层                       | 来源                         | 适配点                                                                                                                 |
+| ------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/types/`             | `web/src/types/` 原样复制    | 无                                                                                                                     |
+| `src/lib/api/`           | `web/src/lib/api/` 同构移植  | token 读写改 SecureStore（异步拦截器）；401 由 `window.location` 改回调注册；丢弃 server.ts / cookie 同步              |
+| `src/hooks/`             | `web/src/hooks/` 同构移植    | `next/navigation` → `expo-router`；新增 `useInfinitePosts`                                                             |
+| `src/store/authStore.ts` | `web/src/store/authStore.ts` | persist 存 AsyncStorage；token 不进 persist（SecureStore 为准）；`checkAuth` 升级为 `bootstrap()`：`/auth/me` 真实验证 |
 
-## 项目结构
+后续新增 API/类型时，**先在 web 端定契约，再同步两侧**，避免两端漂移。
+
+## 认证闭环
 
 ```
-src/
-├── app/                    # Expo Router页面
-│   ├── (auth)/            # 认证相关 (无Tab导航)
-│   │   ├── login.tsx
-│   │   ├── register.tsx
-│   │   └── oauth.tsx
-│   │
-│   ├── (main)/            # 主应用 (带Tab导航)
-│   │   ├── _layout.tsx    # Tab导航配置
-│   │   ├── index.tsx      # 首页 (推荐流)
-│   │   ├── search.tsx     # 搜索页
-│   │   ├── notifications.tsx # 通知页
-│   │   └── profile.tsx    # 个人中心
-│   │
-│   ├── blog/              # 博文相关
-│   │   ├── [id].tsx       # 博文详情
-│   │   ├── new.tsx        # 发布博文
-│   │   └── edit.tsx       # 编辑博文
-│   │
-│   └── user/              # 用户相关
-│       ├── [id].tsx       # 用户主页
-│       └── settings.tsx   # 设置
-│
-├── components/             # 组件
-│   ├── common/            # 通用组件
-│   │   ├── Button.tsx
-│   │   ├── Input.tsx
-│   │   ├── Modal.tsx
-│   │   ├── Toast.tsx
-│   │   └── Loading.tsx
-│   │
-│   ├── blog/              # 博文组件
-│   │   ├── PostCard.tsx
-│   │   ├── PostListItem.tsx
-│   │   ├── PostDetail.tsx
-│   │   ├── CommentList.tsx
-│   │   ├── RichText.tsx   # Markdown渲染
-│   │   └── ImageGallery.tsx
-│   │
-│   ├── user/              # 用户组件
-│   │   ├── Avatar.tsx
-│   │   ├── UserCard.tsx
-│   │   └── FollowButton.tsx
-│   │
-│   └── navigation/        # 导航组件
-│       └── TabBar.tsx
-│
-├── screens/               # 页面组件 (复杂页面)
-│   ├── FeedScreen.tsx
-│   ├── PostDetailScreen.tsx
-│   ├── PublishScreen.tsx
-│   └── ProfileScreen.tsx
-│
-├── navigation/            # 导航配置
-│   └── RootNavigation.tsx
-│
-├── hooks/                 # 自定义Hooks
-│   ├── useAuth.ts
-│   ├── useInfiniteScroll.ts
-│   ├── useRefresh.ts
-│   └── useDebounce.ts
-│
-├── services/              # API服务
-│   ├── api/               # API客户端
-│   │   ├── client.ts
-│   │   ├── auth.ts
-│   │   ├── posts.ts
-│   │   └── users.ts
-│   └── storage/           # 本地存储
-│       ├── secure.ts      # SecureStore
-│       └── async.ts       # AsyncStorage
-│
-├── store/                 # Zustand状态
-│   ├── authStore.ts
-│   ├── userStore.ts
-│   └── uiStore.ts
-│
-├── types/                 # TypeScript类型
-│   ├── auth.ts
-│   ├── post.ts
-│   ├── user.ts
-│   └── navigation.ts
-│
-├── utils/                 # 工具函数
-│   ├── format.ts
-│   ├── validation.ts
-│   └── constants.ts
-│
-└── assets/                # 资源文件
-    ├── images/
-    ├── fonts/
-    └── icons/
+启动  → splash 保持 → persist 水化(AsyncStorage) → bootstrap()
+                                              ├─ SecureStore 有 token → GET /auth/me
+                                              │    ├─ 200 → user 恢复，进 (tabs)
+                                              │    └─ 失败 → 清 token，进 (auth)/login
+                                              └─ 无 token → 直接进 (auth)/login
+登录  → POST /auth/login → setSession（token 落 SecureStore）→ replace (tabs)
+运行  → 任意请求 401 → 拦截器清 SecureStore token → onUnauthorized 回调
+        （app/_layout 注册）→ resetSession + replace login
 ```
 
-## 核心页面
+实现细节：
 
-### 首页 (推荐流)
+- `client.ts` 与 `authStore` 不互相 import（避免循环依赖）；401 的路由跳转通过 `setUnauthorizedHandler` 由 app 层注入。
+- 登录/注册的 mutation 在 `src/hooks/useAuth.ts`，成功后 `router.replace('/(tabs)')`；根布局的认证门（`useAuthGate`）负责所有其余路径的守卫。
 
-```tsx
-// app/(main)/index.tsx
-import { FlashList } from '@shopify/flash-list';
-import { useInfiniteQuery } from '@tanstack/react-query';
+## 环境与端口
 
-export default function FeedScreen() {
-  const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
-    queryKey: ['feed'],
-    queryFn: ({ pageParam = 1 }) => api.posts.getFeed({ page: pageParam }),
-    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
-  });
+- `EXPO_PUBLIC_API_URL`（构建期内联）：默认 `http://localhost:8080`。
+  - iOS 模拟器与同网段真机：`http://<mac-ip>:8080`
+  - Android 模拟器：`http://10.0.2.2:8080`
+- 后端用仓库根 `docker compose up`（override 文件把网关映射到宿主机 8080）。
 
-  const posts = data?.pages.flatMap((page) => page.data) || [];
+## 主题
 
-  return (
-    <FlashList
-      data={posts}
-      renderItem={({ item }) => <PostListItem post={item} />}
-      estimatedItemSize={300}
-      onEndReached={hasNextPage ? fetchNextPage : undefined}
-      onEndReachedThreshold={0.5}
-      refreshControl={<RefreshControl onRefresh={refetch} />}
-    />
-  );
-}
-```
+- `tailwind.config.js`：`primary`（Semi 蓝 #0077FA）/ `accent` 色板从 web 端复制；`ink/canvas/surface/hairline` 引用 `global.css` 的 CSS 变量。
+- 深色模式：`app.json userInterfaceStyle: automatic` + `global.css` 的 `prefers-color-scheme` 变量翻转 + NativeWind `dark:` 变体；导航栏颜色在 `app/(tabs)/_layout.tsx` 用 `useColorScheme` 手动适配。
+- Markdown 样式在 `app/posts/[id].tsx` 的 `useMarkdownStyles`（跟随深色模式）。
 
-### 博文详情
+## 测试与 CI
 
-```tsx
-// app/blog/[id].tsx
-import { ScrollView } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+- jest-expo + @testing-library/react-native；原生模块（SecureStore/AsyncStorage）在 `jest.setup.js` 内存模拟。
+- 已覆盖：authStore 会话闭环（bootstrap 三分支、login 成败、注册自动登录、logout 容错）、posts API 信封解包。
+- CI：`.github/workflows/ci.yml` 的 mobile job（typecheck + lint + test）。
 
-export default function PostDetailScreen({ route }) {
-  const { id } = route.params;
-  const { data: post } = useQuery({
-    queryKey: ['post', id],
-    queryFn: () => api.posts.get(id),
-  });
+## 已知决策与坑
 
-  return (
-    <ScrollView>
-      <PostDetail post={post} />
-      <CommentList postId={id} />
-    </ScrollView>
-  );
-}
-```
-
-### 发布博文
-
-```tsx
-// app/blog/new.tsx
-import { useState } from 'react';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-
-export default function NewPostScreen() {
-  const router = useRouter();
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [images, setImages] = useState<string[]>([]);
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-    });
-    if (!result.canceled) {
-      setImages([...images, result.assets[0].uri]);
-    }
-  };
-
-  const publish = async () => {
-    await api.posts.create({ title, content, images });
-    router.back();
-  };
-
-  return (
-    <KeyboardAvoidingView behavior="padding">
-      <Input value={title} onChange={setTitle} placeholder="标题" />
-      <RichTextEditor value={content} onChange={setContent} />
-      <Button onPress={pickImage} icon="image">
-        添加图片
-      </Button>
-      <Button onPress={publish}>发布</Button>
-    </KeyboardAvoidingView>
-  );
-}
-```
-
-## 状态管理
-
-### AuthStore
-
-```typescript
-// store/authStore.ts
-import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
-
-interface AuthState {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  hydrate: () => Promise<void>;
-}
-
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  token: null,
-  isAuthenticated: false,
-
-  login: async (email, password) => {
-    const { user, token } = await api.auth.login(email, password);
-    await SecureStore.setItemAsync('token', token);
-    set({ user, token, isAuthenticated: true });
-  },
-
-  logout: async () => {
-    await SecureStore.deleteItemAsync('token');
-    set({ user: null, token: null, isAuthenticated: false });
-  },
-
-  hydrate: async () => {
-    const token = await SecureStore.getItemAsync('token');
-    if (token) {
-      const user = await api.auth.me();
-      set({ user, token, isAuthenticated: true });
-    }
-  },
-}));
-```
-
-## 导航配置
-
-### Tab导航
-
-```tsx
-// app/(main)/_layout.tsx
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-
-export default function TabLayout() {
-  return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '首页',
-          tabBarIcon: ({ color }) => <Ionicons name="home" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: '搜索',
-          tabBarIcon: ({ color }) => <Ionicons name="search" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: '通知',
-          tabBarIcon: ({ color }) => <Ionicons name="notifications" color={color} />,
-          tabBarBadge: 5,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: '我的',
-          tabBarIcon: ({ color }) => <Ionicons name="person" color={color} />,
-        }}
-      />
-    </Tabs>
-  );
-}
-```
-
-### 根导航
-
-```tsx
-// app/_layout.tsx
-import { Stack } from 'expo-router';
-import { useAuthStore } from '@/store/authStore';
-
-export default function RootLayout() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="(main)" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="blog/[id]" options={{ presentation: 'modal' }} />
-    </Stack>
-  );
-}
-```
-
-## 性能优化
-
-### 图片优化
-
-```tsx
-// 使用expo-image优化图片
-import { Image } from 'expo-image';
-
-<Image
-  source={{ uri: post.coverImage }}
-  style={{ width: '100%', height: 200 }}
-  contentFit="cover"
-  transition={200}
-  placeholder="blurhash"
-  placeholderBlurhash={post.blurhash}
-/>;
-```
-
-### 列表优化
-
-```tsx
-// Flash List配置
-<FlashList
-  data={posts}
-  renderItem={({ item }) => <PostListItem post={item} />}
-  estimatedItemSize={300}
-  getItemType={(item) => item.type} // 不同类型不同高度
-  removeClippedSubviews={true}
-  windowSize={5} // 渲染窗口大小
-  initialNumToRender={10}
-  maxToRenderPerBatch={5}
-/>
-```
-
-### 数据预取
-
-```tsx
-// 预取下一篇博文
-const prefetchPost = (nextId: string) => {
-  queryClient.prefetchQuery({
-    queryKey: ['post', nextId],
-    queryFn: () => api.posts.get(nextId),
-  });
-};
-```
-
-## 原生功能
-
-### 图片上传
-
-```typescript
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-
-const uploadImage = async (uri: string) => {
-  const formData = new FormData();
-  formData.append('file', {
-    uri,
-    type: 'image/jpeg',
-    name: 'photo.jpg',
-  } as any);
-
-  const response = await api.content.upload(formData);
-  return response.url;
-};
-```
-
-### 推送通知
-
-```typescript
-import * as Notifications from 'expo-notifications';
-
-// 配置通知
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
-// 注册推送
-const registerForPushNotifications = async () => {
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return;
-  }
-
-  const token = await Notifications.getExpoPushTokenAsync();
-  await api.users.updatePushToken(token.data);
-};
-
-// 监听通知
-Notifications.addNotificationReceivedListener((notification) => {
-  // 处理接收到的通知
-});
-
-Notifications.addNotificationResponseReceivedListener((response) => {
-  // 处理通知点击
-});
-```
-
-### 分享
-
-```typescript
-import { shareAsync } from 'expo-sharing';
-
-const sharePost = async (post: Post) => {
-  await shareAsync(`https://wenxinblog.com/blog/${post.id}`, {
-    mimeType: 'text/html',
-    dialogTitle: `分享: ${post.title}`,
-  });
-};
-```
-
-## 环境配置
-
-```javascript
-// app.config.js
-export default {
-  expo: {
-    extra: {
-      apiUrl: process.env.API_URL || 'http://localhost:8080',
-      ossUrl: process.env.OSS_URL || 'http://localhost:9000',
-    },
-  },
-};
-
-// 使用
-import Constants from 'expo-constants';
-const apiUrl = Constants.expoConfig.extra.apiUrl;
-```
-
-## 开发
-
-```bash
-cd mobile
-npm install
-npm start
-```
-
-按 `i` 打开iOS模拟器
-
-## 构建
-
-### EAS Build (推荐)
-
-```bash
-# 安装EAS CLI
-npm install -g eas-cli
-
-# 登录Expo
-eas login
-
-# 构建iOS
-eas build --platform ios
-
-# 本地构建 (需要Mac)
-eas build --platform ios --local
-```
-
-### TestFlight发布
-
-```bash
-eas submit --platform ios --latest
-```
-
-### App Store发布
-
-```bash
-# 构建生产版本
-eas build --platform ios --profile production
-
-# 提交到App Store Connect
-eas submit --platform ios --latest
-```
-
-## 后续计划
-
-### Android (v2.0)
-
-- 复用iOS代码 (90%+)
-- 适配Android特有UI规范
-- Material Design集成
-
-### visionOS (v3.0)
-
-- 空间计算适配
-- 3D交互设计
-- 新的展示形式
+- **babel.config.js 必须显式存在**（2026-08-18 踩坑）：NativeWind 的样式生效依赖 JSX 编译走 `nativewind/jsx-runtime`。SDK 57 模板没有 babel.config.js，且 tsconfig 里的 `jsxImportSource: "nativewind"` 在本项目中没有被 babel-preset-expo 读取——结果是 **app 全部 className 被 RN 静默丢弃（整 App 无样式但不报错）**，`expo export` 照样成功（极具迷惑性）。修复：`npm i -D babel-preset-expo` + babel.config.js 显式传 `jsxImportSource: 'nativewind'`。诊断方法：`expo export --dev` 后在 bundle 里 grep `nativewind/jsx-runtime`（app 代码应引用它而非 `react/jsx-runtime`）。**改 babel 配置后必须 `expo start --clear` 重启 Metro，否则 transform 缓存继续吐旧产物。**
+- FlashList v2 与 v1 的 API 差异（2026-08-18 踩坑）：`estimatedItemSize` 已移除（v2 自动估算）；**`contentContainerStyle` 整个 prop 不存在**（v1 的），传入被静默忽略——gap/padding 全部失效，卡片贴边粘连且不报错。v2 的正确做法：间距用 `ItemSeparatorComponent`，边距放进 renderItem 的外层 View。全项目卡片列表统一 12px 间距（`PostCardGap` 组件 / `gap-3`）。
+- TypeScript 6（SDK 57 默认）：`baseUrl` 已废弃，paths 用相对路径 `"./src/*"`。
+- `expo-env.d.ts` / `nativewind-env.d.ts` 由 expo 生成且被 gitignore；`global.d.ts` 承担 expo/nativewind/jest 的类型引用，随仓库提交供 CI typecheck。
+- 编辑器（发布博文）阶段 3 提供，先用 web 端 `/editor`。
+- EAS：`eas.json` 就绪，但 `app.json` 的 `extra.eas.projectId` 与 `updates.url` 需在 `eas init` 后回填真实值（当前刻意未配假值）。

@@ -1,86 +1,60 @@
 # WenxinBlog Mobile
 
-博文平台 iOS 客户端 (React Native + Expo)
+博文平台的 iOS 客户端（React Native + Expo）。2026-08-18 基于 **Expo SDK 57** 重建：逻辑层从 web 端移植（与后端 `/api/v1/*` 契约一致），UI 用 React Native + NativeWind 重写。
 
-> ⚠️ 当前为**早期脚手架 / POC**：仅 5 个依赖、多数页面未实现，且 `package.json` 缺 `zustand`/`expo-secure-store`/`@expo/vector-icons`（代码已 import → 当前无法直接 `npm install && npm start`）。Semi-Design Mobile / Flash List / Axios / 推送均未引入。**权威现状见 `docs/frontend/mobile.md`**。
+## 当前状态
 
-## 功能特性
-
-- 📱 iOS原生体验
-- 📝 博文阅读/发布
-- 📷 图片上传
-- 🔔 推送通知
-- 👤 个人中心
-- 🔍 内容搜索
+功能完整闭环已可用：**登录/注册 → 首页 feed（无限分页）→ 发现（热榜/推荐流）→ 搜索（博文+用户）→ 博文详情（Markdown/点赞/收藏/评论/相关阅读）→ 发博文/编辑 → 用户主页（关注）→ 设置 → 退出登录**，带路由认证门、401 全局处理、深色模式。通知为占位页（依赖后端通知能力），OAuth/推送/编辑器图片上传为后续规划，详见 `docs/frontend/mobile.md`。
 
 ## 技术栈
 
-- **框架**: React Native 0.74 + Expo 51
-- **路由**: Expo Router (File-based)
-- **UI**: Semi-Design Mobile (Halation)
-- **状态管理**: Zustand
-- **数据请求**: TanStack Query
-- **安全存储**: Expo SecureStore
-
-## 目录结构
-
-```
-src/
-├── app/              # Expo Router页面
-├── components/       # 组件
-│   ├── common/       # 通用组件
-│   └── blog/         # 博文组件
-├── screens/          # 页面组件
-├── navigation/       # 导航配置
-├── hooks/            # 自定义Hooks
-├── services/         # API服务
-├── store/            # 状态管理
-├── types/            # TypeScript类型
-└── utils/            # 工具函数
-```
-
-## 环境变量
-
-创建 `app.config.js`:
-
-```js
-export default {
-  expo: {
-    extra: {
-      apiUrl: process.env.API_URL || 'http://localhost:8080',
-      ossUrl: process.env.OSS_URL || 'http://localhost:9000',
-    },
-  },
-};
-```
+- Expo SDK 57（React 19.2 / RN 0.86 / New Architecture）+ Expo Router v6
+- TanStack Query v5（数据层）+ zustand v5（会话状态，persist 到 AsyncStorage）
+- NativeWind v4（Tailwind 3，色板与 web 端一致）+ FlashList v2 + expo-image
+- token 存 expo-secure-store（iOS Keychain）
 
 ## 开发
 
 ```bash
+cd mobile
 npm install
-npm start
+cp .env.example .env   # EXPO_PUBLIC_API_URL 默认 http://localhost:8080（docker compose up 的网关）
+npm run ios            # iOS 模拟器；Android 模拟器请把 .env 改为 http://10.0.2.2:8080
 ```
 
-按 `i` 打开 iOS 模拟器
-
-## 构建
+质量检查（CI 同款）：
 
 ```bash
-# EAS Build (推荐)
-eas build --platform ios
-
-# 本地构建 (需要Mac)
-expo run:ios
+npm run typecheck
+npm run lint
+npm test
 ```
 
-## iOS优先
+## 目录结构
 
-当前版本优先支持iOS，Android和visionOS作为后续迭代。
-
-## 推送通知
-
-配置APNs证书后，使用Expo Notifications:
-
-```bash
-npx expo install expo-notifications
 ```
+mobile/
+├── app/                      # expo-router 路由
+│   ├── _layout.tsx           # 根布局：Provider + 认证门 + 401 回调 + 启动恢复会话
+│   ├── (auth)/               # login / register
+│   ├── (tabs)/               # 首页 feed / 发现 / 发布(→编辑器) / 通知 / 我的
+│   ├── posts/new.tsx         # 发博文
+│   ├── posts/[id]/           # index 详情（Markdown+评论+相关阅读）/ edit 编辑
+│   ├── user/[id].tsx         # 用户主页（关注+作品）
+│   ├── search.tsx            # 搜索（热搜/标签/历史+结果）
+│   └── settings.tsx          # 设置（编辑资料）
+├── src/
+│   ├── api/                  # axios client（信封解包/token/401）+ auth/posts/comments/users/search/recommend
+│   ├── hooks/                # TanStack Query 封装（与 web 端同构）
+│   ├── store/                # zustand authStore（token→SecureStore，user→AsyncStorage）
+│   ├── components/           # PostCard / PostEditor / BrandMark / 表单 / 三态组件
+│   ├── constants/            # key 与 API 地址常量
+│   └── types/                # 与 web 端一致的领域类型
+├── babel.config.js           # jsxImportSource 钉给 nativewind（缺它全 app 无样式，见 DEV.md）
+├── global.css                # 语义色 CSS 变量（亮/暗）
+└── tailwind.config.js        # NativeWind + web 同款色板
+```
+
+## 发布（待 EAS 初始化）
+
+`eas.json` 已备好 development/preview/production 三个 profile；执行 `eas init`（需 Expo 账号）拿到真实 projectId 后，再在 `app.json` 启用 `updates`。
