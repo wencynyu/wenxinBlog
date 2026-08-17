@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import { isManagedImageHost } from '@/lib/image';
 import MainLayout from '@/components/layout/MainLayout';
 import CommentInput from '@/components/comment/CommentInput';
 import CommentList from '@/components/comment/CommentList';
@@ -163,6 +164,7 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                 alt={post.title}
                 fill
                 priority
+                unoptimized={!isManagedImageHost(post.coverImage)}
                 sizes="(max-width: 768px) 100vw, 768px"
                 className="object-cover"
               />
@@ -198,7 +200,8 @@ export default function PostDetailView({ postId }: PostDetailViewProps) {
                   return;
                 }
                 toggleLike.mutate({ id: post.id, isLiked: post.isLiked || false });
-                if (user?.id) sendFeedback(postId, 'like').catch(() => {});
+                // 仅在"点赞"时上报兴趣事件；取消赞再上报会给推荐服务记正向事件，污染兴趣画像
+                if (!post.isLiked && user?.id) sendFeedback(postId, 'like').catch(() => {});
               }}
             >
               {post.likeCount || 0}

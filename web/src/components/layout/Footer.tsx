@@ -1,18 +1,12 @@
-'use client';
-
 import Link from 'next/link';
 import { IconGithubLogo, IconTwitter } from '@douyinfe/semi-icons';
+import BrandLogo from '@/components/common/BrandLogo';
 
 const footerLinks = {
   product: [
     { label: '首页', href: '/' },
     { label: '博文', href: '/posts' },
     { label: '热门', href: '/trending' },
-  ],
-  company: [
-    { label: '关于我们', href: '/about' },
-    { label: '联系方式', href: '/contact' },
-    { label: '隐私政策', href: '/privacy' },
   ],
   community: [
     { label: 'GitHub', href: 'https://github.com', external: true },
@@ -24,15 +18,10 @@ export default function Footer() {
   return (
     <footer className="bg-canvas border-t border-hairline mt-auto">
       <div className="container-custom py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-8 rounded-lg bg-primary-600 flex items-center justify-center">
-                <span className="text-white font-bold text-lg">W</span>
-              </div>
-              <span className="font-bold text-xl text-ink">WenxinBlog</span>
-            </div>
+            <BrandLogo />
             <p className="text-ink-muted text-sm">
               基于 Next.js 14 和 Semi-Design 的现代化博文平台
             </p>
@@ -61,19 +50,6 @@ export default function Footer() {
             <h3 className="font-semibold text-ink mb-4">产品</h3>
             <ul className="space-y-2">
               {footerLinks.product.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="text-ink-muted hover:text-ink text-sm">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-ink mb-4">公司</h3>
-            <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-ink-muted hover:text-ink text-sm">
                     {link.label}

@@ -40,19 +40,19 @@
 
 ### 3. 微服务架构（10 服务 + 独立 embedding 服务）
 
-| 服务                   | 语言                           | 端口      | 状态                                 | 测试数 |
-| ---------------------- | ------------------------------ | --------- | ------------------------------------ | ------ |
-| auth-service           | Go + Fiber                     | 8001      | ✅ JWT + RBAC + Google OAuth/短信    | 57     |
-| user-service           | Go + Fiber                     | 8002      | ✅ 用户 CRUD + profile 懒创建 + 关注 | 107    |
-| blog-service           | Java 25 + Spring Boot 4        | 8003      | ✅ 博文 CRUD + Kafka 事件 + 批量填充 | 44     |
-| content-service        | Java 25 + Spring Boot 4        | 8004      | ✅ 文件上传（MinIO/OSS）             | —      |
-| search-service         | Java 25 + Spring Boot 4        | 8005      | ✅ Elasticsearch 全文检索 + IK 分词  | 76     |
-| recommendation-service | Java 25 + Spring Boot 4        | 8006      | ✅ Milvus 向量推荐 + 行为画像        | 38     |
-| ad-service             | Java 25 + Spring Boot 4        | 8007      | ✅ 广告追踪（Kafka）                 | —      |
-| experiment-service     | Java 25 + Spring Boot 4        | 8009      | ✅ A/B 实验（分层正交）              | —      |
-| analytics-service      | Java 25 + Spring Boot 4        | 8010      | ✅ 行为分析 BI（ClickHouse）         | —      |
-| gateway                | Java 25 + Spring Cloud Gateway | 8080/8081 | ✅ 路由 + JWT 鉴权 + 限流 + 熔断     | 49     |
-| **embedding-service**  | Python + MLX                   | 8008      | ✅ Qwen3-VL-Embedding-2B（mxfp8）    | —      |
+| 服务                   | 语言                           | 端口      | 状态                                    | 测试数 |
+| ---------------------- | ------------------------------ | --------- | --------------------------------------- | ------ |
+| auth-service           | Go + Fiber                     | 8001      | ✅ JWT + RBAC + Google OAuth/短信       | 57     |
+| user-service           | Go + Fiber                     | 8002      | ✅ 用户 CRUD + profile 懒创建 + 关注    | 107    |
+| blog-service           | Java 25 + Spring Boot 4        | 8003      | ✅ 博文 CRUD + Kafka 事件 + 批量填充    | 95     |
+| content-service        | Java 25 + Spring Boot 4        | 8004      | ✅ 文件上传（MinIO/OSS）                | 21     |
+| search-service         | Java 25 + Spring Boot 4        | 8005      | ✅ Elasticsearch 全文检索 + IK 分词     | 76     |
+| recommendation-service | Java 25 + Spring Boot 4        | 8006      | ✅ Milvus 向量推荐 + 行为画像           | 86     |
+| ad-service             | Java 25 + Spring Boot 4        | 8007      | ✅ 广告投放（house ads 已接入 web）     | —      |
+| experiment-service     | Java 25 + Spring Boot 4        | 8009      | ✅ A/B 实验（分层正交）                 | —      |
+| analytics-service      | Java 25 + Spring Boot 4        | 8010      | ✅ 行为分析 BI + 广告报表（ClickHouse） | —      |
+| gateway                | Java 25 + Spring Cloud Gateway | 8080/8081 | ✅ 路由 + JWT 鉴权 + 限流 + 熔断        | 49     |
+| **embedding-service**  | Python + MLX                   | 8008      | ✅ Qwen3-VL-Embedding-2B（mxfp8）       | —      |
 
 ### 4. 基础设施
 
@@ -83,16 +83,16 @@
 
 ## 二、测试覆盖率
 
-| 服务                   | 覆盖率 | 达标(75%)               |
-| ---------------------- | ------ | ----------------------- |
-| ad-service             | 92.6%  | ✅                      |
-| gateway                | 85.0%  | ✅                      |
-| search-service         | 82.5%  | ✅                      |
-| content-service        | 73.2%  | ❌ 差 1.8%              |
-| blog-service           | 58.9%  | ❌（需 Testcontainers） |
-| recommendation-service | 28.2%  | ❌（需 Testcontainers） |
+| 服务                   | 覆盖率 | 达标(75%)                                             |
+| ---------------------- | ------ | ----------------------------------------------------- |
+| ad-service             | 92.6%  | ✅                                                    |
+| gateway                | 85.0%  | ✅                                                    |
+| search-service         | 82.5%  | ✅                                                    |
+| blog-service           | 96.1%  | ✅（Testcontainers PG）                               |
+| recommendation-service | 94.3%  | ✅（Testcontainers PG/Redis/Kafka/Milvus）            |
+| content-service        | 92.2%  | ✅（Testcontainers PG/MinIO，真上传/删除 round-trip） |
 
-**差距原因**：blog + rec 的 reactive DatabaseClient 链（listPublishedPosts / saveTags / fillAuthorAndTags）需要真实 DB 才能有意义地覆盖。纯 mock 极其脆弱且价值低。
+**2026-08-17 补齐说明**：blog/rec 的 reactive DatabaseClient 链（listPublishedPosts / saveTags / fillAuthorAndTags / findTrending）改用 Testcontainers 真实 PostgreSQL 覆盖；rec 的 feed 主链路（召回→混合重排→已看过滤→Redis 缓存→A/B 权重）、EMA 用户向量、Kafka 行为反馈闭环（真消费）、Milvus 检索（真容器）均已覆盖。两个坑备档：① Docker 29 引擎最低 API 1.40，Testcontainers 自带 docker-java 默认请求 v1.32 会 400，测试基类里 `System.setProperty("api.version","1.44")` 兜底；② Flyway 11 `baselineOnMigrate=true` 对空库也会 baseline 跳过 V1，基类需手动预建 V1 表结构。
 
 ---
 
@@ -100,29 +100,31 @@
 
 ### 🔴 高优先级
 
-| #   | 任务                                 | 预估 | 价值                                                              |
-| --- | ------------------------------------ | ---- | ----------------------------------------------------------------- |
-| 1   | **CI/CD（GitHub Actions）**          | ~2h  | push 自动测试 + 构建，"工程项目"的分水岭                          |
-| 2   | **测试覆盖率补齐（Testcontainers）** | ~1d  | blog + rec 到 75%，满足 proj-desc 要求                            |
-| 3   | **Docker 化全栈部署**                | ~4h  | 8 服务 Dockerfile + compose 编排，一条 `docker compose up` 起全栈 |
+| #   | 任务                                     | 预估                           | 价值                                                                                                                                                                                                        |
+| --- | ---------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~content-service 覆盖率补齐~~           | ✅ 2026-08-18 完成             | 73.2% → 92.2%（Testcontainers PG + 真 MinIO），全部服务覆盖率达标                                                                                                                                           |
+| 2   | ~~mobile 客户端（iOS）更新~~             | ✅ 2026-08-18 完成（阶段 0-3） | SDK 57 重建 + 阶段3功能页全部落地：发现（热榜/推荐流）、搜索、用户主页（关注）、发博文/编辑、设置；逻辑层从 web 移植对齐契约、认证闭环、CI。剩通知/推送/OAuth/图片上传/EAS 发布见 `docs/frontend/mobile.md` |
+| 3   | ~~SEO 优化~~                             | ✅ 2026-08-18 完成             | sitemap.ts（真文章 URL）/ robots.ts / 详情页 generateMetadata + JSON-LD + metadataBase；网关不可用时静默降级，已实测生效                                                                                    |
+| 4   | ~~**测试覆盖率补齐（Testcontainers）**~~ | ✅ 2026-08-17 完成             | blog 96.1% / rec 94.3%，远超 75% 目标；CI 兼容（ubuntu-latest 自带 Docker）                                                                                                                                 |
 
 ### 🟡 中优先级
 
-| #   | 任务                                                 | 预估  | 价值                                       |
-| --- | ---------------------------------------------------- | ----- | ------------------------------------------ |
-| 4   | mobile 客户端（iOS）更新                             | ~1d   | API 已就绪，mobile 还用旧接口              |
-| 5   | content-service 完善（图片压缩/视频转码/CDN）        | ~半天 | 目前只有简单文件上传                       |
-| 6   | SEO 优化（sitemap / robots / SSR meta / 结构化数据） | ~2h   | proj-desc 强调                             |
-| 7   | Go 服务业务指标补齐（goroutine / GC / memory）       | ~1h   | fiberprometheus 默认不暴露 Go runtime 指标 |
+| #   | 任务                                           | 预估  | 价值                                       |
+| --- | ---------------------------------------------- | ----- | ------------------------------------------ |
+| 5   | content-service 完善（图片压缩/视频转码/CDN）  | ~半天 | 目前只有简单文件上传                       |
+| 6   | Go 服务业务指标补齐（goroutine / GC / memory） | ~1h   | fiberprometheus 默认不暴露 Go runtime 指标 |
 
-### 🟢 低优先级
+### 🟢 低优先级（不着急，按需启动）
 
-| #   | 任务                                                | 预估  | 价值                              |
-| --- | --------------------------------------------------- | ----- | --------------------------------- |
-| 8   | user-to-user 协同过滤（"可能认识的人"）             | ~半天 | getUserRecommendations 当前返回空 |
-| 9   | 2FA（proj-desc 提到，作为可选项）                   | ~半天 |                                   |
-| 10  | 广告系统接入（ad-service 目前只追踪不投放）         | ~1d   |                                   |
-| 11  | Grafana 告警规则（延迟/错误率/熔断触发 Slack/邮件） | ~2h   |                                   |
+| #   | 任务                                                                                                                                | 预估  | 价值/现状                                                                                                                                                                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7   | CI/CD 流水线完善                                                                                                                    | ~2h   | 自动测试 CI 已就绪（ci.yml：web/go/java matrix），剩 CD、覆盖率上报、构建产物发布                                                                                             |
+| 8   | Docker 化全栈部署（上线流水线）                                                                                                     | ~4h   | 本地编排已就绪（override.yml 一键全栈），剩生产镜像发布 + prod 编排 + 云上部署（Terraform）                                                                                   |
+| 9   | user-to-user 协同过滤（"可能认识的人"）                                                                                             | ~半天 | getUserRecommendations 当前返回空                                                                                                                                             |
+| 10  | 2FA（proj-desc 提到，作为可选项）                                                                                                   | ~半天 |                                                                                                                                                                               |
+| 11  | ~~广告系统接入（ad-service 目前只追踪不投放）~~ ✅ 已完成（house ads 打通决策→渲染→计费→点击闭环，详见 docs/backend/ad-service.md） | ~1d   |                                                                                                                                                                               |
+| 12  | Grafana 告警规则（延迟/错误率/熔断触发 Slack/邮件）                                                                                 | ~2h   |                                                                                                                                                                               |
+| 13  | user-service 博文计数写入方补齐                                                                                                     | ~半天 | stats.post_count 无写入路径（恒为 0，2026-08-18 mobile 接入时发现）；web/mobile 均已用 blog-service 查询 total 兜底，正解：blog-service 发 Kafka 事件 → user-service 消费递增 |
 
 ---
 

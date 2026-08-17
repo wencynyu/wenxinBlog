@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Skeleton, Empty, Button } from '@douyinfe/semi-ui';
 import PostCard from './PostCard';
 import type { Post } from '@/types/post';
@@ -12,6 +12,8 @@ interface PostListProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   error?: Error | null;
+  /** 可选广告位：插在第 3 张卡片后（feed 页匿名分支使用） */
+  adSlot?: ReactNode;
 }
 
 function PostCardSkeleton() {
@@ -40,6 +42,7 @@ export default function PostList({
   hasMore = false,
   onLoadMore,
   error,
+  adSlot,
 }: PostListProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -104,8 +107,11 @@ export default function PostList({
   return (
     <div>
       <div className="space-y-6">
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+        {posts.map((post, index) => (
+          <Fragment key={post.id}>
+            <PostCard post={post} />
+            {index === 2 && adSlot}
+          </Fragment>
         ))}
       </div>
 

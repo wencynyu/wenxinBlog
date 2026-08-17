@@ -36,21 +36,31 @@ export default function RolesPage() {
   const [createVisible, setCreateVisible] = useState(false);
   const [permRoleId, setPermRoleId] = useState<number | null>(null);
   const { data: roleDetail, isFetching: detailFetching } = useRoleDetail(permRoleId);
-  const currentCodes = roleDetail?.permissions.map((p) => p.code) ?? [];
+  // useMemo 稳定引用：否则每次渲染都是新数组，弹窗内 effect 会把用户正在勾选的修改重置回服务端值
+  const currentCodes = useMemo(
+    () => roleDetail?.permissions.map((p) => p.code) ?? [],
+    [roleDetail],
+  );
+
+  const [syncing, setSyncing] = useState(false);
 
   // 权限同步：grant 新增 + revoke 移除（后端 grant 是追加、revoke 是单移除）
   const handleSync = async (codes: string[]) => {
     if (permRoleId == null) return;
     const toAdd = codes.filter((c) => !currentCodes.includes(c));
     const toRemove = currentCodes.filter((c) => !codes.includes(c));
+    setSyncing(true);
     try {
       if (toAdd.length) await adminApi.grantRolePermissions(permRoleId, toAdd);
       for (const c of toRemove) await adminApi.revokeRolePermission(permRoleId, c);
-      queryClient.invalidateQueries({ queryKey: ['admin', 'role', permRoleId] });
       Toast.success('权限已更新');
       setPermRoleId(null);
     } catch (e: any) {
       Toast.error(e?.message || '更新失败');
+    } finally {
+      setSyncing(false);
+      // 无论成败都失效缓存：串行 revoke 中途失败时，弹窗要回到服务端真值
+      queryClient.invalidateQueries({ queryKey: ['admin', 'role', permRoleId] });
     }
   };
 
@@ -167,7 +177,7 @@ export default function RolesPage() {
         roleName={roles?.find((r) => r.id === permRoleId)?.name ?? ''}
         allPermissions={allPermissions ?? []}
         currentCodes={currentCodes}
-        loading={detailFetching}
+        loading={syncing}
         onCancel={() => setPermRoleId(null)}
         onSubmit={handleSync}
       />

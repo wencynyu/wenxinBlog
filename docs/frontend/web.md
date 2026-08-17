@@ -130,14 +130,23 @@ const { data, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuer
 
 ## 广告
 
-前端**没有任何广告组件**（无 AdCard / AdBanner / 广告位）。ad-service 目前仅后端，前端未接入。
+`components/ad/AdSlot.tsx`：广告位组件，调 ad-service `POST /api/v1/ads/decision`（经网关，公开）取素材渲染，当前投放 house ads（站内推广）。要点：
+
+- **两个投放点**：feed 页第 3 张卡后（登录推荐流 / 匿名 PostList 两分支）+ 侧边栏 popular posts 下方（`Sidebar.tsx`）。
+- **每次决策请求即计费**：`hooks/useAds.ts` 配置 `staleTime: Infinity` + 不重试 + 不后台刷新，每挂载只取一次；卸载后 5 分钟缓存内复用，避免重复扣费。
+- **匿名标识**：未登录时 `lib/anonId.ts` 生成 localStorage UUID 作为 userId（后端 userId=null 会绕过频控、点击去重退化为共享 IP）。
+- **点击**：fire-and-forget 上报 `POST /api/v1/ads/click`（`.catch(() => {})`，后端 24h 去重）后跳转 landing_url；站内路径走 Next Link，外链新窗口。
+- **降级**：空结果/请求失败渲染 null；图片加载失败降级纯文字卡片。广告永不影响页面布局。
 
 ## SEO
 
-- 根 `app/layout.tsx` 导出 `metadata`（title / description / openGraph / twitter）。
+- 根 `app/layout.tsx` 导出 `metadata`（title / description / openGraph / twitter + `metadataBase` + title 模板 `%s | WenxinBlog`）。
 - `next.config.js` 配置全局响应头（`X-Frame-Options: SAMEORIGIN`、`X-DNS-Prefetch-Control: on`）与图片域名白名单。
 - 字体通过 `<link>` 运行时加载（display=swap），未用 `next/font`，以规避构建期拉取 Google Fonts 失败。
-- 暂未实现 `sitemap.ts` / `robots.ts` / 博文详情的 `generateMetadata`（可按需扩展）。
+- `app/robots.ts`：屏蔽 `/admin` `/editor` `/settings` `/auth` `/feed` `/login` `/register`，声明 sitemap 地址。
+- `app/sitemap.ts`：`force-dynamic` 按请求生成；分页拉 `GET /api/v1/posts`（pageSize=100，上限 50 页）输出文章 URL（lastmod=updatedAt），静态入口 /、/posts、/trending；网关不可用时降级为仅静态条目（CI 无后端也能 build）。
+- 博文详情 `posts/[id]/page.tsx`：`generateMetadata`（title/canonical/og:article/twitter）+ JSON-LD `BlogPosting` 结构化数据；经 `serverGet` 服务端取数，`React cache()` 让 metadata 与 JSON-LD 共用一次请求；**失败静默降级**为站点默认 meta（正文本就是 CSR，不重演历史上网关 OOM 导致 SSR 404 的问题）。
+- 站点绝对 URL 经 `NEXT_PUBLIC_SITE_URL` 注入（`src/lib/site.ts` 读取；next.config.js / docker-compose.override.yml / .env.example 均有配置），生产部署时替换为真实域名。
 
 ## 环境变量
 

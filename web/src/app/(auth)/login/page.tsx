@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Form, Input, Button, Toast, Tabs, Divider, Card, Typography } from '@douyinfe/semi-ui';
 import { useLogin } from '@/hooks/useAuth';
 import BrandLogo from '@/components/common/BrandLogo';
@@ -11,6 +12,7 @@ import { sendPhoneCode, oauthLoginURL } from '@/lib/api/auth';
 const SOCIAL_PROVIDERS = [{ key: 'google', label: 'Google' }];
 
 export default function LoginPage() {
+  const router = useRouter();
   const loginMutation = useLogin();
   const loginWithPhone = useAuthStore((s) => s.loginWithPhone);
 
@@ -70,6 +72,8 @@ export default function LoginPage() {
     try {
       await loginWithPhone({ phone: values.phone, code: values.code });
       Toast.success('登录成功');
+      // 与邮箱登录（useLogin.onSuccess）行为对齐：成功后回首页
+      router.push('/');
     } catch (error: any) {
       Toast.error(error?.message || '验证码错误或已失效');
     } finally {

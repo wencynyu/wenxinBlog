@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Input, Typography, Empty, Skeleton, Card } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
@@ -10,17 +10,35 @@ import { useSearchPosts } from '@/hooks/useSearch';
 
 const { Text, Title, Paragraph } = Typography;
 
+/** 输入停止多少毫秒后才真正发起搜索 */
+const SEARCH_DEBOUNCE_MS = 300;
+
 export default function SearchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get('q') || '';
 
   const [query, setQuery] = useState(initialQuery);
-  const inputRef = useRef<any>(null);
+  const [inputValue, setInputValue] = useState(initialQuery);
 
-  const handleSearch = useCallback(
-    (value: string) => {
-      const trimmed = value.trim();
+  // 防抖提交：停止输入 300ms 后才触发查询并同步 URL，避免每敲一个字符打一次接口
+  useEffect(() => {
+    const trimmed = inputValue.trim();
+    if (trimmed === query) return;
+    const timer = setTimeout(() => {
+      setQuery(trimmed);
+      if (trimmed) {
+        router.replace(`/search?q=${encodeURIComponent(trimmed)}`);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [inputValue, query, router]);
+
+  // 回车立即搜索（跳过防抖等待）
+  const handleEnter = useCallback(
+    (e: any) => {
+      const trimmed = String(e.target.value ?? '').trim();
+      setInputValue(trimmed);
       setQuery(trimmed);
       if (trimmed) {
         router.replace(`/search?q=${encodeURIComponent(trimmed)}`);
@@ -37,10 +55,9 @@ export default function SearchContent() {
         <p className="eyebrow mb-3">{'// search'}</p>
         <div className="mb-6">
           <Input
-            ref={inputRef}
-            value={query}
-            onChange={setQuery}
-            onEnterPress={(e: any) => handleSearch(e.target.value)}
+            value={inputValue}
+            onChange={setInputValue}
+            onEnterPress={handleEnter}
             prefix={<IconSearch />}
             placeholder="搜索博文、用户..."
             size="large"

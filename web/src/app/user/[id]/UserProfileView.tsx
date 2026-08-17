@@ -182,9 +182,17 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
 
         {/* Tab 切换 */}
         <div className="bg-surface rounded-xl shadow-card">
-          <Tabs activeKey={activeTab} onChange={setActiveTab} type="line">
+          {/* Semi line 型 Tabs 默认把首个 tab 的 padding-left 清零（贴容器左缘），
+              用 tabBarStyle 补回 16px，与下方 TabPane 内容的 p-4 左右对齐 */}
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            type="line"
+            tabBarStyle={{ paddingLeft: 16 }}
+          >
             <TabPane tab="博文" itemKey="posts">
-              <div className="p-4">
+              {/* 卡片列表的左右间距：px-4 = 16px，与 tab 栏对齐；想更宽松改 px-6 (24px) */}
+              <div className="px-6 py-5">
                 {posts.length === 0 ? (
                   <EmptyState title="暂无博文" />
                 ) : (
@@ -193,12 +201,12 @@ export default function UserProfileView({ userId }: UserProfileViewProps) {
               </div>
             </TabPane>
             <TabPane tab="粉丝" itemKey="followers">
-              <div className="p-4">
+              <div className="px-4 py-5">
                 <EmptyState title="暂无粉丝" description="粉丝列表待接入" />
               </div>
             </TabPane>
             <TabPane tab="正在关注" itemKey="following">
-              <div className="p-4">
+              <div className="px-4 py-5">
                 <EmptyState title="还没有关注任何人" description="关注列表待接入" />
               </div>
             </TabPane>

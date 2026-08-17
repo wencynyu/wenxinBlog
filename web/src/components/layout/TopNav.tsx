@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Nav, Input, Dropdown, Avatar, Button, Toast } from '@douyinfe/semi-ui';
+import { Nav, Input, Dropdown, Avatar, Button, Toast, SideSheet } from '@douyinfe/semi-ui';
 import {
   IconSearch,
   IconBell,
@@ -16,6 +16,7 @@ import {
   IconStarStroked,
   IconLikeHeart,
   IconBook,
+  IconMenu,
 } from '@douyinfe/semi-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -55,6 +56,11 @@ export default function TopNav() {
 
   // 顶部搜索框受控：搜索后清空，避免残留旧词（同词再搜 Next 不触发导航）
   const [search, setSearch] = useState('');
+  // lg 以下横向 tab 放不下，折叠为汉堡菜单 + 左侧抽屉
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
   const handleSearch = (value: string) => {
     const v = value.trim();
     if (v) {
@@ -92,31 +98,46 @@ export default function TopNav() {
       (item) => pathname === item.path || (item.path !== '/' && pathname.startsWith(item.path)),
     )?.key || 'home';
 
+  const renderNavItems = () =>
+    visibleItems.map((item) => (
+      <Nav.Item
+        key={item.key}
+        itemKey={item.key}
+        text={
+          <Link href={item.path} className="flex items-center gap-1.5 no-underline">
+            {item.icon}
+            <span>{item.label}</span>
+          </Link>
+        }
+      />
+    ));
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-hairline bg-surface/95 backdrop-blur">
       <div className="container-custom flex h-16 items-center gap-4">
         <BrandLogo />
 
-        <Nav
-          mode="horizontal"
-          activeKey={activeKey}
-          header={{ text: null }}
-          footer={null}
-          className="flex-1"
-        >
-          {visibleItems.map((item) => (
-            <Nav.Item
-              key={item.key}
-              itemKey={item.key}
-              text={
-                <Link href={item.path} className="flex items-center gap-1.5 no-underline">
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              }
-            />
-          ))}
-        </Nav>
+        {/* 包一层纯 div 承载 lg:hidden：Semi Button 自带 display 样式，会覆盖 Tailwind 的 hidden */}
+        <div className="lg:hidden">
+          <Button
+            icon={<IconMenu />}
+            theme="borderless"
+            aria-label="打开导航菜单"
+            onClick={() => setMobileNavOpen(true)}
+          />
+        </div>
+
+        <div className="hidden lg:flex min-w-0 flex-1">
+          <Nav
+            mode="horizontal"
+            activeKey={activeKey}
+            header={{ text: null }}
+            footer={null}
+            className="flex-1"
+          >
+            {renderNavItems()}
+          </Nav>
+        </div>
 
         <div className="hidden md:block w-56 flex-shrink-0">
           <Input
@@ -162,6 +183,34 @@ export default function TopNav() {
           )}
         </div>
       </div>
+
+      <SideSheet
+        title={null}
+        placement="left"
+        width={280}
+        visible={mobileNavOpen}
+        onCancel={() => setMobileNavOpen(false)}
+        bodyStyle={{ padding: 0 }}
+      >
+        <div className="p-4 border-b border-hairline">
+          <Input
+            value={search}
+            onChange={(v) => setSearch(v)}
+            placeholder="搜索博文..."
+            prefix={<IconSearch />}
+            onEnterPress={(e: any) => handleSearch(e.target.value)}
+            showClear
+          />
+        </div>
+        <Nav
+          mode="vertical"
+          selectedKeys={[activeKey]}
+          onSelect={() => setMobileNavOpen(false)}
+          style={{ width: '100%' }}
+        >
+          {renderNavItems()}
+        </Nav>
+      </SideSheet>
     </header>
   );
 }

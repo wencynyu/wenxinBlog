@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { isManagedImageHost } from '@/lib/image';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -54,6 +55,7 @@ export default function PostCard({ post }: PostCardProps) {
                 src={post.coverImage}
                 alt={post.title}
                 fill
+                unoptimized={!isManagedImageHost(post.coverImage)}
                 sizes="(max-width: 768px) 100vw, 33vw"
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
               />

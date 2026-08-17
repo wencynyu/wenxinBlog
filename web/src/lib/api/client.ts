@@ -66,6 +66,19 @@ client.interceptors.request.use(
   },
 );
 
+// 这些接口的 401 属于正常业务失败（密码错误/验证码失效等），不触发"清会话+跳登录"，
+// 交给表单层展示错误；否则硬跳转会把用户刚填的内容和 Toast 全部丢掉
+const AUTH_EXEMPT_PATHS = [
+  '/api/v1/auth/login',
+  '/api/v1/auth/register',
+  '/api/v1/auth/phone/send-code',
+  '/api/v1/auth/phone/login',
+  '/api/v1/auth/oauth/exchange',
+];
+
+const isAuthExempt = (url?: string): boolean =>
+  !!url && AUTH_EXEMPT_PATHS.some((path) => url.includes(path));
+
 // 响应拦截器
 client.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -75,10 +88,13 @@ client.interceptors.response.use(
     if (error.response) {
       const { status, data } = error.response;
 
-      // 401 未授权 - 清除token并跳转登录
-      if (status === 401) {
+      // 401 未授权 - 清除本地会话并跳转登录。
+      // 除 auth_token 外还需清 zustand persist（否则整页跳转后水合仍是登录态）；
+      // 直接操作 localStorage 以避免 client ↔ authStore 循环依赖
+      if (status === 401 && !isAuthExempt(error.config?.url)) {
         clearToken();
         if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth-storage');
           window.location.href = '/login';
         }
       }

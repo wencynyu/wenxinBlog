@@ -101,6 +101,20 @@ export default function EditPostPage() {
     );
   }
 
+  // 前端先行拦截：非作者直接渲染无权页，避免写满内容提交时才被后端 403
+  if (post.authorId !== user?.id) {
+    return (
+      <MainLayout showSidebar={false}>
+        <div className="max-w-3xl mx-auto text-center py-20">
+          <h2 className="font-serif text-2xl font-bold text-ink mb-4">无权编辑这篇博文</h2>
+          <Button theme="solid" onClick={() => router.push(`/posts/${postId}`)}>
+            查看博文
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout showSidebar={false}>
       <div className="max-w-5xl mx-auto overflow-x-hidden">
@@ -172,7 +186,7 @@ export default function EditPostPage() {
               <MarkdownRenderer content={content || '* 内容预览区域...'} />
             </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-4 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
               <div className="relative min-w-0">
                 <TextArea
                   value={content}

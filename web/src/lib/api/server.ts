@@ -7,8 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
  * 服务端取数助手（用于 React Server Component / generateMetadata）。
  * 网关返回 ApiResponse<T>，这里解包出 .data。
  *
- * 鉴权：当前 token 存于客户端 localStorage，服务端读不到 cookie，故目前仅支持
- * 公开接口。鉴权相关的服务端取数需要先把 token 写入 cookie（见文档 TODO）。
+ * 鉴权：token 由客户端同时写入 cookie（见 client.ts setToken），这里读取并透传。
  */
 export async function serverGet<T>(path: string): Promise<T> {
   const token = cookies().get('auth_token')?.value;
@@ -18,6 +17,8 @@ export async function serverGet<T>(path: string): Promise<T> {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     cache: 'no-store',
+    // 网关挂起时防止 SSR 无限等待拖死路由渲染
+    signal: AbortSignal.timeout(5000),
   });
   if (!res.ok) {
     throw new Error(`serverGet ${res.status} on ${path}`);

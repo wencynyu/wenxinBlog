@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Input,
   Button,
@@ -18,6 +19,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import dynamic from 'next/dynamic';
 import { useCreatePost } from '@/hooks/usePosts';
 import { uploadFile } from '@/lib/api/content';
+import { useAuthStore } from '@/store/authStore';
 
 // 预览渲染较重（marked + highlight.js），按需加载
 const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRenderer'), {
@@ -27,6 +29,15 @@ const MarkdownRenderer = dynamic(() => import('@/components/post/MarkdownRendere
 export default function NewPostPage() {
   const router = useRouter();
   const createMutation = useCreatePost();
+  const { isAuthenticated } = useAuthStore();
+  // 防 hydration mismatch：persist 在 SSR 读不到 localStorage（同 TopNav 模式）
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const authed = mounted && isAuthenticated;
+  // 匿名用户直接引导去登录，避免写满内容提交时才 401（内容全丢）
+  useEffect(() => {
+    if (mounted && !isAuthenticated) router.replace('/login');
+  }, [mounted, isAuthenticated, router]);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -53,6 +64,10 @@ export default function NewPostPage() {
   };
 
   const handleSubmit = async (publishStatus: 'draft' | 'published') => {
+    if (!authed) {
+      router.replace('/login');
+      return;
+    }
     if (!title.trim()) {
       Toast.warning('请输入标题');
       return;
@@ -76,6 +91,20 @@ export default function NewPostPage() {
       Toast.error(error?.message || '操作失败');
     }
   };
+
+  if (!authed) {
+    return (
+      <MainLayout showSidebar={false}>
+        <div className="max-w-3xl mx-auto text-center py-20">
+          <h2 className="font-serif text-2xl font-bold text-ink mb-4">请先登录</h2>
+          <p className="text-ink-muted mb-6">登录后即可撰写和发布博文</p>
+          <Link href="/login">
+            <Button theme="solid">去登录</Button>
+          </Link>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout showSidebar={false}>
@@ -174,7 +203,7 @@ export default function NewPostPage() {
               <MarkdownRenderer content={content || '* 内容预览区域...'} />
             </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-4 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
               {/* 编辑器 */}
               <div className="relative min-w-0">
                 <TextArea

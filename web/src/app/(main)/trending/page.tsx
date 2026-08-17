@@ -8,7 +8,7 @@ import PageHeader from '@/components/common/PageHeader';
 import { useTrendingPosts } from '@/hooks/useRecommendations';
 
 export default function TrendingPage() {
-  const { data, isLoading: loading } = useTrendingPosts(20);
+  const { data, isLoading: loading, isError } = useTrendingPosts(20);
   const posts = data ?? [];
 
   if (loading) {
@@ -30,7 +30,10 @@ export default function TrendingPage() {
     <MainLayout>
       <PageHeader eyebrow="// trending" title="热门博文" />
 
-      {posts.length === 0 ? (
+      {isError ? (
+        // 接口故障与"没有数据"是两回事，不能伪装成空态误导用户
+        <EmptyState title="热门榜加载失败" description="服务暂时不可用，请稍后刷新重试" />
+      ) : posts.length === 0 ? (
         <EmptyState title="暂无热门内容" description="还没有发布任何博文" />
       ) : (
         <div className="space-y-3">

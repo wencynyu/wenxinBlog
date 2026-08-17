@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import MainLayout from '@/components/layout/MainLayout';
 import PostList from '@/components/post/PostList';
+import AdSlot from '@/components/ad/AdSlot';
 import EmptyState from '@/components/common/EmptyState';
 import PageHeader from '@/components/common/PageHeader';
 import RecommendationCard from '@/components/recommend/RecommendationCard';
@@ -64,13 +65,21 @@ export default function FeedPage() {
           <EmptyState title="暂无推荐" description="在设置里添加兴趣标签，或浏览更多文章后回来" />
         ) : (
           <div className="space-y-4">
-            {recItems.map((item) => (
-              <RecommendationCard key={item.id} item={item} />
+            {recItems.map((item, index) => (
+              <div key={item.id} className="space-y-4">
+                <RecommendationCard item={item} />
+                {index === 2 && <AdSlot position="FEED" />}
+              </div>
             ))}
           </div>
         )
       ) : (
-        <PostList posts={latestItems} isLoading={false} hasMore={false} />
+        <PostList
+          posts={latestItems}
+          isLoading={false}
+          hasMore={false}
+          adSlot={<AdSlot position="FEED" />}
+        />
       )}
     </MainLayout>
   );

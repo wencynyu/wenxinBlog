@@ -34,7 +34,15 @@ export function useLogout() {
   const logout = useAuthStore((state) => state.logout);
 
   return useMutation({
-    mutationFn: () => authApi.logout().then(() => logout()),
+    // 服务端登出失败（如 token 已过期的 401）不应阻断本地会话清理，
+    // 否则 persist 里的 user/token 全部残留，界面仍是登录态
+    mutationFn: async () => {
+      try {
+        await authApi.logout();
+      } finally {
+        logout();
+      }
+    },
     onSuccess: () => {
       router.push('/');
     },
