@@ -99,23 +99,33 @@ message key = `userId`。
 
 ---
 
-## 3. `ad-events` — 广告追踪事件
+## 3. `ad-events` — 广告事件（曝光/点击/转化）
 
-**生产者**：ad-service `AdTrackingService.publishEvent`，在 `recordClick`（`CLICK`）和
-`recordConversion`（`CONVERSION`）时发。message key = `userId`（可能为 null）。
+**生产者**：ad-service `AdEventPublisher`（payload schema 唯一定义处）。
 
-> ⚠️ **已知缺陷：value 不是合法 JSON。** 生产者用 `java.util.Map.of(...).toString()` 拼字符串，
-> 经 `StringSerializer` 发出，实际线上格式是 Java `Map.toString()`：
->
-> ```
-> {eventType=CLICK, campaignId=3, creativeId=3, userId=42, timestamp=2026-08-01T...}
-> ```
->
-> 无标准解析器能解析，待修成 Jackson 序列化的 JSON。
+- `IMPRESSION`：`AdDecisionService.recordImpression` 计费成功后发（含 `positionType`）。
+- `CLICK` / `CONVERSION`：`AdTrackingService` 归因反查 creative 后发（`positionType` 为空串）。
 
-预期（修复后）字段：`eventType`、`campaignId`、`creativeId`、`userId`、`timestamp`。
+message key = `userId`（可能为 null）。value 为合法 JSON：
 
-**消费者**：**无**。（`IMPRESSION` 只入库 `ad_events` 表，不发 Kafka；`ad_events` 表名与该 topic 同名但无关。）
+```json
+{
+  "eventType": "IMPRESSION",
+  "campaignId": 1,
+  "creativeId": 1,
+  "userId": "u1",
+  "positionType": "FEED",
+  "timestamp": "2026-08-18T10:00:00.123"
+}
+```
+
+> 历史：2026-08-18 之前的旧消息是 `Map.toString()` 格式（非 JSON），消费者按 `parse_error` 行隔离。
+
+**消费者**：analytics-service `AdEventConsumer`（微批 500 条/5 秒，写成功才 ack）→
+ClickHouse `ad_events` 表（MergeTree，按天分区，90 天 TTL，服务启动时自动建表）→
+报表 API `GET /api/v1/analytics/ads/report`（campaign×creative×天）与 `/ads/report/positions`
+（position×天），需 `analytics:read` 权限。
+（PG 的 `ad_events` 表与该 topic 同名但无关，是 ad-service 自己的事件留痕。）
 
 ---
 

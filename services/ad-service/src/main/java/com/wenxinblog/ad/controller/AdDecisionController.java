@@ -10,8 +10,9 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 
+// 经网关公开给前端（gateway ad-public 路由，无鉴权）；服务间直连也用同一路径
 @RestController
-@RequestMapping("/internal/ads")
+@RequestMapping("/api/v1/ads")
 @RequiredArgsConstructor
 public class AdDecisionController {
 

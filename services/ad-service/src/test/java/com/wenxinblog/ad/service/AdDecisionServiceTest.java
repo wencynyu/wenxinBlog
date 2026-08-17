@@ -18,8 +18,6 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -27,6 +25,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -51,10 +50,9 @@ class AdDecisionServiceTest {
     private ReactiveStringRedisTemplate redis;
 
     @Mock
-    private KafkaTemplate<String, String> kafka;
+    private AdEventPublisher eventPublisher;
 
-    @Mock
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private AdDecisionService adDecisionService;
 
@@ -69,7 +67,7 @@ class AdDecisionServiceTest {
         when(campaignRepo.debitSpend(any(), any())).thenReturn(Mono.just(1));
 
         adDecisionService = new AdDecisionService(campaignRepo, creativeRepo, eventRepo,
-                positionRepo, redis, kafka, objectMapper);
+                positionRepo, redis, eventPublisher, objectMapper);
     }
 
     @Test
@@ -94,6 +92,8 @@ class AdDecisionServiceTest {
 
         verify(creativeRepo).findByCampaignIdAndIsActiveTrue(1L);
         verify(creativeRepo).findByCampaignIdAndIsActiveTrue(2L);
+        // 计费成功 → IMPRESSION 发 Kafka（带 positionType，analytics 报表依赖）
+        verify(eventPublisher).publish(eq("IMPRESSION"), eq(1L), eq(1L), eq("user123"), eq("banner"), any());
     }
 
     @Test
@@ -215,9 +215,9 @@ class AdDecisionServiceTest {
         @SuppressWarnings("unchecked")
         ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
         when(redis.opsForValue()).thenReturn(mockOps);
-        // Match key containing ":1:" for campaign 1, and ":2:" for campaign 2
-        when(mockOps.increment(contains(":1:"))).thenReturn(Mono.just(6L)); // Over cap
-        when(mockOps.increment(contains(":2:"))).thenReturn(Mono.just(3L)); // Under cap
+        // key 格式为 ad:freq:{userId}:{campaignId}（campaignId 在末尾），按后缀区分 campaign
+        when(mockOps.increment(endsWith(":1"))).thenReturn(Mono.just(6L)); // Over cap
+        when(mockOps.increment(endsWith(":2"))).thenReturn(Mono.just(3L)); // Under cap
         when(redis.expire(anyString(), any())).thenReturn(Mono.just(true));
 
         StepVerifier.create(adDecisionService.decide(request))
@@ -313,6 +313,7 @@ class AdDecisionServiceTest {
                 .verifyComplete();
 
         verify(eventRepo, never()).save(any());
+        verify(eventPublisher, never()).publish(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -477,6 +478,97 @@ class AdDecisionServiceTest {
 
         // Only campaign2's impression should be recorded
         verify(eventRepo).save(argThat(e -> e.getCampaignId().equals(2L)));
+    }
+
+    @Test
+    void decide_ShouldFilterByPositionTargeting() {
+        AdCampaign feedOnly = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        feedOnly.setTargeting("{\"positions\":[\"FEED\"]}");
+
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(feedOnly));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L)).thenReturn(Flux.just(createCreative(1L, 1L)));
+
+        // 请求 SIDEBAR → 定向不匹配，无广告
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("SIDEBAR", null, null, null, null, 1)))
+                .verifyComplete();
+
+        // 请求 FEED → 命中（大小写不敏感）
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("FEED", null, null, null, null, 1)))
+                .expectNextCount(1)
+                .verifyComplete();
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("feed", null, null, null, null, 1)))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void decide_WithUnscopedTargeting_ShouldServeAllPositions() {
+        // 空 positions 数组 = 不限定，所有广告位都能投
+        AdCampaign unscoped = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        unscoped.setTargeting("{\"positions\":[]}");
+
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(unscoped));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L)).thenReturn(Flux.just(createCreative(1L, 1L)));
+
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("SIDEBAR", null, null, null, null, 1)))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void decide_WithBrokenTargetingJson_ShouldFailOpen() {
+        // 定向 JSON 写错不能导致 campaign 全量下线
+        AdCampaign broken = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        broken.setTargeting("{broken json");
+
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(broken));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L)).thenReturn(Flux.just(createCreative(1L, 1L)));
+
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("SIDEBAR", null, null, null, null, 1)))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
+    @Test
+    void decide_ShouldRotateMultipleCreatives() {
+        AdCampaign campaign = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(campaign));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L))
+                .thenReturn(Flux.just(createCreative(1L, 1L), createCreative(2L, 1L)));
+
+        var served = new HashSet<Long>();
+        for (int i = 0; i < 30; i++) {
+            adDecisionService.decide(new AdDecisionRequest("FEED", null, null, null, null, 1))
+                    .doOnNext(r -> served.add(r.creativeId()))
+                    .blockLast();
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(served.contains(1L) && served.contains(2L),
+                "30 次决策应轮播到两个 creative，实际: " + served);
+    }
+
+    @Test
+    void decide_ShouldKeepBidOrderWhenBillingIsSlow() {
+        // 出价最高的 campaign 1 频控 Redis 更慢：异步计费阶段（flatMap 乱序合并）不能破坏出价排序
+        AdCampaign campaign1 = createActiveCampaign(1L, new BigDecimal("1000"), new BigDecimal("100"));
+        campaign1.setBidAmount(new BigDecimal("5.00"));
+        AdCampaign campaign2 = createActiveCampaign(2L, new BigDecimal("1000"), new BigDecimal("100"));
+        campaign2.setBidAmount(new BigDecimal("4.00"));
+
+        when(campaignRepo.findByStatus("ACTIVE")).thenReturn(Flux.just(campaign1, campaign2));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(1L)).thenReturn(Flux.just(createCreative(1L, 1L)));
+        when(creativeRepo.findByCampaignIdAndIsActiveTrue(2L)).thenReturn(Flux.just(createCreative(2L, 2L)));
+
+        @SuppressWarnings("unchecked")
+        ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
+        when(redis.opsForValue()).thenReturn(mockOps);
+        // campaign 1（出价高、应排第一）的频控响应延迟 100ms，campaign 2 立即返回
+        when(mockOps.increment(endsWith(":1"))).thenReturn(Mono.just(1L).delayElement(java.time.Duration.ofMillis(100)));
+        when(mockOps.increment(endsWith(":2"))).thenReturn(Mono.just(1L));
+
+        StepVerifier.create(adDecisionService.decide(new AdDecisionRequest("FEED", "user123", null, null, null, 2)))
+                .expectNextMatches(r -> r.campaignId() == 1L)
+                .expectNextMatches(r -> r.campaignId() == 2L)
+                .verifyComplete();
     }
 
     private void mockRedisFrequencyCap(int count) {

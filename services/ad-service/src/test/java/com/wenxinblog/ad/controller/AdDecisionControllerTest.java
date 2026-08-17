@@ -51,7 +51,7 @@ class AdDecisionControllerTest {
                 .thenReturn(Flux.just(response1, response2));
 
         webTestClient.post()
-                .uri("/internal/ads/decision")
+                .uri("/api/v1/ads/decision")
                 .bodyValue(request)
                 .exchange()
                 .expectStatus().isOk()
@@ -72,7 +72,7 @@ class AdDecisionControllerTest {
                 .thenReturn(Flux.empty());
 
         webTestClient.post()
-                .uri("/internal/ads/decision")
+                .uri("/api/v1/ads/decision")
                 .bodyValue(request)
                 .exchange()
                 .expectStatus().isOk()

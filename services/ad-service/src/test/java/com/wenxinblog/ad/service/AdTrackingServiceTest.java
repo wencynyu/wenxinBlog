@@ -1,26 +1,20 @@
 package com.wenxinblog.ad.service;
 
-import com.wenxinblog.ad.entity.AdCampaign;
+import com.wenxinblog.ad.entity.AdCreative;
 import com.wenxinblog.ad.entity.AdEvent;
-import com.wenxinblog.ad.repository.AdCampaignRepository;
+import com.wenxinblog.ad.repository.AdCreativeRepository;
 import com.wenxinblog.ad.repository.AdEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.ReactiveValueOperations;
-import org.springframework.kafka.core.KafkaTemplate;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.concurrent.CompletableFuture;
-import org.springframework.kafka.support.SendResult;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -28,61 +22,73 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AdTrackingServiceTest {
 
+    private static final Long CREATIVE_ID = 1L;
+    private static final Long CAMPAIGN_ID = 100L;
+
     @Mock
     private AdEventRepository eventRepo;
 
     @Mock
-    private AdCampaignRepository campaignRepo;
+    private AdCreativeRepository creativeRepo;
 
     @Mock
     private ReactiveStringRedisTemplate redis;
 
     @Mock
-    private KafkaTemplate<String, String> kafka;
+    private AdEventPublisher eventPublisher;
 
     private AdTrackingService trackingService;
 
     @BeforeEach
     void setUp() {
-        trackingService = new AdTrackingService(eventRepo, campaignRepo, redis, kafka);
+        trackingService = new AdTrackingService(eventRepo, creativeRepo, redis, eventPublisher);
     }
 
-    @Test
-    void recordClick_WithNewClick_ShouldRecordAndPublishToKafka() {
-        Long creativeId = 1L;
-        String userId = "user123";
-        String ipAddress = "127.0.0.1";
-        String userAgent = "Mozilla";
+    private void stubCreative(Long creativeId, Long campaignId) {
+        AdCreative creative = AdCreative.builder().id(creativeId).campaignId(campaignId).build();
+        when(creativeRepo.findById(creativeId)).thenReturn(Mono.just(creative));
+    }
 
-        @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
+    private ReactiveValueOperations<String, String> stubNewClick() {
         ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
         when(redis.opsForValue()).thenReturn(mockOps);
         when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
                 .thenReturn(Mono.just(true));
+        return mockOps;
+    }
 
-        AdEvent savedEvent = AdEvent.builder()
+    private AdEvent savedEvent() {
+        return AdEvent.builder()
                 .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
+                .campaignId(CAMPAIGN_ID)
+                .creativeId(CREATIVE_ID)
                 .eventType("CLICK")
                 .build();
+    }
 
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
+    @Test
+    void recordClick_WithNewClick_ShouldRecordAndPublishToKafka() {
+        String userId = "user123";
+        ReactiveValueOperations<String, String> mockOps = stubNewClick();
+        stubCreative(CREATIVE_ID, CAMPAIGN_ID);
+        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent()));
 
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, ipAddress, userAgent))
+        StepVerifier.create(trackingService.recordClick(CREATIVE_ID, userId, "127.0.0.1", "Mozilla"))
                 .expectNextMatches(event ->
-                        event.getCreativeId().equals(creativeId) &&
-                        event.getUserId().equals(userId) &&
+                        event.getCreativeId().equals(CREATIVE_ID) &&
                         event.getEventType().equals("CLICK"))
                 .verifyComplete();
 
         verify(mockOps).setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24)));
-        verify(eventRepo).save(any(AdEvent.class));
+        // 归因必须是反查到的真实 campaign，而非 creativeId；Kafka 发布也带同一归因
+        verify(eventRepo).save(argThat(e ->
+                e.getCampaignId().equals(CAMPAIGN_ID) && e.getCreativeId().equals(CREATIVE_ID)));
+        verify(eventPublisher).publish(eq("CLICK"), eq(CAMPAIGN_ID), eq(CREATIVE_ID), eq(userId), isNull(), any());
     }
 
     @Test
     void recordClick_WithDuplicateClick_ShouldReturnEmpty() {
-        Long creativeId = 1L;
         String userId = "user123";
 
         @SuppressWarnings("unchecked")
@@ -91,207 +97,80 @@ class AdTrackingServiceTest {
         when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
                 .thenReturn(Mono.just(false));
 
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, null, null))
+        StepVerifier.create(trackingService.recordClick(CREATIVE_ID, userId, null, null))
                 .verifyComplete();
 
         verify(mockOps).setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24)));
         verify(eventRepo, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(creativeRepo);
+    }
+
+    @Test
+    void recordClick_WhenCreativeNotFound_ShouldReturnEmptyAndNotSave() {
+        stubNewClick();
+        when(creativeRepo.findById(CREATIVE_ID)).thenReturn(Mono.empty());
+
+        StepVerifier.create(trackingService.recordClick(CREATIVE_ID, "user123", null, null))
+                .verifyComplete();
+
+        verify(eventRepo, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void recordConversion_WhenCreativeNotFound_ShouldReturnEmptyAndNotSave() {
+        when(creativeRepo.findById(CREATIVE_ID)).thenReturn(Mono.empty());
+
+        StepVerifier.create(trackingService.recordConversion(CREATIVE_ID, "user123", null, null))
+                .verifyComplete();
+
+        verify(eventRepo, never()).save(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
     void recordConversion_ShouldRecordAndPublishToKafka() {
-        Long creativeId = 1L;
         String userId = "user123";
-        String ipAddress = "127.0.0.1";
-        String userAgent = "Mozilla";
-
-        AdEvent savedEvent = AdEvent.builder()
+        stubCreative(CREATIVE_ID, CAMPAIGN_ID);
+        AdEvent conversion = AdEvent.builder()
                 .id(1L)
-                .creativeId(creativeId)
+                .campaignId(CAMPAIGN_ID)
+                .creativeId(CREATIVE_ID)
                 .userId(userId)
                 .eventType("CONVERSION")
                 .build();
+        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(conversion));
 
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-
-        StepVerifier.create(trackingService.recordConversion(creativeId, userId, ipAddress, userAgent))
+        StepVerifier.create(trackingService.recordConversion(CREATIVE_ID, userId, "127.0.0.1", "Mozilla"))
                 .expectNextMatches(event ->
-                        event.getCreativeId().equals(creativeId) &&
+                        event.getCreativeId().equals(CREATIVE_ID) &&
                         event.getUserId().equals(userId) &&
                         event.getEventType().equals("CONVERSION"))
                 .verifyComplete();
 
         verify(eventRepo).save(argThat(e ->
                 e.getEventType().equals("CONVERSION") &&
-                        e.getCreativeId().equals(creativeId) &&
+                        e.getCampaignId().equals(CAMPAIGN_ID) &&
+                        e.getCreativeId().equals(CREATIVE_ID) &&
                         e.getUserId().equals(userId)));
+        verify(eventPublisher).publish(eq("CONVERSION"), eq(CAMPAIGN_ID), eq(CREATIVE_ID), eq(userId), isNull(), any());
     }
 
     @Test
-    void recordClick_ShouldPublishToKafka() {
-        Long creativeId = 1L;
-        String userId = "user123";
+    void recordClick_WithAnonymousUser_ShouldDedupeByIpAddress() {
+        stubNewClick();
+        stubCreative(CREATIVE_ID, CAMPAIGN_ID);
+        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent()));
 
-        @SuppressWarnings("unchecked")
-        ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
-        when(redis.opsForValue()).thenReturn(mockOps);
-        when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
-                .thenReturn(Mono.just(true));
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CLICK")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-        when(kafka.send(anyString(), anyString(), anyString())).thenReturn(null);
-
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, null, null))
+        StepVerifier.create(trackingService.recordClick(CREATIVE_ID, null, "1.2.3.4", "Mozilla"))
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(kafka).send(eq("ad-events"), eq(userId), contains("CLICK"));
-    }
-
-    @Test
-    void recordConversion_ShouldPublishToKafka() {
-        Long creativeId = 1L;
-        String userId = "user123";
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CONVERSION")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-        when(kafka.send(anyString(), anyString(), anyString())).thenReturn(null);
-
-        StepVerifier.create(trackingService.recordConversion(creativeId, userId, null, null))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        verify(kafka).send(eq("ad-events"), eq(userId), contains("CONVERSION"));
-    }
-
-    @Test
-    void publishToKafka_WithFailure_ShouldLogWarningAndNotThrow() {
-        Long creativeId = 1L;
-        String userId = "user123";
-
-        @SuppressWarnings("unchecked")
-        ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
-        when(redis.opsForValue()).thenReturn(mockOps);
-        when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
-                .thenReturn(Mono.just(true));
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CLICK")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-        when(kafka.send(anyString(), anyString(), anyString()))
-                .thenThrow(new RuntimeException("Kafka connection failed"));
-
-        // Should not throw exception even if Kafka fails
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, null, null))
-                .expectNextCount(1)
-                .verifyComplete();
-    }
-
-    @Test
-    void recordClick_WithNullUserId_ShouldPublishWithNullKey() {
-        Long creativeId = 1L;
-        String userId = null;
-
-        @SuppressWarnings("unchecked")
-        ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
-        when(redis.opsForValue()).thenReturn(mockOps);
-        when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
-                .thenReturn(Mono.just(true));
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CLICK")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-        when(kafka.send(anyString(), any(), anyString())).thenReturn(null);
-
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, "127.0.0.1", "Mozilla"))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        // publishEvent passes event.getUserId() as the key, which is null
-        verify(kafka).send(eq("ad-events"), isNull(), anyString());
-    }
-
-    @Test
-    void recordConversion_WithNullUserId_ShouldPublishWithNullKey() {
-        Long creativeId = 1L;
-        String userId = null;
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CONVERSION")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-        when(kafka.send(anyString(), any(), anyString())).thenReturn(null);
-
-        StepVerifier.create(trackingService.recordConversion(creativeId, userId, "127.0.0.1", "Mozilla"))
-                .expectNextCount(1)
-                .verifyComplete();
-
-        // publishEvent passes event.getUserId() as the key, which is null
-        verify(kafka).send(eq("ad-events"), isNull(), anyString());
-    }
-
-    @Test
-    void publishEvent_WhenKafkaSendCompletesWithException_ShouldLogWarning() {
-        Long creativeId = 1L;
-        String userId = "user123";
-
-        @SuppressWarnings("unchecked")
-        ReactiveValueOperations<String, String> mockOps = mock(ReactiveValueOperations.class);
-        when(redis.opsForValue()).thenReturn(mockOps);
-        when(mockOps.setIfAbsent(anyString(), eq("1"), eq(Duration.ofHours(24))))
-                .thenReturn(Mono.just(true));
-
-        AdEvent savedEvent = AdEvent.builder()
-                .id(1L)
-                .creativeId(creativeId)
-                .userId(userId)
-                .eventType("CLICK")
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(eventRepo.save(any(AdEvent.class))).thenReturn(Mono.just(savedEvent));
-
-        // Return a CompletableFuture that is already completed exceptionally
-        // This tests the whenComplete callback's exception branch
-        CompletableFuture<SendResult<String, String>> failedFuture = new CompletableFuture<>();
-        failedFuture.completeExceptionally(new RuntimeException("Broker not available"));
-        when(kafka.send(anyString(), anyString(), anyString())).thenReturn(failedFuture);
-
-        // The reactive chain should still complete successfully (Kafka failure is async)
-        StepVerifier.create(trackingService.recordClick(creativeId, userId, null, null))
-                .expectNextCount(1)
-                .verifyComplete();
+        // 匿名时 key 必须落到 IP 上，而不是所有匿名用户共享 "null"
+        verify(redis.opsForValue())
+                .setIfAbsent(eq("ad:click:ip:1.2.3.4:1"), eq("1"), eq(Duration.ofHours(24)));
+        // 匿名 userId 原样传给发布器（Kafka key 为 null）
+        verify(eventPublisher).publish(eq("CLICK"), eq(CAMPAIGN_ID), eq(CREATIVE_ID), isNull(), isNull(), any());
     }
 }

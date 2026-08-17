@@ -18,6 +18,11 @@ clickhouse:
   url: jdbc:ch://localhost:8123/default
 
 management:
+  # analytics 不使用 Redis（依赖来自传递 classpath），禁用其健康指示器——
+  # 否则无密码探活本地 Redis（需 auth）导致 /actuator/health 永远 DOWN
+  health:
+    redis:
+      enabled: false
   endpoints:
     web:
       exposure:
