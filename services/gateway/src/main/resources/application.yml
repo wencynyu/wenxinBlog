@@ -159,15 +159,17 @@ spring:
                 max-age: 3600
 
   # Redis 配置（默认密码 redis，对齐 docker-compose 的 redis-cache）
-  redis:
-    host: localhost
-    port: 6379
-    password: ${REDIS_PASSWORD:redis}
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
+  # Boot 3+ 前缀为 spring.data.redis（spring.redis.* 不生效，会导致无密码连接 NOAUTH）
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD:redis}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
   # Kafka 配置（gateway 仅声明，Kafka 未启动时不影响路由）
   kafka:

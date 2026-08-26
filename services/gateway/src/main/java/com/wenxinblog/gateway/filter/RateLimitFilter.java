@@ -55,8 +55,13 @@ public class RateLimitFilter extends AbstractGatewayFilterFactory<RateLimitFilte
             // 获取限流key
             String limitKey = buildLimitKey(exchange, config);
 
-            // 执行限流检查
+            // 执行限流检查（fail-open：仅限流检查本身失败时放行一次，
+            // 不能包住 chain.filter，否则下游错误会被误标且 /ads/decision 可能被重复调用计费）
             return checkRateLimit(limitKey, config.getLimit(), config.getWindow())
+                .onErrorResume(e -> {
+                    log.error("Rate limit check failed for path: {}", path, e);
+                    return Mono.just(true);
+                })
                 .flatMap(allowed -> {
                     if (Boolean.TRUE.equals(allowed)) {
                         log.debug("Request allowed for key: {}", limitKey);
@@ -65,11 +70,6 @@ public class RateLimitFilter extends AbstractGatewayFilterFactory<RateLimitFilte
                         log.warn("Rate limit exceeded for key: {}, path: {}", limitKey, path);
                         return rateLimitExceeded(exchange);
                     }
-                })
-                .onErrorResume(e -> {
-                    log.error("Rate limit check failed for path: {}", path, e);
-                    // 限流检查失败时放行，避免影响正常业务
-                    return chain.filter(exchange);
                 });
         };
     }

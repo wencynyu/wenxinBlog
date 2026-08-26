@@ -15,12 +15,14 @@ redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
 -- 获取当前计数
 local current = redis.call('ZCARD', key)
 
+-- 返回值统一为数组：{1} 允许 / {0, retryAfter} 拒绝，
+-- 与 Java 侧 RedisScript 的 MULTI 返回类型匹配（不要返回裸标量）
 if current < limit then
     -- 添加当前请求
     redis.call('ZADD', key, now, tostring(now))
     -- 设置过期时间
     redis.call('EXPIRE', key, tonumber(ARGV[2]) + 1)
-    return 1  -- 允许
+    return {1}  -- 允许
 else
     -- 获取窗口中最早的请求时间
     local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
@@ -28,6 +30,6 @@ else
         local retryAfter = math.ceil((oldest[2] + window - now) / 1000)
         return {0, retryAfter}  -- 拒绝，返回重试时间
     else
-        return 0  -- 拒绝
+        return {0}  -- 拒绝
     end
 end

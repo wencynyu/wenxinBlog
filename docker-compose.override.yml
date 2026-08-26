@@ -231,9 +231,12 @@ services:
       OTEL_SERVICE_NAME: gateway
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       SPRING_DATA_REDIS_HOST: redis-cache
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
       # 服务在容器网络中用服务名通信（不用 localhost）
       JAVA_TOOL_OPTIONS: "-Xmx256m"
     depends_on:
+      redis-cache:
+        condition: service_healthy
       auth-service:
         condition: service_started
       blog-service:
