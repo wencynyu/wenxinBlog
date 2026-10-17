@@ -218,14 +218,17 @@ services:
       - wenxinblog
 
   minio:
+    # Milvus standalone 的对象存储后端。原 minio/minio 镜像已从 Docker Hub 撤出，
+    # 换 silo（MinIO 社区延续分支，S3 API/env 兼容）。2026-10 切换时已重置
+    # minio-milvus-data/milvus-data/etcd-data 并经 /admin/backfill 重灌向量。
     container_name: wenxinblog-minio-milvus
-    image: minio/minio:latest
+    image: pgsty/silo:latest
     environment:
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     volumes:
       - minio-milvus-data:/minio_data
-    command: minio server /minio_data --console-address ":9001"
+    command: server /minio_data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
