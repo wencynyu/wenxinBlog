@@ -443,9 +443,33 @@ public class RecommendationService {
     }
 
     // ============ 用户推荐 / 兴趣 / 反馈 ============
+
+    /**
+     * user-to-user 协同过滤「可能认识的人」：用当前用户的兴趣/行为向量（user_embeddings）
+     * 检索最相似的其他用户，返回 userId 列表。冷启动（无向量/无相似用户）返回空列表。
+     * 结果走 Redis 10min 缓存（与 feed 一致）。v1 不排除已关注用户（需跨服务读关注图，暂缓）。
+     */
     public Mono<List<String>> getUserRecommendations(String userId, int limit) {
-        // TODO Phase 3: user-to-user 协同过滤
-        return Mono.just(List.<String>of());
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        String cacheKey = "recommend:users:" + userId + ":" + safeLimit;
+        return cacheGetRaw(cacheKey)
+                .flatMap(json -> readJson(json, new TypeReference<List<String>>() {}))
+                .switchIfEmpty(Mono.defer(() -> {
+                    Mono<float[]> vecMono = milvusService.getUserVector(userId)
+                            .filter(v -> v.length > 0)
+                            .switchIfEmpty(Mono.defer(() -> recomputeUserVector(userId).filter(v -> v.length > 0)));
+                    return vecMono
+                            .flatMap(vec -> milvusService.searchUsersByVector(vec, safeLimit, userId))
+                            .map(hits -> hits.stream().map(MilvusService.UserHit::userId).toList())
+                            .flatMap(ids -> cachePut(cacheKey, ids, Duration.ofMinutes(10)).thenReturn(ids))
+                            .doOnNext(ids -> meterRegistry.counter("recommendation_source_total",
+                                    "source", ids.isEmpty() ? "user_cf_cold" : "user_cf").increment())
+                            .onErrorResume(e -> {
+                                log.warn("getUserRecommendations failed for {}: {}", userId, e.getMessage());
+                                return Mono.just(List.<String>of());
+                            });
+                }))
+                .defaultIfEmpty(List.of());
     }
 
     public Flux<UserInterestTag> getInterestTags(String userId) {
@@ -518,14 +542,21 @@ public class RecommendationService {
     }
 
     // ---- Redis 缓存小工具 ----
+    private String cacheName(String key) {
+        if (key.startsWith("recommend:trending:")) {
+            return "trending";
+        }
+        return key.startsWith("recommend:users:") ? "users" : "feed";
+    }
+
     private Mono<String> cacheGetRaw(String key) {
-        String cache = key.startsWith("recommend:trending:") ? "trending" : "feed";
+        String cache = cacheName(key);
         return redisTemplate.opsForValue().get(key)
                 .doOnNext(v -> meterRegistry.counter("recommendation_cache_total", "cache", cache, "result", "hit").increment());
     }
 
     private Mono<Void> cachePut(String key, Object value, Duration ttl) {
-        String cache = key.startsWith("recommend:trending:") ? "trending" : "feed";
+        String cache = cacheName(key);
         meterRegistry.counter("recommendation_cache_total", "cache", cache, "result", "miss").increment();
         try {
             return redisTemplate.opsForValue().set(key, MAPPER.writeValueAsString(value), ttl).then();

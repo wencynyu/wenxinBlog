@@ -145,6 +145,32 @@ class MilvusServiceIntegrationTest {
     }
 
     @Test
+    void searchUsersByVector_findsSimilarUsers_andExcludesSelf() {
+        String self = UUID.randomUUID().toString();
+        String other1 = UUID.randomUUID().toString();
+        String other2 = UUID.randomUUID().toString();
+        float[] vec = unitVector(1024);
+        StepVerifier.create(service.upsertUserVector(self, vec)).verifyComplete();
+        StepVerifier.create(service.upsertUserVector(other1, vec)).verifyComplete();
+        StepVerifier.create(service.upsertUserVector(other2, vec)).verifyComplete();
+
+        AtomicReference<List<MilvusService.UserHit>> found = new AtomicReference<>();
+        awaitUntil(() -> {
+            List<MilvusService.UserHit> hits =
+                    service.searchUsersByVector(vec, 5, self).block(Duration.ofSeconds(5));
+            if (hits != null && hits.size() >= 2
+                    && hits.stream().anyMatch(h -> other1.equals(h.userId()))
+                    && hits.stream().anyMatch(h -> other2.equals(h.userId()))) {
+                found.set(hits);
+                return true;
+            }
+            return false;
+        });
+        // 排除自己：expr 过滤生效
+        assertThat(found.get()).noneMatch(h -> self.equals(h.userId()));
+    }
+
+    @Test
     void upsertPost_isIdempotent_onSamePrimaryKey() {
         String postId = UUID.randomUUID().toString();
         StepVerifier.create(service.upsertPost(postId, "a", "v1", unitVector(1024))).verifyComplete();

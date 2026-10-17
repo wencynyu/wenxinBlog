@@ -100,6 +100,24 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void getUserRecommendations_ShouldReturnSimilarUserIds() {
+        when(recommendationService.getUserRecommendations("user-123", 10))
+                .thenReturn(Mono.just(List.of("user-9", "user-8")));
+        client.get().uri("/api/v1/recommend/users?limit=10").header("X-User-Id", "user-123").exchange()
+                .expectStatus().isOk()
+                .expectBody(Result.class).value(r -> assertEquals(2, ((List<?>) r.getData()).size()));
+    }
+
+    @Test
+    void getUserRecommendations_NoUserHeader_ReturnsEmpty() {
+        when(recommendationService.getUserRecommendations(null, 10))
+                .thenReturn(Mono.just(List.of()));
+        client.get().uri("/api/v1/recommend/users").exchange()
+                .expectStatus().isOk()
+                .expectBody(Result.class).value(r -> assertEquals(0, ((List<?>) r.getData()).size()));
+    }
+
+    @Test
     void getInterests_ShouldReturnUserInterestTags() {
         UserInterestTag tag = UserInterestTag.builder().userId("user-123").tag("java").weight(0.8).createdAt(LocalDateTime.now()).build();
         when(recommendationService.getInterestTags("user-123")).thenReturn(Flux.just(tag, tag));

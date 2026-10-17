@@ -146,11 +146,67 @@ class RecommendationServiceTest {
         verify(redisTemplate, times(2)).delete(anyString());
     }
 
+    // ---- user-to-user 协同过滤「可能认识的人」 ----
     @Test
-    void getUserRecommendations_returnsEmptyPlaceholder() {
-        StepVerifier.create(recommendationService.getUserRecommendations("u1", 5))
+    void getUserRecommendations_fromUserVector_searchesSimilarUsers() {
+        String userId = "u1";
+        float[] vec = {0.1f, 0.2f};
+        when(valueOps.get("recommend:users:u1:5")).thenReturn(Mono.empty());
+        when(milvusService.getUserVector(userId)).thenReturn(Mono.just(vec));
+        when(milvusService.searchUsersByVector(vec, 5, userId)).thenReturn(Mono.just(List.of(
+                new MilvusService.UserHit("u2", 0.9),
+                new MilvusService.UserHit("u3", 0.8))));
+        when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
+
+        StepVerifier.create(recommendationService.getUserRecommendations(userId, 5))
+                .expectNextMatches(ids -> ids.equals(List.of("u2", "u3")))
+                .verifyComplete();
+        verify(milvusService).searchUsersByVector(vec, 5, userId);
+        verify(valueOps).set(eq("recommend:users:u1:5"), anyString(), any(Duration.class));
+    }
+
+    @Test
+    void getUserRecommendations_missingVector_recomputesFromInterestTags() {
+        String userId = "u1";
+        // recompute 会做 L2 归一化，stub 向量必须是单位向量才能与下游调用参数对上
+        float[] vec = {1.0f};
+        when(valueOps.get("recommend:users:u1:5")).thenReturn(Mono.empty());
+        when(milvusService.getUserVector(userId)).thenReturn(Mono.just(new float[0]));
+        when(interestTagRepository.findByUserId(userId)).thenReturn(Flux.just(
+                UserInterestTag.builder().userId(userId).tag("java").weight(1.0).createdAt(LocalDateTime.now()).build()));
+        when(embeddingClient.embedBatch(List.of("java"))).thenReturn(Mono.just(List.of(vec)));
+        when(milvusService.upsertUserVector(userId, vec)).thenReturn(Mono.empty());
+        when(milvusService.searchUsersByVector(vec, 5, userId)).thenReturn(Mono.just(List.of(new MilvusService.UserHit("u9", 0.7))));
+        when(valueOps.set(anyString(), anyString(), any(Duration.class))).thenReturn(Mono.just(true));
+
+        StepVerifier.create(recommendationService.getUserRecommendations(userId, 5))
+                .expectNextMatches(ids -> ids.equals(List.of("u9")))
+                .verifyComplete();
+        verify(interestTagRepository).findByUserId(userId);
+    }
+
+    @Test
+    void getUserRecommendations_coldStart_returnsEmpty() {
+        String userId = "u1";
+        when(valueOps.get("recommend:users:u1:5")).thenReturn(Mono.empty());
+        when(milvusService.getUserVector(userId)).thenReturn(Mono.just(new float[0]));
+        when(interestTagRepository.findByUserId(userId)).thenReturn(Flux.empty());
+
+        StepVerifier.create(recommendationService.getUserRecommendations(userId, 5))
                 .expectNextMatches(List::isEmpty)
                 .verifyComplete();
+        verify(milvusService, never()).searchUsersByVector(any(), anyInt(), anyString());
+    }
+
+    @Test
+    void getUserRecommendations_cacheHit_returnsCached() throws Exception {
+        String cached = mapper.writeValueAsString(List.of("u7", "u8"));
+        when(valueOps.get("recommend:users:u1:5")).thenReturn(Mono.just(cached));
+
+        StepVerifier.create(recommendationService.getUserRecommendations("u1", 5))
+                .expectNextMatches(ids -> ids.equals(List.of("u7", "u8")))
+                .verifyComplete();
+        verify(milvusService, never()).getUserVector(anyString());
     }
 
     // ---- 相关博文：非法 postId → 降级 trending ----

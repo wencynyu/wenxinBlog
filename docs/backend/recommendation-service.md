@@ -8,18 +8,18 @@
 
 ## 实现现状（体检）
 
-| 模块                                                 | 状态            | 说明                                                                          |
-| ---------------------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
-| Milvus 向量召回（feed / related / related-by-image） | ✅ 真实         | SDK 2.4.2，dim **1024**，`MetricType.IP`（向量预归一化≈cosine），IVF_FLAT     |
-| Embedding 生成                                       | ✅ 真实         | 外部服务 `embedding.url`，Qwen3-VL-Embedding-2B，1024 维，带熔断器            |
-| Trending 兜底                                        | ✅ 真实         | 召回为空/匿名 → trending；trending 用真实 SQL 信号 + 时间衰减                 |
-| Kafka 消费（blog 事件 + 行为事件）                   | ✅ 至少一次     | 消费者返回 `Mono<Void>`，`enable.auto.commit=false`                           |
-| 兴趣标签 / 反馈 / viewed 去重                        | ✅              | Redis SET 30 天 + 行为加权更新用户向量（EMA item-CF）                         |
-| A/B 权重                                             | ✅ 部分         | 读取 experiment-service 写的 `ab:{userId}:recommendation`，发 impression 事件 |
-| 用户推荐 `/users`（人-人协同过滤）                   | ❌ 未实现       | `// TODO Phase 3`，恒返回空 `List.of()`                                       |
-| `/admin/backfill` 鉴权                               | ❌ 缺失（待修） | 无任何 admin 校验，匿名可调（见下）                                           |
-| 离线批任务 / 定时重排                                | ❌ 未实现       | 无 `@Scheduled`，旧文档的"每5分钟/每小时"调度不存在                           |
-| DEMO 数据                                            | ❌ 已无         | 代码里无 demo/stub/mock 数据                                                  |
+| 模块                                                 | 状态            | 说明                                                                                                                                                                        |
+| ---------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Milvus 向量召回（feed / related / related-by-image） | ✅ 真实         | SDK 2.4.2，dim **1024**，`MetricType.IP`（向量预归一化≈cosine），IVF_FLAT                                                                                                   |
+| Embedding 生成                                       | ✅ 真实         | 外部服务 `embedding.url`，Qwen3-VL-Embedding-2B，1024 维，带熔断器                                                                                                          |
+| Trending 兜底                                        | ✅ 真实         | 召回为空/匿名 → trending；trending 用真实 SQL 信号 + 时间衰减                                                                                                               |
+| Kafka 消费（blog 事件 + 行为事件）                   | ✅ 至少一次     | 消费者返回 `Mono<Void>`，`enable.auto.commit=false`                                                                                                                         |
+| 兴趣标签 / 反馈 / viewed 去重                        | ✅              | Redis SET 30 天 + 行为加权更新用户向量（EMA item-CF）                                                                                                                       |
+| A/B 权重                                             | ✅ 部分         | 读取 experiment-service 写的 `ab:{userId}:recommendation`，发 impression 事件                                                                                               |
+| 用户推荐 `/users`（人-人协同过滤）                   | ✅ 已实现       | 用 user_embeddings 行为向量检索相似用户（`MilvusService.searchUsersByVector`），排除本人；Redis 10min 缓存；冷启动返回空列表；v1 不排除已关注用户（需跨服务读关注图，暂缓） |
+| `/admin/backfill` 鉴权                               | ❌ 缺失（待修） | 无任何 admin 校验，匿名可调（见下）                                                                                                                                         |
+| 离线批任务 / 定时重排                                | ❌ 未实现       | 无 `@Scheduled`，旧文档的"每5分钟/每小时"调度不存在                                                                                                                         |
+| DEMO 数据                                            | ❌ 已无         | 代码里无 demo/stub/mock 数据                                                                                                                                                |
 
 ## 技术栈
 
@@ -77,7 +77,7 @@ GET  /feed                   ?page=0&size=10            X-User-Id 可选；无 t
 GET  /related/{postId}       ?topK=10
 GET  /related-by-image/{postId} ?topK=10                 图像相似博文（VL embedding）
 GET  /trending               ?limit=10
-GET  /users                  ?limit=                    X-User-Id 可选；⚠️ 当前恒返回 []（人-人 CF 未实现）
+GET  /users                  ?limit=10                   X-User-Id 可选；user-to-user CF「可能认识的人」，返回相似 userId 列表；冷启动返回 []
 GET  /interests                                         X-User-Id 可选；无则返回 []
 PUT  /interests              body: ["tag1","tag2"]      X-User-Id 必填
 POST /feedback               body: {postId, action}     X-User-Id 必填；发行为事件

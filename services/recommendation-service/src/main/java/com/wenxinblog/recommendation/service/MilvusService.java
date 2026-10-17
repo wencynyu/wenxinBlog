@@ -143,6 +143,46 @@ public class MilvusService {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
+    /** user_embeddings 检索命中：userId + 相似度分数（IP，向量已归一化即 cosine）。 */
+    public record UserHit(String userId, double score) {}
+
+    /** 按向量检索最相似的 topK 用户（user-to-user CF）；excludeUserId 非空时排除本人。 */
+    public Mono<List<UserHit>> searchUsersByVector(float[] vector, int topK, String excludeUserId) {
+        return Mono.fromCallable(() -> {
+            Timer.Sample sample = Timer.start(meterRegistry);
+            try {
+                boolean exclude = excludeUserId != null && !excludeUserId.isBlank();
+                SearchParam.Builder builder = SearchParam.newBuilder()
+                        .withCollectionName(MilvusConfig.USER_COLLECTION)
+                        .withVectorFieldName(MilvusConfig.VECTOR_FIELD)
+                        .withFloatVectors(List.of(toFloatList(vector)))
+                        .withTopK(exclude ? topK + 1 : topK)
+                        .withMetricType(MetricType.IP)
+                        .withParams("{\"nprobe\":" + nprobe + "}");
+                if (exclude) {
+                    builder.withExpr("user_id != \"" + excludeUserId + "\"");
+                }
+                R<SearchResults> r = client.search(builder.build());
+                check(r, "searchUsersByVector");
+                List<SearchResultsWrapper.IDScore> idScores =
+                        new SearchResultsWrapper(r.getData().getResults()).getIDScore(0);
+                List<UserHit> hits = new ArrayList<>(Math.min(topK, idScores.size()));
+                for (SearchResultsWrapper.IDScore s : idScores) {
+                    if (exclude && excludeUserId.equals(s.getStrID())) {
+                        continue; // expr 过滤失效时的双保险
+                    }
+                    hits.add(new UserHit(s.getStrID(), s.getScore()));
+                    if (hits.size() >= topK) {
+                        break;
+                    }
+                }
+                return hits;
+            } finally {
+                sample.stop(Timer.builder("milvus_search_seconds").tag("op", "user").register(meterRegistry));
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
+    }
+
     /** 通用：按 pk 查某个 collection 的 embedding 向量。 */
     private float[] queryVector(String collection, String pkField, String pkValue, String op) {
         R<io.milvus.grpc.QueryResults> r = client.query(QueryParam.newBuilder()
