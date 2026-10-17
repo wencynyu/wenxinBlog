@@ -72,6 +72,13 @@ wenxinBlog 的 metrics / traces / logs 三支柱统一走 **OpenTelemetry**：�
 
 - Go 服务（auth/user）用 OTel SDK 的 fiber/http 中间件产生指标，经 OTLP 上报，不再用
   `prometheus/client_golang` + `promhttp`。
+- 实际指标名（otelfiber 旧 semconv，**毫秒**单位直方图）：`http_server_duration_milliseconds_{count,sum,bucket}`
+  （另有 `http_server_active_requests`、`http_server_request_size_bytes_*` 等）。
+- **标签归一化**：collector 的 `transform` 处理器把 Go 侧 `http.route / http.request.method /
+http.response.status_code` 改名为 `uri / method / status`，与 Java（Micrometer）标签对齐——
+  同一条 `by (service_name, uri)` 查询可直接聚合两类服务。
+- 与 Java 的差异：指标名不同（`_milliseconds` vs `_seconds`）且单位不同，跨栈聚合时 Go 侧需
+  `/ 1000` 折算成秒（Grafana 面板已这样处理）。
 
 ### 关键 PromQL（注意用 `service_name` 标签）
 
@@ -79,9 +86,13 @@ wenxinBlog 的 metrics / traces / logs 三支柱统一走 **OpenTelemetry**：�
 # 请求 QPS（按服务过滤）
 rate(http_server_requests_seconds_count{service_name="blog-service"}[5m])
 
-# 响应时间 P95
+# 响应时间 P95（Java）
 histogram_quantile(0.95,
   sum by (le) (rate(http_server_requests_seconds_bucket{service_name="blog-service"}[5m])))
+
+# 响应时间 P95（Go，毫秒直方图 / 1000 折算成秒）
+histogram_quantile(0.95,
+  sum by (le) (rate(http_server_duration_milliseconds_bucket{service_name="auth-service"}[5m]))) / 1000
 
 # 错误率（5xx 占比）
 sum(rate(http_server_requests_seconds_count{service_name="blog-service", status=~"5.."}[5m]))

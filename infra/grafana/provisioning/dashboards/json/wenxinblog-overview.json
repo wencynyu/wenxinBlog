@@ -96,7 +96,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name) or sum(rate(http_requests_total{service_name=~\"$service\"}[1m])) by (service_name)",
+          "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name) or sum(rate(http_server_duration_milliseconds_count{service_name=~\"$service\"}[1m])) by (service_name)",
           "legendFormat": "{{service_name}}"
         }
       ]

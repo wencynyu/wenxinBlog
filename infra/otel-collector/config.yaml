@@ -21,12 +21,24 @@ processors:
         action: upsert
   # 把日志类名（scope.name）拼进 body，Grafana 日志流里每行直接显示类名。
   # 注意：Grafana 的 ES 数据源只在展开详情里显示 scope.name，这里在源头就拼进去。
+  # metrics 分支：Go 服务（otelfiber，旧 semconv）的 http.server.duration 标签归一化——
+  # http.route/http.request.method/http.response.status_code → uri/method/status，
+  # 与 Java（Micrometer http.server.requests）标签对齐，Dashboard 同一查询可直接聚合两类服务。
   transform:
     error_mode: ignore
     log_statements:
       - context: log
         statements:
           - set(body, Concat([scope.name, body], " | "))
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["uri"], attributes["http.route"]) where IsMatch(metric.name, "http\\.server\\.duration") and attributes["http.route"] != nil
+          - set(attributes["method"], attributes["http.request.method"]) where IsMatch(metric.name, "http\\.server\\.duration") and attributes["http.request.method"] != nil
+          - set(attributes["status"], attributes["http.response.status_code"]) where IsMatch(metric.name, "http\\.server\\.duration") and attributes["http.response.status_code"] != nil
+          - delete_key(attributes, "http.route") where IsMatch(metric.name, "http\\.server\\.duration")
+          - delete_key(attributes, "http.request.method") where IsMatch(metric.name, "http\\.server\\.duration")
+          - delete_key(attributes, "http.response.status_code") where IsMatch(metric.name, "http\\.server\\.duration")
 
 exporters:
   # Traces + Logs → Elasticsearch（默认 otel 模式：自动建 index template + data stream，
@@ -57,5 +69,5 @@ service:
       exporters: [elasticsearch/logs]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
+      processors: [memory_limiter, resource, transform, batch]
       exporters: [prometheus]

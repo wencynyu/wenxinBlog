@@ -130,14 +130,14 @@
 
 ## 四、技术债
 
-| 债务                                                    | 影响                     | 建议                                          |
-| ------------------------------------------------------- | ------------------------ | --------------------------------------------- |
-| listPostsByAuthor 仍有 N+1（保留 per-post fill 供测试） | 作者主页帖子多时慢       | 后续用 batch 填充                             |
-| search-service 双索引已消除但残留代码                   | 无功能影响               | 可删 BlogSearchRepository 旧方法              |
-| Go 服务 fiberprometheus 指标名与 Java 不同              | Dashboard 需要 `or` 查询 | 可统一用 Prometheus relabel 改名              |
-| embedding-service 不在 Docker（MLX 限制）               | 部署需额外步骤           | 生产用 vLLM 容器（compose profiles:gpu 已配） |
-| `blog/` 空目录（遗留 target/）                          | 无影响                   | 可删                                          |
-| start-dev.sh Python 服务首次 pip install 较慢           | 首次启动体验             | 可预构建 venv                                 |
+| 债务                                                                                                                                                                                                                                                  | 影响                         | 建议                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------- |
+| ~~listPostsByAuthor 仍有 N+1~~ ✅ 已改 batch 填充（1+2N → 5 次查询）                                                                                                                                                                                  | —                            | fillAuthorAndTags 保留给 getPost 单篇场景     |
+| ~~search-service 双索引已消除但残留代码~~ ✅ 已删 updateBlog/updateUser 死方法                                                                                                                                                                        | —                            | 消费者统一走 indexBlog                        |
+| ~~Go 服务指标名与 Java 不同~~ ✅ 已修复：collector transform 把 Go 标签归一化（uri/method/status），Dashboard 兜底查询换成真实指标（http_server_duration_milliseconds_*，P90/P99 /1000 折算秒）——旧兜底（http_requests_total 等）从来匹配不到任何序列 | Dashboard 可同时聚合 Go/Java | 见 monitoring.md                              |
+| embedding-service 不在 Docker（MLX 限制）                                                                                                                                                                                                             | 部署需额外步骤               | 生产用 vLLM 容器（compose profiles:gpu 已配） |
+| ~~`blog/` 空目录（遗留 target/）~~ ✅ 已删                                                                                                                                                                                                            | —                            | git 未跟踪，删除无感知                        |
+| start-dev.sh Python 服务首次 pip install 较慢                                                                                                                                                                                                         | 首次启动体验                 | 可预构建 venv                                 |
 
 ---
 

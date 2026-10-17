@@ -50,7 +50,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name, uri) or sum(rate(http_requests_total{service_name=~\"$service\"}[1m])) by (service_name, path)",
+          "expr": "sum(rate(http_server_requests_seconds_count{service_name=~\"$service\"}[1m])) by (service_name, uri) or sum(rate(http_server_duration_milliseconds_count{service_name=~\"$service\"}[1m])) by (service_name, uri)",
           "legendFormat": "{{service_name}} {{uri}}{{path}}"
         }
       ]
@@ -77,7 +77,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, path))",
+          "expr": "histogram_quantile(0.90, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.90, sum(rate(http_server_duration_milliseconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) / 1000",
           "legendFormat": "{{service_name}} {{uri}}{{path}}"
         }
       ]
@@ -104,7 +104,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, path))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) or histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{service_name=~\"$service\"}[5m])) by (le, service_name, uri)) / 1000",
           "legendFormat": "{{service_name}} {{uri}}{{path}}"
         }
       ]
