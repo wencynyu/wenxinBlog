@@ -109,3 +109,12 @@ jobs:
           cache: maven
 
       - run: mvn -B -ntp test
+
+      # 失败时上传 surefire 报告（含完整堆栈/Caused by 链），便于定位 CI-only 问题
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/surefire-reports/
+          retention-days: 14
