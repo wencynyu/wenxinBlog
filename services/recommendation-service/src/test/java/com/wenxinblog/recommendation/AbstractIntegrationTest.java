@@ -65,6 +65,14 @@ public abstract class AbstractIntegrationTest {
     @MockitoBean
     protected EmbeddingClient embeddingClient;
 
+    // MilvusServiceClient 构造函数会立即建立 gRPC 连接（10s deadline）——
+    // CI/干净环境没有 Milvus 监听时 bean 创建直接失败，拖垮整个上下文。
+    // （本地"碰巧"能过是因为 compose 的 milvus 容器常驻占着 19530。）
+    // 桩掉 client 本身，MilvusConfig 的工厂方法不会执行；本类所有用例都走
+    // 上面 mock 的 MilvusService，真实 client 链路由 MilvusServiceIntegrationTest 覆盖。
+    @MockitoBean
+    protected io.milvus.client.MilvusServiceClient milvusServiceClient;
+
     static {
         // Docker 29+ 最低 API v1.40，Testcontainers 自带 docker-java 默认请求 v1.32 会被 400 拒绝
         System.setProperty("api.version", System.getProperty("api.version", "1.44"));
