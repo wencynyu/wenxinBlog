@@ -22,6 +22,8 @@ type UserResponse struct {
 	AvatarURL    string `json:"avatar,omitempty"`
 	Status       string `json:"status"`
 	TwoFAEnabled bool   `json:"twoFAEnabled"`
+	// Roles 来自 JWT claims（/auth/me）而非 users 表——token 有效期内即角色快照。
+	Roles []string `json:"roles,omitempty"`
 }
 
 type AuthResponse struct {

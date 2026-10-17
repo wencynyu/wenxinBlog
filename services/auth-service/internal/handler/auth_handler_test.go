@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"wenxinblog/auth-service/internal/dto"
 	"wenxinblog/auth-service/internal/model"
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
@@ -171,13 +174,14 @@ func (m *mockAuthService) GetUserDetail(ctx context.Context, userID string) (*mo
 
 func setupApp(svc service.AuthServicer) *fiber.App {
 	app := fiber.New(fiber.Config{DisableStartupMessage: true, AppName: "Test"})
-	h := NewAuthHandler(svc)
+	h := NewAuthHandler(svc, CookieOptions{})
 	app.Post("/register", h.Register)
 	app.Post("/login", h.Login)
 	app.Post("/refresh", h.RefreshToken)
 	app.Post("/logout", h.Logout)
 	app.Get("/me", func(c *fiber.Ctx) error {
 		c.Locals("userId", "test-user-id")
+		c.Locals("roles", []string{"user", "admin"})
 		return h.GetCurrentUser(c)
 	})
 	// admin 角色/权限管理端点（测试用 X-User-Permissions 头模拟网关注入）
@@ -394,6 +398,70 @@ func TestGetMe_Success(t *testing.T) {
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	// roles 来自中间件写入的 Locals（claims 快照）
+	var body struct {
+		Data dto.UserResponse `json:"data"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, []string{"user", "admin"}, body.Data.Roles)
+}
+
+func TestLogin_SetsHttpOnlyCookies(t *testing.T) {
+	jwtSvc := service.NewJWTService("test-secret")
+	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"}, nil)
+	svc := &mockAuthService{
+		loginFunc: func(ctx context.Context, email, password string) (*service.TokenPair, *model.User, error) {
+			return tokens, &model.User{ID: "user-123", Email: email, Username: "testuser", Status: "ACTIVE"}, nil
+		},
+	}
+	app := setupApp(svc)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "password": "123456"})
+	req := httptest.NewRequest("POST", "/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	cookies := resp.Header.Values("Set-Cookie")
+	joined := strings.Join(cookies, "\n")
+	assert.Contains(t, joined, "access_token="+tokens.AccessToken)
+	assert.Contains(t, joined, "refresh_token="+tokens.RefreshToken)
+	assert.Contains(t, joined, "HttpOnly")
+	assert.Contains(t, joined, "SameSite=Lax")
+	assert.Contains(t, joined, "path=/api/v1/auth")
+}
+
+func TestRefreshToken_FromCookieOnly(t *testing.T) {
+	jwtSvc := service.NewJWTService("test-secret")
+	tokens, _ := jwtSvc.GenerateTokenPair("user-123", []string{"USER"}, nil)
+	var gotRefresh string
+	svc := &mockAuthService{
+		refreshTokenFunc: func(ctx context.Context, token string) (*service.TokenPair, error) {
+			gotRefresh = token
+			return tokens, nil
+		},
+	}
+	app := setupApp(svc)
+
+	// 空 body：Web 端 cookie 会话模式
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: tokens.RefreshToken})
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, tokens.RefreshToken, gotRefresh)
+	assert.Contains(t, strings.Join(resp.Header.Values("Set-Cookie"), "\n"), "access_token=")
+}
+
+func TestRefreshToken_MissingBoth(t *testing.T) {
+	svc := &mockAuthService{}
+	app := setupApp(svc)
+
+	req := httptest.NewRequest("POST", "/refresh", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, 401, resp.StatusCode)
 }
 
 func TestLogout(t *testing.T) {
@@ -404,6 +472,11 @@ func TestLogout(t *testing.T) {
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+	// 登出必须过期两个会话 cookie（httpOnly，客户端无法自行清除）
+	joined := strings.Join(resp.Header.Values("Set-Cookie"), "\n")
+	assert.Contains(t, joined, "access_token=")
+	assert.Contains(t, joined, "max-age=0")
+	assert.Contains(t, joined, "refresh_token=")
 }
 
 // --- 角色/权限管理端点 ---

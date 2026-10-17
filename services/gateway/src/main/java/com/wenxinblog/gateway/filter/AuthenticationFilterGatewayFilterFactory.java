@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,9 @@ public class AuthenticationFilterGatewayFilterFactory
         extends AbstractGatewayFilterFactory<AuthenticationFilterGatewayFilterFactory.Config> {
 
     private static final Set<String> WHITELIST = Set.of("/api/v1/auth", "/health");
+
+    /** Web 端 httpOnly 会话 cookie 名，与 auth-service（middleware 包）同名。 */
+    private static final String ACCESS_TOKEN_COOKIE = "access_token";
 
     private final WebClient authServiceClient;
 
@@ -110,9 +114,14 @@ public class AuthenticationFilterGatewayFilterFactory
     private String extractToken(ServerWebExchange exchange) {
         String header = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
-            return header.substring(7);
+            String token = header.substring(7);
+            if (!token.isEmpty()) {
+                return token;
+            }
         }
-        return null;
+        // Web 端 cookie 会话兜底（Mobile 仍走 Bearer header，双轨）
+        HttpCookie cookie = exchange.getRequest().getCookies().getFirst(ACCESS_TOKEN_COOKIE);
+        return cookie != null ? cookie.getValue() : null;
     }
 
     private Mono<UserInfo> validateToken(String token) {

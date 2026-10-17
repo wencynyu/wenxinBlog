@@ -10,6 +10,8 @@ export interface User {
   website?: string;
   createdAt: string;
   updatedAt: string;
+  /** JWT claims 里的角色（/auth/me 返回），前端 useIsAdmin 的数据源。 */
+  roles?: string[];
 }
 
 export interface LoginRequest {
@@ -35,7 +37,7 @@ export interface AuthResponse {
 
 export interface AuthState {
   user: User | null;
-  token: string | null;
+  /** 会话凭证在 httpOnly cookie 里，前端不再持有 token。 */
   isAuthenticated: boolean;
   isLoading: boolean;
 }

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -110,4 +111,50 @@ func TestAuthMiddleware_SetsLocals(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestAuthMiddleware_CookieFallback(t *testing.T) {
+	var gotToken string
+	svc := &mockAuthMiddlewareService{
+		validateTokenFunc: func(token string) (*service.Claims, error) {
+			gotToken = token
+			return &service.Claims{UserID: "user-123", Roles: []string{"USER"}}, nil
+		},
+	}
+	app := fiber.New()
+	app.Use(AuthMiddleware(svc))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// 无 Authorization header，仅 httpOnly 会话 cookie（Web 端）
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: AccessTokenCookieName, Value: "cookie-token"})
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "cookie-token", gotToken)
+}
+
+func TestAuthMiddleware_HeaderTakesPrecedence(t *testing.T) {
+	var gotToken string
+	svc := &mockAuthMiddlewareService{
+		validateTokenFunc: func(token string) (*service.Claims, error) {
+			gotToken = token
+			return &service.Claims{UserID: "user-123"}, nil
+		},
+	}
+	app := fiber.New()
+	app.Use(AuthMiddleware(svc))
+	app.Get("/protected", func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer header-token")
+	req.AddCookie(&http.Cookie{Name: AccessTokenCookieName, Value: "cookie-token"})
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, "header-token", gotToken)
 }

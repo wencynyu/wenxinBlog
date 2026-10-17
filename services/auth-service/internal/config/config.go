@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -51,6 +52,14 @@ type Config struct {
 	Admin struct {
 		BootstrapEmail string `yaml:"bootstrapEmail"`
 	} `yaml:"admin"`
+
+	// Cookie Web 端 httpOnly 会话 cookie 配置（secure/domain 仅生产需要，env 可覆盖）。
+	Cookie CookieConfig `yaml:"cookie"`
+}
+
+type CookieConfig struct {
+	Secure bool   `yaml:"secure"`
+	Domain string `yaml:"domain"`
 }
 
 type OAuthConfig struct {
@@ -214,5 +223,14 @@ func applyEnvOverrides(cfg *Config) {
 
 	if v := os.Getenv("ADMIN_BOOTSTRAP_EMAIL"); v != "" {
 		cfg.Admin.BootstrapEmail = v
+	}
+
+	if v := os.Getenv("COOKIE_SECURE"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Cookie.Secure = b
+		}
+	}
+	if v := os.Getenv("COOKIE_DOMAIN"); v != "" {
+		cfg.Cookie.Domain = v
 	}
 }

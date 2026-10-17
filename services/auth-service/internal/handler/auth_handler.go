@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"wenxinblog/auth-service/internal/dto"
+	"wenxinblog/auth-service/internal/middleware"
 	"wenxinblog/auth-service/internal/model"
 	"wenxinblog/auth-service/internal/repository"
 	"wenxinblog/auth-service/internal/service"
@@ -15,10 +16,11 @@ import (
 
 type AuthHandler struct {
 	authService service.AuthServicer
+	cookieOpts  CookieOptions
 }
 
-func NewAuthHandler(authService service.AuthServicer) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService service.AuthServicer, cookieOpts CookieOptions) *AuthHandler {
+	return &AuthHandler{authService: authService, cookieOpts: cookieOpts}
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
@@ -57,6 +59,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		}
 		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: "internal error"})
 	}
+	setAuthCookies(c, tokens, h.cookieOpts)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "login success", Data: dto.AuthResponse{
 		User: &dto.UserResponse{ID: user.ID, Username: user.Username, Email: user.Email, AvatarURL: user.AvatarURL,
 			Status: user.Status, TwoFAEnabled: user.TwoFAEnabled},
@@ -65,14 +68,22 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
+	// Web 端 cookie 会话：POST 空 body，refresh token 从 httpOnly cookie 读；
+	// Mobile 端继续走 JSON body（双轨）。两边都没有才拒绝。
 	var req dto.RefreshRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(dto.ErrorResponse{Code: 400, Message: "invalid request body"})
+	_ = c.BodyParser(&req)
+	refreshToken := req.RefreshToken
+	if refreshToken == "" {
+		refreshToken = c.Cookies(middleware.RefreshTokenCookieName)
 	}
-	tokens, err := h.authService.RefreshToken(c.Context(), req.RefreshToken)
+	if refreshToken == "" {
+		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "missing refresh token"})
+	}
+	tokens, err := h.authService.RefreshToken(c.Context(), refreshToken)
 	if err != nil {
 		return c.Status(401).JSON(dto.ErrorResponse{Code: 401, Message: "invalid refresh token"})
 	}
+	setAuthCookies(c, tokens, h.cookieOpts)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "token refreshed", Data: dto.TokenResponse{
 		AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken, ExpiresIn: tokens.ExpiresIn,
 	}})
@@ -84,13 +95,16 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: "internal error"})
 	}
+	// roles 来自 AuthMiddleware 解出的 claims（token 有效期内即角色快照）
+	roles, _ := c.Locals("roles").([]string)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "ok", Data: dto.UserResponse{
 		ID: user.ID, Username: user.Username, Email: user.Email, AvatarURL: user.AvatarURL,
-		Status: user.Status, TwoFAEnabled: user.TwoFAEnabled,
+		Status: user.Status, TwoFAEnabled: user.TwoFAEnabled, Roles: roles,
 	}})
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	clearAuthCookies(c, h.cookieOpts)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "logged out"})
 }
 
@@ -146,14 +160,17 @@ func validateEmail(email string) error {
 	return nil
 }
 
-func RegisterRoutes(api fiber.Router, authService service.AuthServicer) {
-	h := NewAuthHandler(authService)
+func RegisterRoutes(api fiber.Router, authService service.AuthServicer, cookieOpts CookieOptions) {
+	h := NewAuthHandler(authService, cookieOpts)
 	auth := api.Group("/auth")
 	auth.Post("/register", h.Register)
 	auth.Post("/login", h.Login)
 	auth.Post("/refresh", h.RefreshToken)
 	auth.Post("/logout", h.Logout)
 	auth.Get("/validate", h.ValidateToken)
+	// 当前登录用户：Bearer header（Mobile）或 httpOnly cookie（Web）均可。
+	// 网关对 /api/v1/auth/** 白名单放行，由本中间件自行鉴权。
+	auth.Get("/me", middleware.AuthMiddleware(authService), h.GetCurrentUser)
 
 	// 管理端点：网关 AuthorizationFilter 按路径映射 user:ban / user:assign_role，
 	// handler 再校验一次（纵深防御，防绕过网关直连）。

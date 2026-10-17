@@ -167,6 +167,50 @@ class AuthenticationFilterTest {
     }
 
     @Test
+    void testCookieToken_PassesThroughToChain() {
+        // Web 端 httpOnly 会话 cookie（无 Authorization header）也应完成认证
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/posts")
+            .cookie(org.springframework.http.ResponseCookie.from("access_token", "cookie-session-token").build())
+            .build();
+        ServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        AuthenticationFilterGatewayFilterFactory.ValidationResponse response = new AuthenticationFilterGatewayFilterFactory.ValidationResponse();
+        response.setUserId("user456");
+        response.setEmail("web@example.com");
+        response.setRoles(List.of("USER"));
+        response.setPermissions(List.of("post:create"));
+        doReturn(Mono.just(response)).when(responseSpec).bodyToMono(AuthenticationFilterGatewayFilterFactory.ValidationResponse.class);
+
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
+
+        ArgumentCaptor<ServerWebExchange> captor = ArgumentCaptor.forClass(ServerWebExchange.class);
+        verify(chain).filter(captor.capture());
+        assertEquals("user456", captor.getValue().getRequest().getHeaders().getFirst("X-User-Id"));
+    }
+
+    @Test
+    void testHeaderTakesPrecedenceOverCookie() {
+        // Bearer header 优先于 cookie（Mobile 与 Web 双轨并存时的确定性）
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/posts")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer header-token")
+            .cookie(org.springframework.http.ResponseCookie.from("access_token", "cookie-token").build())
+            .build();
+        ServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        AuthenticationFilterGatewayFilterFactory.ValidationResponse response = new AuthenticationFilterGatewayFilterFactory.ValidationResponse();
+        response.setUserId("user789");
+        response.setRoles(List.of("USER"));
+        response.setPermissions(List.of());
+        doReturn(Mono.just(response)).when(responseSpec).bodyToMono(AuthenticationFilterGatewayFilterFactory.ValidationResponse.class);
+
+        filter.apply(new AuthenticationFilterGatewayFilterFactory.Config()).filter(exchange, chain).block();
+
+        // gateway 会用 header-token 调 auth-service 校验
+        verify(requestHeadersSpec).header(eq(HttpHeaders.AUTHORIZATION), eq("Bearer header-token"));
+        verify(chain).filter(any());
+    }
+
+    @Test
     void testAuthServiceUnavailable_Returns401() {
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/v1/posts")
             .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")

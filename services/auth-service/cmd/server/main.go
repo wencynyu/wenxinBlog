@@ -107,10 +107,11 @@ func main() {
 	})
 
 	// API routes
+	cookieOpts := handler.CookieOptions{Secure: cfg.Cookie.Secure, Domain: cfg.Cookie.Domain}
 	api := app.Group("/api/v1")
-	handler.RegisterRoutes(api, authService)
-	handler.RegisterOAuthRoutes(api, oauthService, cfg.Frontend.URL)
-	handler.RegisterPhoneRoutes(api, phoneService)
+	handler.RegisterRoutes(api, authService, cookieOpts)
+	handler.RegisterOAuthRoutes(api, oauthService, cfg.Frontend.URL, cookieOpts)
+	handler.RegisterPhoneRoutes(api, phoneService, cookieOpts)
 
 	log.Printf("Auth Service starting on port %s", cfg.Server.Port)
 	log.Fatal(app.Listen(":" + cfg.Server.Port))

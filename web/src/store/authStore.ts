@@ -9,7 +9,6 @@ import type {
   AuthResponse,
 } from '@/types/auth';
 import * as api from '@/lib/api/auth';
-import { setToken, clearToken } from '@/lib/api/client';
 
 interface AuthStore extends AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
@@ -23,20 +22,10 @@ interface AuthStore extends AuthState {
   checkAuth: () => Promise<void>;
 }
 
-// Token存储key
-const TOKEN_KEY = 'auth_token';
-
-// 从localStorage获取初始token
-const getInitialToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
-};
-
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
-      token: getInitialToken(),
       isAuthenticated: false,
       isLoading: false,
 
@@ -51,15 +40,15 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
+      // 会话凭证在 auth-service 签发的 httpOnly cookie 里，前端不再持有 token；
+      // 登录响应不含 roles（无法 decode token），后台拉一次 /auth/me 补齐
       setSession: (response: AuthResponse) => {
-        const accessToken = response.tokens.accessToken;
         set({
           user: response.user,
-          token: accessToken,
           isAuthenticated: true,
           isLoading: false,
         });
-        setToken(accessToken);
+        get().checkAuth();
       },
 
       loginWithPhone: async (data: PhoneLoginRequest) => {
@@ -78,16 +67,9 @@ export const useAuthStore = create<AuthStore>()(
         try {
           // 注册（auth-service 不返回 token，需自动登录）
           await api.register(data);
-          // 自动登录拿 token
+          // 自动登录建立会话（cookie 由登录响应 Set-Cookie 写入）
           const loginResp = await api.login({ email: data.email, password: data.password });
-          const accessToken = loginResp.tokens.accessToken;
-          set({
-            user: loginResp.user,
-            token: accessToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          setToken(accessToken);
+          get().setSession(loginResp);
         } catch (error: any) {
           set({ isLoading: false });
           throw error;
@@ -97,11 +79,9 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         set({
           user: null,
-          token: null,
           isAuthenticated: false,
           isLoading: false,
         });
-        clearToken();
       },
 
       setUser: (user: User | null) => {
@@ -112,15 +92,15 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: loading });
       },
 
+      // 服务端会话校验：GET /auth/me 带 httpOnly cookie，有效则返回最新
+      // user（含 roles），无效（未登录/过期）则回归匿名态。匿名 401 是常态。
       checkAuth: async () => {
-        const token = get().token;
-        if (!token) {
-          set({ isAuthenticated: false, user: null });
-          return;
+        try {
+          const user = await api.getCurrentUser();
+          set({ user, isAuthenticated: true, isLoading: false });
+        } catch {
+          set({ user: null, isAuthenticated: false, isLoading: false });
         }
-        // MVP: token 存在即视为已认证（login 时已验证凭证）。
-        // 后续可加 GET /api/v1/auth/me 做服务端 token 验证。
-        set({ isAuthenticated: true });
       },
     }),
     {
@@ -128,7 +108,6 @@ export const useAuthStore = create<AuthStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
-        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
     },

@@ -2,7 +2,6 @@ import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import * as authApi from '@/lib/api/auth';
-import { getTokenRoles } from '@/lib/auth/jwt';
 import type { LoginRequest, RegisterRequest } from '@/types/auth';
 
 export function useLogin() {
@@ -49,8 +48,9 @@ export function useLogout() {
   });
 }
 
-// 是否管理员：decode access token 的 roles 是否含 admin。
+// 是否管理员：roles 来自 /auth/me（authStore.user.roles）。
+// httpOnly cookie 化后前端无法 decode token，这是唯一角色来源。
 export function useIsAdmin(): boolean {
-  const token = useAuthStore((state) => state.token);
-  return getTokenRoles(token).includes('admin');
+  const roles = useAuthStore((state) => state.user?.roles);
+  return roles?.includes('admin') ?? false;
 }

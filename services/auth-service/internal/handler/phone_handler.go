@@ -11,10 +11,11 @@ import (
 
 type PhoneHandler struct {
 	phoneService *service.PhoneService
+	cookieOpts   CookieOptions
 }
 
-func NewPhoneHandler(phoneService *service.PhoneService) *PhoneHandler {
-	return &PhoneHandler{phoneService: phoneService}
+func NewPhoneHandler(phoneService *service.PhoneService, cookieOpts CookieOptions) *PhoneHandler {
+	return &PhoneHandler{phoneService: phoneService, cookieOpts: cookieOpts}
 }
 
 // SendCode POST /api/v1/auth/phone/send-code
@@ -53,6 +54,7 @@ func (h *PhoneHandler) Login(c *fiber.Ctx) error {
 		}
 		return c.Status(500).JSON(dto.ErrorResponse{Code: 500, Message: "internal error"})
 	}
+	setAuthCookies(c, tokens, h.cookieOpts)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "login success", Data: dto.AuthResponse{
 		User:   toUserResponse(user),
 		Tokens: &dto.TokenResponse{AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken, ExpiresIn: tokens.ExpiresIn},
@@ -60,8 +62,8 @@ func (h *PhoneHandler) Login(c *fiber.Ctx) error {
 }
 
 // RegisterPhoneRoutes 注册手机号验证码登录路由（/api/v1/auth/**，网关白名单公开）。
-func RegisterPhoneRoutes(api fiber.Router, phoneService *service.PhoneService) {
-	h := NewPhoneHandler(phoneService)
+func RegisterPhoneRoutes(api fiber.Router, phoneService *service.PhoneService, cookieOpts CookieOptions) {
+	h := NewPhoneHandler(phoneService, cookieOpts)
 	auth := api.Group("/auth")
 	auth.Post("/phone/send-code", h.SendCode)
 	auth.Post("/phone/login", h.Login)

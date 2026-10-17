@@ -92,8 +92,14 @@ JWT Payload (access token)，HS256 签名:
 Token 刷新（access / refresh 双 token）:
 - Access Token: 15 分钟有效
 - Refresh Token: 7 天有效
-- 刷新接口: POST /api/v1/auth/refresh（携带 refreshToken，返回新的 access/refresh）
+- 刷新接口: POST /api/v1/auth/refresh（JSON body 携带 refreshToken，或空 body 由 httpOnly `refresh_token` cookie 兜底——Web/Mobile 双轨）
 - 网关通过 GET /api/v1/auth/validate 校验 access token，换取 userId/roles/permissions（email 占位为空）
+
+Token 存储（Web 端 httpOnly cookie 会话）:
+- auth-service 在登录/刷新/手机号/OAuth 兑换成功时签发 httpOnly cookie：`access_token`（15min，path=/）与 `refresh_token`（7d，path=/api/v1/auth），SameSite=Lax
+- gateway 的 AuthenticationFilter 提取 token 时 Bearer header 优先、cookie 兜底；Mobile 端继续走 JSON body + Authorization Bearer（双轨并存）
+- Web 端 401 时先静默调一次 /auth/refresh 续期并重放原请求，失败才清会话跳 /login（client.ts 响应拦截器）
+- 生产部署：HTTPS 下设 `COOKIE_SECURE=true`；跨子域（api.xxx.com ↔ www.xxx.com）需 `COOKIE_DOMAIN=.xxx.com`
 ```
 
 ### OAuth2.0

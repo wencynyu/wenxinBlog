@@ -108,7 +108,7 @@ FROM users u JOIN oauth_accounts o ON o.user_id = u.id;
 - **HTTPS + 独立域名**：生产环境前端（如 `https://wenxinblog.com`）与网关需同注册域，否则 `oauth_state` cookie 跨域发不出；必要时用 `SameSite=None; Secure`（目前是 `SameSite=Lax`，仅适合同源/localhost）。Google 控制台再**追加**一条 `https://wenxinblog.com/api/v1/auth/callback/google`，并把 `.env` 的 `GOOGLE_REDIRECT_URL` 切到生产值。
 - **同意屏幕从 Testing → In production**：发布前在 OAuth consent screen 提交验证（Google 审核），否则只有 Test users 能用。
 - **Client Secret 保护**：`.env` 已 gitignore；不要进前端环境变量（`NEXT_PUBLIC_*` 会泄露到浏览器）。
-- **Token 存储安全（既有遗留）**：前端目前把 access token 存 localStorage + 非 httpOnly cookie（有 XSS 暴露面，项目原有 TODO）。本方案未改变该模型；后续可改为「后端 set httpOnly cookie + `/auth/refresh` 静默续期」。
+- **Token 存储安全（已升级）**：登录/兑换成功时后端同时签发 httpOnly 会话 cookie（`access_token` / `refresh_token`，见 `internal/handler/cookies.go`），Web 端不再在 localStorage 存 token；401 由 `client.ts` 静默调 `/auth/refresh` 续期。JSON body 仍返回 tokens 供 Mobile 端 Bearer 使用（双轨）。
 
 ---
 

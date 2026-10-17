@@ -15,7 +15,8 @@ function tokenRoles(token: string): string[] {
 }
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('auth_token')?.value;
+  // auth-service 签发的 httpOnly 会话 cookie（服务端可读，浏览器 JS 不可读）
+  const token = request.cookies.get('access_token')?.value;
   if (!token || !tokenRoles(token).includes('admin')) {
     return NextResponse.redirect(new URL('/', request.url));
   }

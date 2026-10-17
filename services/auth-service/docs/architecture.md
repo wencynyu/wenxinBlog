@@ -12,7 +12,7 @@
 | **auth-service** | Go / Fiber v2               | 8001 | 身份唯一真相源：所有登录、JWT 签发/验证、RBAC、第三方绑定。独占 `auth_db` |
 | **user-service** | Go / Fiber v2               | 8002 | 资料/关注/统计；best-effort 镜像 `users` 行（注册时同步）                 |
 | **gateway**      | Java / Spring Cloud Gateway | 8080 | 路由、限流、熔断；**JWT 校验委托 auth-service**；注入身份头；粗粒度 RBAC  |
-| **web**          | Next.js 14                  | 3000 | 前端；token 存 localStorage + 非 httpOnly cookie                          |
+| **web**          | Next.js 14                  | 3000 | 前端；会话走 httpOnly cookie（access_token/refresh_token）                |
 | **redis**        | 7                           | 6379 | OAuth state / 中间码、短信验证码、限流计数（密码 `redis`）                |
 | **postgres**     | 15                          | 5432 | `auth_db`（users + RBAC + oauth_accounts）、`user_db`（镜像）             |
 
@@ -27,7 +27,7 @@
 - **有效期**：access 15min / refresh 7day；`tokenType` 区分，access 才能调 API，refresh 才能刷新。
 - **谁签谁验**：**只有 auth-service 持密钥**。网关**不本地验签**，通过 `GET /api/v1/auth/validate`（带 Bearer）委托 auth-service，回 `{userId, email, roles, permissions}`。
 - **身份下发**：网关 `AuthenticationFilter` 校验后注入 `X-User-Id / X-User-Roles / X-User-Email / X-User-Permissions`；`default-filters` 在入口剥离客户端伪造的同名头（纵深防御）。
-- **Token 存储（前端）**：access token 存 `localStorage` + 非 httpOnly cookie（cookie 供 Server Component 读）。⚠️ XSS 暴露面，属既有遗留，本次未改。
+- **Token 存储（前端）**：Web 端走 httpOnly 会话 cookie（`access_token` 15min / `refresh_token` 7d·path 限 /api/v1/auth），由登录/刷新/兑换端点 Set-Cookie 签发（`internal/handler/cookies.go`）；网关与 auth 中间件均为「Bearer 优先、cookie 兜底」，Mobile 端继续 JSON + Bearer（双轨）。Web 401 由 `client.ts` 静默续期。
 
 ---
 
@@ -231,8 +231,8 @@ token **永不进 URL**；浏览器只拿到一次性中间码，再 POST 换 JW
     - 根因：HS256 单密钥，换密钥则旧 token 全失效。
     - 解法：dev 可接受；正式环境固定 JWT_SECRET，勿每次随机生成。
 
-13. **token 存 localStorage + 非 httpOnly cookie**
-    - 既有遗留的 XSS 暴露面。本次未改；后续可升级为「后端 set httpOnly cookie + `/auth/refresh` 静默续期」。
+13. **refresh token 不可吊销（无状态）**
+    - logout 仅过期两端 cookie（access/refresh），refresh token 本身不入库、无法服务端拉黑；7 天内泄露仍可用。v1 接受，后续可加 token hash 入库 + revoke 列表。
 
 14. **fire-and-forget 同步会漂库**
     - 注册/社交/手机建号后同步 user-service 是 best-effort（失败只 log）。user_db 暂无行 → profile 查询 404，直至同步成功。v1 接受。

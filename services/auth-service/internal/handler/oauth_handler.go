@@ -13,10 +13,11 @@ import (
 type OAuthHandler struct {
 	oauthService *service.OAuthService
 	frontendURL  string // 中间码 302 回前端的目标
+	cookieOpts   CookieOptions
 }
 
-func NewOAuthHandler(oauthService *service.OAuthService, frontendURL string) *OAuthHandler {
-	return &OAuthHandler{oauthService: oauthService, frontendURL: strings.TrimRight(frontendURL, "/")}
+func NewOAuthHandler(oauthService *service.OAuthService, frontendURL string, cookieOpts CookieOptions) *OAuthHandler {
+	return &OAuthHandler{oauthService: oauthService, frontendURL: strings.TrimRight(frontendURL, "/"), cookieOpts: cookieOpts}
 }
 
 // OAuthInitiate GET /api/v1/auth/oauth/:provider —— 登录发起。
@@ -70,6 +71,7 @@ func (h *OAuthHandler) OAuthExchange(c *fiber.Ctx) error {
 			Outcome: "link", Provider: res.Provider,
 		}})
 	}
+	setAuthCookies(c, res.Tokens, h.cookieOpts)
 	return c.JSON(dto.APIResponse{Code: 200, Message: "login success", Data: dto.OAuthExchangeResponse{
 		Outcome: "login",
 		User:    toUserResponse(res.User),
@@ -153,8 +155,8 @@ func toUserResponse(u *model.User) *dto.UserResponse {
 //
 //	/api/v1/auth/**    —— 公开（网关白名单，不注入身份）
 //	/api/v1/account/** —— 鉴权（网关 AuthenticationFilter 注入 X-User-Id）
-func RegisterOAuthRoutes(api fiber.Router, oauthService *service.OAuthService, frontendURL string) {
-	h := NewOAuthHandler(oauthService, frontendURL)
+func RegisterOAuthRoutes(api fiber.Router, oauthService *service.OAuthService, frontendURL string, cookieOpts CookieOptions) {
+	h := NewOAuthHandler(oauthService, frontendURL, cookieOpts)
 
 	auth := api.Group("/auth")
 	auth.Get("/oauth/:provider", h.OAuthInitiate)

@@ -90,7 +90,7 @@ src/
 
 - 入口：`lib/api/client.ts`，Axios 实例。
 - `baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'` —— **统一走网关**（localhost:8080），前端不直连后端微服务。
-- Token：客户端存 `localStorage`，并同步写一份非 httpOnly cookie（`auth_token`），供 Server Component / SSR 读取（`lib/api/server.ts`）。401 时清 token 并跳转 `/login`。
+- 会话：auth-service 签发的 httpOnly cookie（`access_token`/`refresh_token`），axios `withCredentials: true`；401 时先静默 POST `/auth/refresh` 续期并重放一次，失败才清会话跳 `/login`。角色（useIsAdmin）来自 `GET /auth/me`（authStore.user.roles），前端不持有 token。
 - 响应拦截器自动解包 `response.data`（即 `ApiResponse<T>`），错误归一化为 `{ code, message, data }`。
 - 端点前缀统一 `/api/v1/...`（如 `/api/v1/posts`、`/api/v1/recommend/feed`、`/api/v1/recommend/trending`）。
 

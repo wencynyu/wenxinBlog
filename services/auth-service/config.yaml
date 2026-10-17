@@ -39,3 +39,10 @@ sms:
 
 userService:
   url: "http://localhost:8002"
+
+cookie:
+  # Web 端 httpOnly 会话 cookie。本地 http 保持 false；
+  # 生产（HTTPS）置 true，跨子域部署（api.xxx.com ↔ www.xxx.com）需配 domain: ".xxx.com"。
+  # 也可用环境变量 COOKIE_SECURE / COOKIE_DOMAIN 覆盖。
+  secure: false
+  domain: ""
