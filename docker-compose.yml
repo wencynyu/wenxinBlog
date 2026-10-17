@@ -265,7 +265,9 @@ services:
   # MinIO 对象存储 (模拟 OSS)
   # =====================================================
   minio-oss:
-    image: minio/minio:latest
+    # MinIO 社区版镜像已从 Docker Hub 撤出；silo 为其延续分支（兼容 S3 API/MinIO SDK，
+    # 同样的 MINIO_ROOT_* env 与 server 子命令）。详见 https://silo.pgsty.com
+    image: pgsty/silo:latest
     container_name: wenxinblog-minio-oss
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}

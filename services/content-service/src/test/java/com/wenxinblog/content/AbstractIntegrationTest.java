@@ -31,7 +31,7 @@ public abstract class AbstractIntegrationTest {
 
     /** root 凭证 minioadmin/minioadmin 与 application.yml 的 @Value 默认值一致，免属性覆盖。 */
     protected static final GenericContainer<?> MINIO =
-            new GenericContainer<>(DockerImageName.parse("minio/minio:latest"))
+            new GenericContainer<>(DockerImageName.parse("pgsty/silo:latest"))
                     .withExposedPorts(9000)
                     .withEnv("MINIO_ROOT_USER", "minioadmin")
                     .withEnv("MINIO_ROOT_PASSWORD", "minioadmin")
