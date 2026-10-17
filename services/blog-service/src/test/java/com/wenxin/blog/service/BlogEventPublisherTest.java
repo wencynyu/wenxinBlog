@@ -54,14 +54,35 @@ class BlogEventPublisherTest {
     }
 
     @Test
-    void publishDelete_sendsKafkaEvent() throws Exception {
+    void publishDelete_sendsKafkaEventWithAuthorAndStatus() throws Exception {
+        Post post = samplePost();
         when(objectMapper.writeValueAsString(any())).thenReturn("{\"eventType\":\"DELETE\"}");
         when(kafkaTemplate.send(anyString(), anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        publisher.publishDelete("post-123");
+        publisher.publishDelete(post);
 
-        verify(kafkaTemplate).send(eq("wenxinblog.blog.events"), eq("post-123"), anyString());
+        verify(kafkaTemplate).send(eq("wenxinblog.blog.events"), eq(post.getId().toString()), anyString());
+        // authorId/status 进入 DELETE payload（user-service 递减计数依赖）
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper).writeValueAsString(payloadCaptor.capture());
+        String json = payloadCaptor.getValue().toString();
+        assertTrue(json.contains("authorId=" + post.getAuthorId()));
+        assertTrue(json.contains("status=published"));
+    }
+
+    @Test
+    void publishUpdate_includesPreviousStatus() throws Exception {
+        Post post = samplePost();
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"eventType\":\"UPDATE\"}");
+        when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        publisher.publishUpdate(post, List.of("tag"), "draft");
+
+        ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper).writeValueAsString(payloadCaptor.capture());
+        assertTrue(payloadCaptor.getValue().toString().contains("previousStatus=draft"));
     }
 
     @Test

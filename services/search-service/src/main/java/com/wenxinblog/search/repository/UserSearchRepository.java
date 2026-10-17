@@ -26,10 +26,6 @@ public class UserSearchRepository {
                 .then();
     }
 
-    public Mono<Void> updateUser(UserDocument doc) {
-        return indexUser(doc);
-    }
-
     public Mono<SearchPage<UserDocument>> searchUsers(String query, int page, int size) {
         NativeQuery q = NativeQuery.builder()
                 .withQuery(m -> m.multiMatch(mm -> mm

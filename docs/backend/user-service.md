@@ -6,16 +6,17 @@
 
 ## 实现现状（体检）
 
-| 模块                                   | 状态      | 说明                                                                  |
-| -------------------------------------- | --------- | --------------------------------------------------------------------- |
-| 资料 GET / PUT                         | ✅        | PUT 有 IDOR 属主校验（`X-User-Id` == `:id`，否则 403）                |
-| 关注 / 取关 / 列表                     | ✅        | 关注/取关异步维护 `user_stats`                                        |
-| 用户搜索（全文）                       | ✅        | 真实 Postgres FTS（`to_tsvector('simple', display_name)` + GIN 索引） |
-| 统计缓存（Redis）                      | ✅        | `user:{id}:stats` HASH，TTL 300s                                      |
-| 接收 auth 注册同步                     | ✅        | `POST /internal/users` 幂等建号                                       |
-| 用户名自动补全 `/suggest`              | ❌ 未实现 | 旧文档列了，代码无路由/handler                                        |
-| `/users/:id/posts`、`/users/:id/likes` | ❌ 未实现 | 旧文档列了，代码无                                                    |
-| 关注关系 Redis 缓存                    | ❌ 未实现 | 旧文档大段描述，代码里 `FollowRepository` 完全不碰 Redis              |
+| 模块                                   | 状态      | 说明                                                                                                                                                         |
+| -------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 资料 GET / PUT                         | ✅        | PUT 有 IDOR 属主校验（`X-User-Id` == `:id`，否则 403）                                                                                                       |
+| 关注 / 取关 / 列表                     | ✅        | 关注/取关异步维护 `user_stats`                                                                                                                               |
+| 用户搜索（全文）                       | ✅        | 真实 Postgres FTS（`to_tsvector('simple', display_name)` + GIN 索引）                                                                                        |
+| 统计缓存（Redis）                      | ✅        | `user:{id}:stats` HASH，TTL 300s                                                                                                                             |
+| 接收 auth 注册同步                     | ✅        | `POST /internal/users` 幂等建号                                                                                                                              |
+| 博文计数（Kafka 消费）                 | ✅        | 消费 `wenxinblog.blog.events`（groupId `user-service`，kafka-go）维护 `post_count`：CREATE+published +1；UPDATE draft↔published 转换 ±1；DELETE+published -1 |
+| 用户名自动补全 `/suggest`              | ❌ 未实现 | 旧文档列了，代码无路由/handler                                                                                                                               |
+| `/users/:id/posts`、`/users/:id/likes` | ❌ 未实现 | 旧文档列了，代码无                                                                                                                                           |
+| 关注关系 Redis 缓存                    | ❌ 未实现 | 旧文档大段描述，代码里 `FollowRepository` 完全不碰 Redis                                                                                                     |
 
 ## 技术栈
 
@@ -86,7 +87,7 @@ CREATE TABLE public.follows (
 ```sql
 CREATE TABLE public.user_stats (
     user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-    post_count integer DEFAULT 0 NOT NULL,       -- 本服务不维护，由 blog 侧产生
+    post_count integer DEFAULT 0 NOT NULL,       -- BlogEventConsumer 消费 blog 事件维护（见 events.md）
     follower_count integer DEFAULT 0 NOT NULL,
     following_count integer DEFAULT 0 NOT NULL,
     like_count integer DEFAULT 0 NOT NULL,       -- 本服务不维护

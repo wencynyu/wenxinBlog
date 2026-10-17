@@ -21,6 +21,8 @@ type StatsRepositoryInterface interface {
 	DecrementFollowerCount(userID uuid.UUID) error
 	IncrementFollowingCount(userID uuid.UUID) error
 	DecrementFollowingCount(userID uuid.UUID) error
+	IncrementPostCount(userID uuid.UUID) error
+	DecrementPostCount(userID uuid.UUID) error
 }
 
 type StatsRepository struct {
@@ -118,6 +120,30 @@ func (r *StatsRepository) IncrementFollowingCount(userID uuid.UUID) error {
 
 func (r *StatsRepository) DecrementFollowingCount(userID uuid.UUID) error {
 	_, err := r.db.Exec(`UPDATE user_stats SET following_count = GREATEST(following_count - 1, 0), updated_at = $1 WHERE user_id = $2`, time.Now(), userID)
+	if err == nil {
+		go r.invalidateCache(userID)
+	}
+	return err
+}
+
+// IncrementPostCount 博文发布（CREATE published / UPDATE draft→published）+1。
+// BlogEventConsumer 消费 wenxinblog.blog.events 触发。
+func (r *StatsRepository) IncrementPostCount(userID uuid.UUID) error {
+	query := `INSERT INTO user_stats (user_id, post_count, updated_at)
+		VALUES ($1, 1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET
+			post_count = user_stats.post_count + 1,
+			updated_at = $2`
+	_, err := r.db.Exec(query, userID, time.Now())
+	if err == nil {
+		go r.invalidateCache(userID)
+	}
+	return err
+}
+
+// DecrementPostCount 已发布博文删除/取消发布 -1（GREATEST 兜底防负数）。
+func (r *StatsRepository) DecrementPostCount(userID uuid.UUID) error {
+	_, err := r.db.Exec(`UPDATE user_stats SET post_count = GREATEST(post_count - 1, 0), updated_at = $1 WHERE user_id = $2`, time.Now(), userID)
 	if err == nil {
 		go r.invalidateCache(userID)
 	}

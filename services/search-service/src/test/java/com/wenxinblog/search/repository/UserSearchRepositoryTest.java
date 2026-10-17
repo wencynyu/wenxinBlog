@@ -68,18 +68,6 @@ class UserSearchRepositoryTest {
         verify(operations, times(1)).save(doc);
     }
 
-    // ==================== updateUser tests ====================
-
-    @Test
-    void updateUser_Success_ShouldDelegateToIndexUser() {
-        UserDocument doc = createTestUserDocument();
-        when(operations.save(any(UserDocument.class))).thenReturn(Mono.just(doc));
-
-        StepVerifier.create(userSearchRepository.updateUser(doc)).verifyComplete();
-
-        verify(operations, times(1)).save(doc);
-    }
-
     // ==================== searchUsers tests ====================
 
     @Test

@@ -7,18 +7,18 @@
 - 单节点 Kafka（`confluentinc/cp-kafka:7.4.0`，bootstrap `localhost:9092` / 容器内 `kafka:29092`）。
 - Broker 开启 `auto.create.topics.enable=true`，**代码里没有 `NewTopic`/`KafkaAdmin` bean**，topic 首次生产时自动创建。
 - 所有 Java 生产者统一用 `KafkaTemplate<String,String>` + `StringSerializer`，自行用 Jackson 把 payload 序列化成 JSON 字符串发送（**不是标准 CloudEvents 规范**，是项目自定义信封）。唯一的例外见 `ad-events`。
-- Go 服务（auth/user）**完全不碰 Kafka**。
+- Go 服务：auth 不碰 Kafka；**user-service 消费** `wenxinblog.blog.events` 维护博文计数（kafka-go，groupId `user-service`）。
 - kafka-ui 跑在 `http://localhost:8085`，可直接查看 topic / 消息。
 
 ## Topic 总览
 
-| Topic                    | 生产者                                   | 消费者（groupId）                                                                                  | 状态                                                           |
-| ------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `wenxinblog.blog.events` | blog-service                             | search-service（`search-service`）、recommendation-service（`recommendation-service`）             | 正常                                                           |
-| `user-behavior-events`   | recommendation-service                   | analytics-service（`analytics-service`）、recommendation-service（`recommendation-service-group`） | 正常；experiment-service 配了工厂但**无 listener**，未真正消费 |
-| `ad-events`              | ad-service                               | **无**                                                                                             | 孤立生产者                                                     |
-| `wenxinblog.user.events` | **无**（user-service 是 Go，不发 Kafka） | search-service（`search-service`）                                                                 | 孤立消费者                                                     |
-| `wenxinblog.access-log`  | gateway                                  | **无**                                                                                             | 孤立生产者                                                     |
+| Topic                    | 生产者                                   | 消费者（groupId）                                                                                                                       | 状态                                                           |
+| ------------------------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `wenxinblog.blog.events` | blog-service                             | search-service（`search-service`）、recommendation-service（`recommendation-service`）、user-service（`user-service`，维护 post_count） | 正常                                                           |
+| `user-behavior-events`   | recommendation-service                   | analytics-service（`analytics-service`）、recommendation-service（`recommendation-service-group`）                                      | 正常；experiment-service 配了工厂但**无 listener**，未真正消费 |
+| `ad-events`              | ad-service                               | **无**                                                                                                                                  | 孤立生产者                                                     |
+| `wenxinblog.user.events` | **无**（user-service 是 Go，不发 Kafka） | search-service（`search-service`）                                                                                                      | 孤立消费者                                                     |
+| `wenxinblog.access-log`  | gateway                                  | **无**                                                                                                                                  | 孤立生产者                                                     |
 
 ---
 
@@ -37,6 +37,7 @@
     "summary": "string",
     "authorId": "uuid",
     "status": "published | draft | ...",
+    "previousStatus": "draft（仅 UPDATE 事件携带）",
     "tags": ["tag1"],
     "publishedAt": "timestamp-string（仅非空时出现）",
     "viewCount": 0,
@@ -46,13 +47,17 @@
 }
 ```
 
-> DELETE 事件 `data` 只有 `{ "id": "<postId>" }`。
+UPDATE 事件额外带 `previousStatus`（更新前状态），DELETE 事件 `data` 为 `{ id, authorId, status }`（status 为删除时状态）。
+老消费者只读自己需要的字段，字段追加向后兼容。
+
+**触发时机**（PostService）：CREATE 仅 published；UPDATE 在「新状态 published（含 draft→published 转换/普通编辑）」或「旧状态 published（取消发布）」时发；DELETE 无条件发。
 
 **消费者**：
 
-- **search-service**（`@KafkaListener groupId="search-service"`）：CREATE/UPDATE → 建 `BlogDocument` 写入 Elasticsearch；DELETE → 删 ES 文档。
+- **search-service**（`@KafkaListener groupId="search-service"`）：CREATE/UPDATE 且 published → 建 `BlogDocument` 写入 Elasticsearch；UPDATE 非发布态或 DELETE → 删 ES 文档。
   > ⚠️ **契约缺口**：消费者还读 `authorName`、`category` 两个字段，但生产者**不发**这两个字段，ES 索引里始终为 null。
 - **recommendation-service**（`groupId="recommendation-service"`）：CREATE/UPDATE 且 `status=="published"` → 调 embedding 服务把 title+summary 向量化后写入 Milvus；非 published 或 DELETE → 从 Milvus 移除。
+- **user-service**（kafka-go，`groupId="user-service"`）：维护 `user_stats.post_count`——CREATE+published +1；UPDATE draft→published +1 / published→draft -1（`previousStatus` 区分，published→published 普通编辑 no-op）；DELETE+published -1。缺 `authorId` 的老事件跳过。
 
 ---
 

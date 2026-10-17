@@ -49,6 +49,13 @@ public class BlogEventConsumer {
     }
 
     private Mono<Void> handleUpsert(JsonNode data, String eventType) {
+        // 非发布态（如取消发布 published→draft 的 UPDATE）不能留在搜索索引——直接移除，
+        // 与 recommendation-service BlogEventConsumer 的处理保持一致
+        String status = getText(data, "status");
+        String blogId = getText(data, "id");
+        if (status != null && !"published".equalsIgnoreCase(status)) {
+            return blogRepo.deleteBlog(blogId);
+        }
         BlogDocument doc = BlogDocument.builder()
                 .id(getText(data, "id"))
                 .title(getText(data, "title"))
@@ -75,13 +82,9 @@ public class BlogEventConsumer {
             doc.setPublishedAt(LocalDateTime.parse(data.get("publishedAt").asString()));
         }
 
-        // eventType 在顶层（node.eventType），不在 data 里；之前误读 data._eventType 导致
-        // CREATE 永远走 updateBlog。CREATE 全量 index，UPDATE 局部 update。
-        if ("CREATE".equals(eventType)) {
-            return blogRepo.indexBlog(doc);
-        } else {
-            return blogRepo.updateBlog(doc);
-        }
+        // eventType 在顶层（node.eventType）。双索引消除后 CREATE/UPDATE 均走全量 index
+        //（updateBlog 别名已删），非发布态在上面已提前走删除分支。
+        return blogRepo.indexBlog(doc);
     }
 
     private Mono<Void> handleDelete(JsonNode data) {

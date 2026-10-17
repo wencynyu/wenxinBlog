@@ -19,7 +19,9 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -83,6 +85,32 @@ class PostServiceTest {
         when(db.sql(contains("JOIN post_tags"))).thenReturn(tagsSpec);
         when(tagsSpec.bind(eq("postId"), any())).thenReturn(tagsSpec);
         when(tagsSpec.map(any(Function.class))).thenReturn(tagRows);
+        when(tagRows.all()).thenReturn(Flux.empty());
+    }
+
+    /**
+     * 桩 batchFillAuthorsAndTags 的 r2dbc 链（ANY(:ids) 批量 authors/tags 查询），
+     * 供 listPostsByAuthor / listPublishedPosts 单测使用（mapper 是 BiFunction 重载）。
+     */
+    @SuppressWarnings("unchecked")
+    private void stubBatchFillAuthorsAndTags() {
+        DatabaseClient db = mock(DatabaseClient.class);
+        when(r2dbc.getDatabaseClient()).thenReturn(db);
+
+        DatabaseClient.GenericExecuteSpec authorSpec = mock(DatabaseClient.GenericExecuteSpec.class);
+        DatabaseClient.GenericExecuteSpec tagsSpec = mock(DatabaseClient.GenericExecuteSpec.class);
+        RowsFetchSpec<Map.Entry<UUID, Post.AuthorInfo>> authorRows = mock(RowsFetchSpec.class);
+        RowsFetchSpec<Map.Entry<UUID, String>> tagRows = mock(RowsFetchSpec.class);
+
+        when(db.sql(contains("FROM authors"))).thenReturn(authorSpec);
+        when(authorSpec.bind(eq("ids"), any())).thenReturn(authorSpec);
+        when(authorSpec.map(any(BiFunction.class))).thenReturn(authorRows);
+        when(authorRows.all()).thenReturn(Flux.just(
+                Map.entry(authorId, new Post.AuthorInfo("a", "user", "user", null))));
+
+        when(db.sql(contains("post_tags"))).thenReturn(tagsSpec);
+        when(tagsSpec.bind(eq("ids"), any())).thenReturn(tagsSpec);
+        when(tagsSpec.map(any(BiFunction.class))).thenReturn(tagRows);
         when(tagRows.all()).thenReturn(Flux.empty());
     }
 
@@ -291,7 +319,7 @@ class PostServiceTest {
 
     @Test
     void testListPostsByAuthor() {
-        stubFillAuthorAndTags();
+        stubBatchFillAuthorsAndTags();
         Post post1 = new Post();
         post1.setId(UUID.randomUUID());
         post1.setAuthorId(authorId);

@@ -56,10 +56,13 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@postgres-user:5432/user_db?sslmode=disable
       REDIS_URL: redis://redis-cache:6379
       AUTH_SERVICE_URL: http://auth-service:8001
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
       postgres-user:
         condition: service_healthy
       redis-cache:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   blog-service:

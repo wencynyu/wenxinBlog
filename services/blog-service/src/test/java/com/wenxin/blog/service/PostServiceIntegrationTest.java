@@ -19,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -118,7 +119,7 @@ class PostServiceIntegrationTest extends AbstractIntegrationTest {
         assertThat(names).contains("spring", "redis");
         assertThat(names.size()).isEqualTo(names.stream().distinct().count());
         assertThat(tagCountOf(postId)).containsExactly("redis", "spring");
-        verify(blogEventPublisher).publishUpdate(any(Post.class), anyList());
+        verify(blogEventPublisher).publishUpdate(any(Post.class), anyList(), anyString());
     }
 
     @Test
@@ -326,7 +327,7 @@ class PostServiceIntegrationTest extends AbstractIntegrationTest {
                 .verifyComplete();
 
         StepVerifier.create(postService.getPost(postId, null)).verifyComplete(); // getPost 对不存在的帖子返回空
-        verify(blogEventPublisher).publishDelete(postId.toString());
+        verify(blogEventPublisher).publishDelete(any(Post.class));
     }
 
     @Test

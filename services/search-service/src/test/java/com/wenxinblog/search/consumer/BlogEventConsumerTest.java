@@ -145,13 +145,13 @@ class BlogEventConsumerTest {
         when(dataNode.has("tags")).thenReturn(false);
         when(dataNode.has("publishedAt")).thenReturn(false);
 
-        when(blogRepo.updateBlog(any(BlogDocument.class))).thenReturn(Mono.empty());
+        when(blogRepo.indexBlog(any(BlogDocument.class))).thenReturn(Mono.empty());
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("wenxinblog.blog.events", 0, 0, "key", jsonPayload);
 
         StepVerifier.create(consumer.consume(record)).verifyComplete();
 
-        verify(blogRepo).updateBlog(any(BlogDocument.class));
+        verify(blogRepo).indexBlog(any(BlogDocument.class));
     }
 
     @Test
@@ -199,7 +199,7 @@ class BlogEventConsumerTest {
         StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo, never()).indexBlog(any());
-        verify(blogRepo, never()).updateBlog(any());
+        verify(blogRepo, never()).indexBlog(any());
         verify(blogRepo, never()).deleteBlog(any());
     }
 
@@ -226,7 +226,7 @@ class BlogEventConsumerTest {
         StepVerifier.create(consumer.consume(record)).verifyComplete();
 
         verify(blogRepo, never()).indexBlog(any());
-        verify(blogRepo, never()).updateBlog(any());
+        verify(blogRepo, never()).indexBlog(any());
         verify(blogRepo, never()).deleteBlog(any());
     }
 

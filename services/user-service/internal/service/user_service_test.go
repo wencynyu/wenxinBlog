@@ -126,6 +126,8 @@ type MockStatsRepository struct {
 	DecrementFollowerCountFunc  func(userID uuid.UUID) error
 	IncrementFollowingCountFunc func(userID uuid.UUID) error
 	DecrementFollowingCountFunc func(userID uuid.UUID) error
+	IncrementPostCountFunc      func(userID uuid.UUID) error
+	DecrementPostCountFunc      func(userID uuid.UUID) error
 }
 
 func (m *MockStatsRepository) GetStats(userID uuid.UUID) (*model.UserStats, error) {
@@ -156,6 +158,20 @@ func (m *MockStatsRepository) DecrementFollowerCount(userID uuid.UUID) error {
 func (m *MockStatsRepository) IncrementFollowingCount(userID uuid.UUID) error {
 	if m.IncrementFollowingCountFunc != nil {
 		return m.IncrementFollowingCountFunc(userID)
+	}
+	return nil
+}
+
+func (m *MockStatsRepository) IncrementPostCount(userID uuid.UUID) error {
+	if m.IncrementPostCountFunc != nil {
+		return m.IncrementPostCountFunc(userID)
+	}
+	return nil
+}
+
+func (m *MockStatsRepository) DecrementPostCount(userID uuid.UUID) error {
+	if m.DecrementPostCountFunc != nil {
+		return m.DecrementPostCountFunc(userID)
 	}
 	return nil
 }

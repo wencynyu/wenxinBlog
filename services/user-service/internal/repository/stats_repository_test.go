@@ -278,3 +278,48 @@ func TestParseCachedStats_Partial(t *testing.T) {
 	assert.Equal(t, 30, stats.PostCount)
 	assert.Equal(t, 0, stats.FollowerCount) // Default
 }
+
+func TestStatsRepository_IncrementPostCount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	s := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
+
+	repo := NewStatsRepository(db, rdb)
+	userID := uuid.New()
+
+	mock.ExpectExec("INSERT INTO user_stats").
+		WithArgs(userID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.IncrementPostCount(userID)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestStatsRepository_DecrementPostCount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	s := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: s.Addr()})
+
+	repo := NewStatsRepository(db, rdb)
+	userID := uuid.New()
+
+	// GREATEST 兜底防负数
+	mock.ExpectExec("UPDATE user_stats SET post_count = GREATEST\\(post_count - 1, 0\\), updated_at = \\$1 WHERE user_id = \\$2").
+		WithArgs(sqlmock.AnyArg(), userID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.DecrementPostCount(userID)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"wenxinblog/user-service/internal/config"
+	"wenxinblog/user-service/internal/consumer"
 	"wenxinblog/user-service/internal/handler"
 	"wenxinblog/user-service/internal/middleware"
 	"wenxinblog/user-service/internal/observability"
@@ -52,6 +53,12 @@ func main() {
 
 	// Initialize service
 	userSvc := service.NewUserService(profileRepo, followRepo, statsRepo)
+
+	// Kafka 消费：blog 事件 → 博文计数（stats.post_count）。
+	// 连不上 broker 时 kafka-go 读循环内重试，不阻断 HTTP 服务启动。
+	blogConsumer := consumer.NewBlogEventConsumer(
+		[]string{cfg.Kafka.BootstrapServers}, statsRepo)
+	go blogConsumer.Run(context.Background())
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{

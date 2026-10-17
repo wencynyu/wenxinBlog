@@ -11,3 +11,8 @@ redis:
 
 authService:
   url: "http://localhost:8001"
+
+kafka:
+  # 消费 wenxinblog.blog.events 维护博文计数；宿主机直连（compose 映射 9092）。
+  # 容器内部署时经 KAFKA_BOOTSTRAP_SERVERS 覆盖为 kafka:29092。
+  bootstrapServers: "localhost:9092"

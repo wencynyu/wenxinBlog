@@ -73,6 +73,7 @@ public class PostService {
                 return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:update:own or post:update:any"));
             }
 
+            String previousStatus = post.getStatus();
             if (req.getTitle() != null) post.setTitle(req.getTitle());
             if (req.getContent() != null) post.setContent(req.getContent());
             if (req.getSummary() != null) post.setSummary(req.getSummary());
@@ -92,8 +93,13 @@ public class PostService {
                         return updateTags.thenReturn(saved);
                     })
                     .doOnNext(saved -> {
-                        if ("published".equalsIgnoreCase(saved.getStatus())) {
-                            blogEventPublisher.publishUpdate(saved, req.getTags());
+                        // 发布态帖子的任何编辑都发 UPDATE（search 重建索引 / rec 刷新向量 / user 计数靠
+                        // previousStatus 区分转换）；取消发布（published→draft）也要发——消费端按
+                        // status!=published 从索引/向量库移除并递减计数
+                        boolean published = "published".equalsIgnoreCase(saved.getStatus());
+                        boolean wasPublished = "published".equalsIgnoreCase(previousStatus);
+                        if (published || wasPublished) {
+                            blogEventPublisher.publishUpdate(saved, req.getTags(), previousStatus);
                         }
                     });
         });
@@ -126,7 +132,7 @@ public class PostService {
                         return Mono.error(new ResponseStatusException(HttpStatus.FORBIDDEN, "need post:delete:own or post:delete:any"));
                     }
                     return postRepository.deleteById(id)
-                            .doOnSuccess(v -> blogEventPublisher.publishDelete(id.toString()));
+                            .doOnSuccess(v -> blogEventPublisher.publishDelete(post));
                 });
     }
 
@@ -261,9 +267,11 @@ public class PostService {
     public record PostListResult(List<Post> items, long total) {}
 
     public Flux<Post> listPostsByAuthor(UUID authorId, int page, int size, UUID userId) {
+        // 批量填充 author + tags（2 次 ANY 查询）+ 批量 user state（2 次）：
+        // 5 次查询替代此前 1 + 2N 的 N+1（fillAuthorAndTags 仅保留给 getPost 单篇场景）
         return postRepository.findByAuthorId(authorId, PageRequest.of(page, size))
-                .flatMapSequential(this::fillAuthorAndTags)
                 .collectList()
+                .flatMap(this::batchFillAuthorsAndTags)
                 .flatMap(list -> batchFillUserState(list, userId))
                 .flatMapMany(Flux::fromIterable);
     }

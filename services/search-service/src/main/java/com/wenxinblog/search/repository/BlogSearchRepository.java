@@ -38,10 +38,6 @@ public class BlogSearchRepository {
                 .then();
     }
 
-    public Mono<Void> updateBlog(BlogDocument doc) {
-        return indexBlog(doc);
-    }
-
     public Mono<Void> deleteBlog(String blogId) {
         return operations.delete(blogId, BlogDocument.class)
                 .doOnSuccess(id -> log.debug("Deleted blog: {}", blogId))

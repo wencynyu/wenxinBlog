@@ -25,6 +25,11 @@ type Config struct {
 	AuthService struct {
 		URL string `yaml:"url"`
 	} `yaml:"authService"`
+
+	// Kafka：消费 wenxinblog.blog.events 维护博文计数（stats.post_count）。
+	Kafka struct {
+		BootstrapServers string `yaml:"bootstrapServers"`
+	} `yaml:"kafka"`
 }
 
 // Load reads config from config.yaml in the project root.
@@ -95,6 +100,10 @@ func applyDefaults(cfg *Config) {
 	if cfg.AuthService.URL == "" {
 		cfg.AuthService.URL = "http://localhost:8001"
 	}
+	if cfg.Kafka.BootstrapServers == "" {
+		// 宿主机直连用 PLAINTEXT_HOST listener（compose 映射 9092）；容器内经 env 覆盖为 kafka:29092
+		cfg.Kafka.BootstrapServers = "localhost:9092"
+	}
 }
 
 func applyEnvOverrides(cfg *Config) {
@@ -112,5 +121,8 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AUTH_SERVICE_URL"); v != "" {
 		cfg.AuthService.URL = v
+	}
+	if v := os.Getenv("KAFKA_BOOTSTRAP_SERVERS"); v != "" {
+		cfg.Kafka.BootstrapServers = v
 	}
 }

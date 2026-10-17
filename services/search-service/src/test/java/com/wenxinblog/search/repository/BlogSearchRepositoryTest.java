@@ -78,18 +78,6 @@ class BlogSearchRepositoryTest {
         verify(operations, times(1)).save(doc);
     }
 
-    // ==================== updateBlog tests ====================
-
-    @Test
-    void updateBlog_Success_ShouldDelegateToIndexBlog() {
-        BlogDocument doc = createTestBlogDocument();
-        when(operations.save(any(BlogDocument.class))).thenReturn(Mono.just(doc));
-
-        StepVerifier.create(blogSearchRepository.updateBlog(doc)).verifyComplete();
-
-        verify(operations, times(1)).save(doc);
-    }
-
     // ==================== deleteBlog tests ====================
 
     @Test
@@ -192,7 +180,7 @@ class BlogSearchRepositoryTest {
         verify(operations, times(1)).searchForPage(captor.capture(), eq(BlogDocument.class));
         String q = captor.getValue().getQuery().toString();
         // 必须只返回已发布内容（防草稿泄漏）
-        assertTrue(q.contains("PUBLISHED"), "query should filter status=PUBLISHED, got: " + q);
+        assertTrue(q.contains("published"), "query should filter status=published, got: " + q);
         // tags/category/author 过滤拼进查询
         assertTrue(q.contains("spring") && q.contains("java"), "query should filter by tags, got: " + q);
         assertTrue(q.contains("tech"), "query should filter by category, got: " + q);

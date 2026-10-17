@@ -14,8 +14,11 @@ import java.util.Map;
 /**
  * 发博文生命周期事件到 Kafka topic wenxinblog.blog.events。
  *
- * <p>事件 schema（与 search-service/BlogEventConsumer 的契约一致）：
- * <pre>{"eventType":"CREATE|UPDATE|DELETE","data":{id,title,content,summary,authorId,status,tags[],publishedAt,viewCount,likeCount,commentCount}}</pre>
+ * <p>事件 schema（与 search/recommendation/user-service 消费者的契约一致）：
+ * <pre>{"eventType":"CREATE|UPDATE|DELETE","data":{id,title,content,summary,authorId,status,previousStatus(仅UPDATE),tags[],publishedAt,viewCount,likeCount,commentCount}}</pre>
+ *
+ * <p>UPDATE 带上 previousStatus、DELETE 带上 authorId/status，供 user-service
+ * 维护博文计数（draft↔published 转换 ±1，删除已发布帖 -1）；老消费者只读需要的字段，向后兼容。
  *
  * <p>反应式安全：KafkaTemplate.send 返回 future，用 whenComplete 回调仅记日志，绝不把异常
  * 传播回博文保存流程（发事件失败不能影响主流程）。
@@ -31,18 +34,22 @@ public class BlogEventPublisher {
     private final ObjectMapper objectMapper;
 
     public void publishCreate(Post post, List<String> tags) {
-        publish("CREATE", post, tags);
+        publish("CREATE", post, tags, null);
     }
 
-    public void publishUpdate(Post post, List<String> tags) {
-        publish("UPDATE", post, tags);
+    public void publishUpdate(Post post, List<String> tags, String previousStatus) {
+        publish("UPDATE", post, tags, previousStatus);
     }
 
-    public void publishDelete(String postId) {
-        send(postId, Map.of("eventType", "DELETE", "data", Map.of("id", postId)));
+    /** DELETE 需带 authorId/status（user-service 据此递减博文计数）。 */
+    public void publishDelete(Post post) {
+        send(post.getId().toString(), Map.of("eventType", "DELETE", "data", Map.of(
+                "id", post.getId().toString(),
+                "authorId", post.getAuthorId() != null ? post.getAuthorId().toString() : "",
+                "status", post.getStatus() != null ? post.getStatus() : "")));
     }
 
-    private void publish(String eventType, Post post, List<String> tags) {
+    private void publish(String eventType, Post post, List<String> tags, String previousStatus) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", post.getId().toString());
         data.put("title", post.getTitle());
@@ -50,6 +57,9 @@ public class BlogEventPublisher {
         data.put("summary", post.getSummary());
         data.put("authorId", post.getAuthorId().toString());
         data.put("status", post.getStatus());
+        if (previousStatus != null) {
+            data.put("previousStatus", previousStatus);
+        }
         data.put("tags", tags != null ? tags : List.of());
         if (post.getPublishedAt() != null) {
             data.put("publishedAt", post.getPublishedAt().toString());
